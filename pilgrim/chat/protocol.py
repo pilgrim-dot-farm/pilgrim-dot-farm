@@ -94,9 +94,11 @@ def message_frame(*, id: str, name: str, text: str, ts: float,
 
 def welcome_frame(*, name: str | None, banned_until: float | None,
                   slow_mode: float | None, last_id: str,
-                  history: list[dict[str, Any]]) -> dict[str, Any]:
+                  history: list[dict[str, Any]],
+                  cooldown_until: float | None = None) -> dict[str, Any]:
     return {"type": "welcome", "name": name, "banned_until": banned_until,
-            "slow_mode": slow_mode, "last_id": last_id, "history": history}
+            "cooldown_until": cooldown_until, "slow_mode": slow_mode,
+            "last_id": last_id, "history": history}
 
 
 def error_frame(code: str, detail: str = "") -> dict[str, Any]:
@@ -121,6 +123,10 @@ def warned_frame(reason: str) -> dict[str, Any]:
 
 def banned_frame(until: float) -> dict[str, Any]:
     return {"type": "banned", "until": until}
+
+
+def cooldown_frame(until: float) -> dict[str, Any]:
+    return {"type": "cooldown", "until": until}
 
 
 def slow_mode_frame(interval_s: float) -> dict[str, Any]:

@@ -138,3 +138,22 @@ async def test_allow_marks_accepted(cfg, tmp_env):
     mid = _message(store)
     await actions.allow(mid, actor="ornith")
     assert (store.chat_message(mid) or {}).get("status") == "accepted"
+
+
+async def test_spam_cooldown_ladder_and_expiry(cfg, tmp_env):
+    _, store, _ = tmp_env
+    clock, cache, audit, actions = _setup(cfg, store)
+    _user(store)
+    first = await actions.cooldown_user("u1", "spam")
+    assert first == clock.t + cfg.chat.cooldown_ladder_s[0]
+    raw = await cache.get("cool:user:u1")
+    assert json.loads(raw)["until"] == first
+    clock.t += 1
+    second = await actions.cooldown_user("u1", "spam")
+    assert second == clock.t + cfg.chat.cooldown_ladder_s[1]
+    clock.t += 1
+    third = await actions.cooldown_user("u1", "spam")
+    assert third == clock.t + cfg.chat.cooldown_ladder_s[2]
+    assert any(e["event"] == "chat.user_cooldown" for e in audit.events)
+    await actions.clear_cooldown("u1", actor="operator")
+    assert await cache.get("cool:user:u1") is None

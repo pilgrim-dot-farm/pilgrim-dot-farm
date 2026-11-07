@@ -585,3 +585,13 @@ brief's fallback when the MCP offers no isolated context.
 (arm64 manifest `sha256:337043ad85f48bc4a40a5b8053333b9da870cdc5b2a648b37ca6fd94490ddba3`).
 Checks: `make lint`, 917 tests, `make sim`, 36 e2e, `make pg-test` all pass.
 ECS is not yet rolled (`ecs_release` unchanged).
+
+- **Spam cool-off (2026-11-07):** after `chat.spam_offense_limit` (5) rate or
+  repeat rejections inside `chat.spam_offense_window_s` (60 s), the user is
+  muted for `chat.cooldown_ladder_s[0]` (300 s); further cool-offs within 24 h
+  escalate to 900 s then 3600 s. The key is `pilgrim:{chat}:cool:user:{id}`
+  (TTL), audited as a `chat_moderation` row with action `cooldown` and policy
+  `spam`; it is not a `chat_bans` row, so Layer B and operator bans are
+  unaffected. A targeted `cooldown` frame reaches that user's sockets, the
+  client disables compose until it expires, and an operator user-unban clears
+  it. Existing per-user 3 s and per-IP 20/min limits stay.

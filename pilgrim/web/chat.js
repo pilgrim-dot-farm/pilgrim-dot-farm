@@ -92,6 +92,8 @@
   let reconnectTimer = null;
   let backoff = RECONNECT_MIN;
   let slowInterval = 0;
+  let cooldownUntil = 0;
+  let cooldownTimer = null;
   let lastSendAt = 0;
   let hideTimer = null;
 
@@ -164,13 +166,32 @@
     seen.add(id);
   }
 
+  function coolingOff() {
+    return cooldownUntil > Date.now() / 1000;
+  }
+
+  function applyCooldown(until) {
+    cooldownUntil = Number(until) || 0;
+    if (!coolingOff()) return;
+    const seconds = Math.max(1, Math.round(cooldownUntil - Date.now() / 1000));
+    const mins = seconds >= 90 ? Math.ceil(seconds / 60) + " minutes" : seconds + " seconds";
+    systemMessage("Cooling off for " + mins + " — the pen is open when you're back.");
+    updateCompose();
+    if (cooldownTimer) clearTimeout(cooldownTimer);
+    cooldownTimer = setTimeout(() => { cooldownTimer = null; updateCompose(); },
+      seconds * 1000);
+  }
+
   function updateCompose() {
-    const ready = !!name && ws && ws.readyState === WebSocket.OPEN;
+    const cooled = coolingOff();
+    const ready = !!name && ws && ws.readyState === WebSocket.OPEN && !cooled;
     input.disabled = !ready;
     sendBtn.disabled = !ready;
-    input.placeholder = name
-      ? "Say something to the pen…"
-      : "Read the pen — pick a name to join in.";
+    input.placeholder = cooled
+      ? "Cooling off — give it a moment."
+      : name
+        ? "Say something to the pen…"
+        : "Read the pen — pick a name to join in.";
     nameInput.value = name || "";
     // A claimed name is locked (operator decision 2026-11-07): no client-side
     // rename path. Only the admin route can change it.
@@ -263,6 +284,7 @@
           fillGap(lastId);
           rememberLast(frame.last_id);
         }
+        if (frame.cooldown_until) applyCooldown(frame.cooldown_until);
         if (frame.banned_until) {
           systemMessage("You're banned from posting until " +
             new Date(frame.banned_until * 1000).toLocaleTimeString() + ".");
@@ -279,6 +301,7 @@
       case "warned":
         systemMessage("A moderator says: " + (frame.reason || "mind the rules."));
         break;
+      case "cooldown": applyCooldown(frame.until); break;
       case "banned":
         systemMessage("You've been banned from posting until " +
           new Date((frame.until || 0) * 1000).toLocaleTimeString() + ".");
@@ -293,6 +316,7 @@
         else if (frame.code === "name_required") showErr("Pick a name first.");
         else if (frame.code === "posting_disabled") showErr("The pen is closed for a moment.");
         else if (frame.code === "name_locked") showErr("Your name is locked.");
+        else if (frame.code === "cooldown") showErr("Cooling off — try again shortly.");
         else if (frame.code === "banned") showErr("You're banned from posting.");
         else showErr(frame.detail || "The pen hiccupped — try again.");
         break;

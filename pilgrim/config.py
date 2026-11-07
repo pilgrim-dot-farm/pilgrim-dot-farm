@@ -884,6 +884,13 @@ class Chat(BaseModel):
     rate_ip_per_min: int = 20      # messages per canonical IP per minute
     rate_conn_per_ip: int = 8      # concurrent sockets per canonical IP
     repeat_window_s: float = 10.0  # identical text within this window is spam
+    # Spam cool-off: after `spam_offense_limit` rejected sends (rate or repeat)
+    # inside `spam_offense_window_s`, the user is muted for the next ladder
+    # duration; a second offence within 24 h escalates. Basic guardrail, not a
+    # moderation ban (operator decision 2026-11-07).
+    spam_offense_limit: int = 5
+    spam_offense_window_s: int = 60
+    cooldown_ladder_s: list[int] = Field(default_factory=lambda: [300, 900, 3600])
     giles_interval_s: float = 600.0
     giles_idle_interval_s: float = 1800.0
     giles_min_messages: int = 6
@@ -907,6 +914,11 @@ class Chat(BaseModel):
                              "keep it equal to the terraform chat_log_retention_days)")
         if not self.ban_ladder_s or any(int(s) <= 0 for s in self.ban_ladder_s):
             raise ValueError("chat.ban_ladder_s must be a non-empty list of positive seconds")
+        if self.spam_offense_limit < 1 or self.spam_offense_window_s < 1:
+            raise ValueError("chat.spam_offense_limit/window_s must be >= 1")
+        if not self.cooldown_ladder_s or any(int(s) <= 0 for s in self.cooldown_ladder_s):
+            raise ValueError("chat.cooldown_ladder_s must be a non-empty list of "
+                             "positive seconds")
         return self
 
 

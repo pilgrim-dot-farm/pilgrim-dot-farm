@@ -216,6 +216,8 @@ class ChatActions:
         return until
 
     async def unban(self, scope: str, target: str, *, actor: str) -> int:
+        if scope == "user":
+            await self.clear_cooldown(target, actor=actor)
         n = self.store.deactivate_chat_ban(scope, target)
         key = f"ban:{scope}:{target}"
         with contextlib.suppress(Exception):
@@ -226,6 +228,40 @@ class ChatActions:
             await self._audit("chat.unbanned", scope=scope, target=target,
                               actor=actor)
         return n
+
+    # ------------------------------------------------------------ spam cool-off
+    async def cooldown_user(self, user_id: str, reason: str = "spam",
+                            *, actor: str = "auto") -> float:
+        """Mute a spammer for a ladder duration (5 min → 15 min → 1 h by
+        cooldowns in the last 24 h). A cool-off, not a moderation ban: it never
+        writes `chat_bans` and Layer B never sees it."""
+        now = self.clock.wall()
+        count = self.store.chat_moderation_count(
+            user_id, "cooldown", _iso(now - 86400))
+        ladder = self.cfg.chat.cooldown_ladder_s
+        until = now + ladder[min(count, len(ladder) - 1)]
+        action_id = f"cooldown:{user_id}:{int(until)}"
+        inserted = self.store.insert_chat_moderation(
+            action_id=action_id, message_id=None, user_id=user_id,
+            action="cooldown", policy="spam", severity=2, confidence=1.0,
+            reason=reason[:200], text=None, decided_by=actor,
+            created_at=_iso(now))
+        with contextlib.suppress(Exception):
+            await self.cache.set(f"cool:user:{user_id}",
+                                 json.dumps({"until": until, "reason": reason[:200]}),
+                                 ex=max(1, int(until - now)))
+        if inserted:
+            await self._event({"type": "cooldown", "user_id": user_id,
+                               "until": until})
+            await self._audit("chat.user_cooldown", user_id=user_id,
+                              until=until, actor=actor, reason=reason)
+        return until
+
+    async def clear_cooldown(self, user_id: str, *, actor: str) -> int:
+        with contextlib.suppress(Exception):
+            await self.cache.delete(f"cool:user:{user_id}")
+        await self._audit("chat.cooldown_cleared", user_id=user_id, actor=actor)
+        return 1
 
     # ------------------------------------------------------------ flag / allow
     async def flag(self, message_id: str, user_id: str | None, *, actor: str,
