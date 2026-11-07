@@ -88,6 +88,7 @@ liner or station ID.
 55. The problem with Sand Creek is Ohio.
 56. You don't need April showers for us to bring the Mayflower.
 57. We don't have influencers. Our employees are fueled by electrons and compensated with airflow.
+58. We put your thoughts through the barnyard. Some of them come out pasteurized.
 
 ## On-air notes
 
