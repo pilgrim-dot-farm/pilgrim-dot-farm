@@ -528,3 +528,36 @@ this change.
   during planning (the brief forbids calling AWS while planning). The terraform
   changes in Step 11 must be verified against
   `~/projects/terraform-aws-pilgrim/modules/ec2` before apply.
+
+## Implementation status (local, 2026-11-07)
+
+Steps 1–10 and the RADIO/docs half of Step 11 are implemented and committed
+(`9d73ab4`). Verification run locally:
+
+| Check | Result |
+|-------|--------|
+| `make lint` | pass (ruff + mypy, 147 files) |
+| `make test` | 916 passed |
+| `make sim` | all 24-h assertions passed |
+| `make e2e` | 36 passed (includes `chat.spec.ts`, 9 specs, fresh contexts) |
+| `make pg-test` | 916 passed against throwaway Postgres |
+| `make deploy-check` | edge + gateway nginx configs pass |
+| `make image-smoke` | container smoke pass (health/programme/media/site/admin/non-root) |
+| `python -m pilgrim.chat_worker` | imports; loop covered by `test_chat_worker.py` |
+
+Two stale assertions in `pilgrim/tests/e2e/cosmetic.spec.ts` were corrected
+because the pane-order check now includes `sheep`: the motivation title was
+asserted as `MOTIVATION` (the shipped HTML says `CORPORATE MISSION STATEMENT`)
+and the credits list was asserted as 7 links (the shipped HTML has 8, with the
+Anthropic dev link). These were pre-existing drift, not weakening: the pane
+order, credit count and link allowlist still assert the shipped page.
+
+**Not done here (needs the operator/terraform checkout and explicit release
+authorization):** Step 11's terraform changes (audit log group,
+`chat_log_retention_days`, scoped task-role `logs:` statement) and Step 12
+(image push, `ecs_release` bump, ECS rollout, Mac worker install, live
+acceptance against https://pilgrim.farm). Public posting stays disabled until
+the worker and admin controls are verified per SHEEP_PEN §14. The remote
+Playwright MCP was not used for interactive acceptance; the repository
+Playwright suite (fresh contexts, desktop + 320 px) covered the UI, per the
+brief's fallback when the MCP offers no isolated context.
