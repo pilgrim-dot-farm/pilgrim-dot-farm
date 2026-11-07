@@ -91,6 +91,9 @@ liner or station ID.
 58. We put your thoughts through the barnyard. Some of them come out pasteurized.
 59. Pilgrim Dot Farm — Our GPUs are competing with the furnace. The furnace has yet to generate a single hit.
 60. You waited for your song. We made it worse.
+61. One stream to rule them all, and in the barnyard brand them.
+62. We separate church and state. We're not for profit, but we're not
+    non-profit.
 
 ## On-air notes
 
@@ -111,7 +114,9 @@ liner or station ID.
   features (turkey ratings, two-arrows requests) — if those features ship or
   change, recheck the copy. Line 55 is a dry historical reference, not cruelty
   copy; keep it out of the Tree Fiddy Report and news-adjacent slots.
-- **Third bank (2026-11-07):** lines 56–59 are operator lines. Line 59 keeps its
+- **Third bank (2026-11-07):** lines 56–62 are operator lines. Line 62 is speakable verbatim (TTS reads
+  "non-profit" cleanly); no on-air variant. Line 61 is a
+  Lord of the Rings pastiche; speakable verbatim, no TTS variants. Line 59 keeps its
   em dash in canon; on air it renders as "Pilgrim Dot Farm. Our GPUs are
   competing with the furnace." (a period, not a dash) so the TTS does not
   stumble. "GPUs" is spoken as the letters, per lines 20 and 31.
