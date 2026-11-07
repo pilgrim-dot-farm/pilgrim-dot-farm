@@ -578,3 +578,10 @@ brief's fallback when the MCP offers no isolated context.
   keeps the magenta field-report styling.
 - The connection status text is **GRAZE UPON IT** (was "in the pen"); the
   operator's staged pane title is `SHEEP PEN`.
+
+**Amendment image (2026-11-07):** commit `bdd1b72`, tags
+`pilgrimdotfarm/front-end:bdd1b72` and `:latest`, manifest-list digest
+`sha256:b9b9a13b0557d9c7e7f8ae6b806b569d1b519c60f9109e7fede0832a77c156be`
+(arm64 manifest `sha256:337043ad85f48bc4a40a5b8053333b9da870cdc5b2a648b37ca6fd94490ddba3`).
+Checks: `make lint`, 917 tests, `make sim`, 36 e2e, `make pg-test` all pass.
+ECS is not yet rolled (`ecs_release` unchanged).
