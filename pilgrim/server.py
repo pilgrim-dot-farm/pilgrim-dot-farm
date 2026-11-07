@@ -1661,7 +1661,8 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         try:
             updated = await identity.claim_name(station.db, cache, cfg, user,
                                                 payload.name,
-                                                epoch=station.clock.wall())
+                                                epoch=station.clock.wall(),
+                                                allow_change=True)
         except identity.NameError_ as e:
             status = 409 if e.code == "name_taken" else 400
             raise HTTPException(status, detail={"code": e.code}) from None

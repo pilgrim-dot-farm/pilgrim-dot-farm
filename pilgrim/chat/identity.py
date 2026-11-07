@@ -105,12 +105,15 @@ async def resolve_user(store: Store, cache: ChatStore, token: str,
 
 
 async def claim_name(store: Store, cache: ChatStore, cfg: Config, user: dict,
-                     display: str, *, epoch: float | None = None) -> dict:
-    """Claim or change a display name. Raises `NameError_` with a code.
+                     display: str, *, epoch: float | None = None,
+                     allow_change: bool = False) -> dict:
+    """Claim a display name. Raises `NameError_` with a code.
 
-    Codes: the validation codes above, `name_taken` (409), `name_changes`
-    (too many changes in 24 h). A free change keeps `user_id`, so existing
-    messages re-render with the new name without rewriting the stream.
+    Codes: the validation codes above, `name_taken` (409), `name_locked`
+    (409: a claimed name belongs to that user; operators can still rename via
+    `allow_change=True`). Re-claiming the same normalized name is idempotent.
+    A permitted change keeps `user_id`, so existing messages re-render with the
+    new name without rewriting the stream.
     """
     code = validate_name(display, cfg.chat)
     if code:
@@ -118,15 +121,12 @@ async def claim_name(store: Store, cache: ChatStore, cfg: Config, user: dict,
     name = display.strip()
     norm = normalize_name(name)
     uid = user["user_id"]
-    is_change = bool(user.get("name_norm"))
 
-    if is_change:
-        try:
-            n = await cache.incr_with_ttl(f"rate:namechg:{uid}", 86400)
-        except Exception:  # noqa: BLE001 - a cache outage must not block a claim
-            n = 1
-        if n > cfg.chat.name_changes_per_day:
-            raise NameError_("name_changes")
+    if user.get("name_norm"):
+        if norm == user["name_norm"]:
+            return user
+        if not allow_change and not cfg.chat.allow_name_changes:
+            raise NameError_("name_locked")
 
     # Cheap pre-check, never the authority. A failure to reach the cache is
     # not a rejection: Postgres still decides.

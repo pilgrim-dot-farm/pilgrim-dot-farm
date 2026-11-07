@@ -94,6 +94,7 @@ liner or station ID.
 61. One stream to rule them all, and in the barnyard brand them.
 62. We separate church and state. We're not for profit, but we're not
     non-profit.
+63. We claim to be family-friendly, because the kids won't get it.
 
 ## On-air notes
 
@@ -114,8 +115,8 @@ liner or station ID.
   features (turkey ratings, two-arrows requests) — if those features ship or
   change, recheck the copy. Line 55 is a dry historical reference, not cruelty
   copy; keep it out of the Tree Fiddy Report and news-adjacent slots.
-- **Third bank (2026-11-07):** lines 56–62 are operator lines. Line 62 is speakable verbatim (TTS reads
-  "non-profit" cleanly); no on-air variant. Line 61 is a
+- **Third bank (2026-11-07):** lines 56–63 are operator lines. Lines 62 and
+  63 are speakable verbatim; no on-air variants. Line 61 is a
   Lord of the Rings pastiche; speakable verbatim, no TTS variants. Line 59 keeps its
   em dash in canon; on air it renders as "Pilgrim Dot Farm. Our GPUs are
   competing with the furnace." (a period, not a dash) so the TTS does not

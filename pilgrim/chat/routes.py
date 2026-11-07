@@ -105,7 +105,7 @@ def register_chat_routes(app: FastAPI, station: Any, store: Store,
             updated = await identity.claim_name(store, cache, cfg, user,
                                                 payload.name, epoch=clock.wall())
         except identity.NameError_ as e:
-            status = 409 if e.code == "name_taken" else 400
+            status = 409 if e.code in ("name_taken", "name_locked") else 400
             return JSONResponse(status_code=status,
                                 content={"ok": False, "code": e.code},
                                 headers={"Cache-Control": "no-store"})
@@ -227,11 +227,11 @@ def register_chat_routes(app: FastAPI, station: Any, store: Store,
                             await send(protocol.renamed_frame("you",
                                                               updated.get("name") or ""))
                         except identity.NameError_ as e:
-                            status = "name_taken" if e.code == "name_taken" else e.code
-                            await send(protocol.error_frame(status,
-                                                            "that name is taken"
-                                                            if status == "name_taken"
-                                                            else "that name can't be used"))
+                            status = e.code
+                            detail = ("that name is taken" if status == "name_taken"
+                                      else "your name is locked" if status == "name_locked"
+                                      else "that name can't be used")
+                            await send(protocol.error_frame(status, detail))
                     elif isinstance(frame, protocol.Send):
                         await accept_send(frame)
 

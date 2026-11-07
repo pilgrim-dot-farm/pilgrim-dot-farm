@@ -11,7 +11,7 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   expect(order).toEqual(["radio", "requests", "sheep", "hit", "motivation", "infra", "credits"]);
   expect(await page.textContent('[data-win="radio"] .win-title')).toBe("RADIO BROADCAST");
   expect(await page.$('[data-win="credits"]')).toBeTruthy();
-  expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("THE SHEEP PEN");
+  expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
   expect(await page.$('[data-win="hit"]')).toBeTruthy();
   expect(await page.textContent('[data-win="motivation"] .win-title')).toBe("CORPORATE MISSION STATEMENT");
   expect(await page.textContent('[data-win="infra"] .win-title')).toBe("INFRA AND DATA FLOW");
