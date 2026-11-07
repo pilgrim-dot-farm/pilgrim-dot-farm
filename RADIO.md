@@ -944,7 +944,10 @@ the station name.
   200-character counter and Send. Each display name is coloured from the
   standard xterm 256-colour palette by a stable hash of the name (purple,
   violet and magenta hues and unreadably dark/grey entries filtered out), so
-  listeners are distinguishable; Giles's dispatches are visually distinct
+  listeners are distinguishable. Repeated rejected sends (rate or repeat)
+  trigger a cool-off — 5 min, then 15 min, then 1 h for a repeat offence
+  within 24 h — shown in the log with the compose row disabled until it
+  expires; Giles's dispatches are visually distinct
   (magenta rule, `GILES · FIELD REPORT` label) and are never presented as an
   ordinary listener. Read-only before naming; no IPs, user ids or moderation
   metadata appear. No framework, no build step, and nothing in `chat.js`
@@ -1154,12 +1157,16 @@ refill target.
 | POST | `/api/admin/dj/phrases` | `{command_id, character_id, text, cleaned_text_hash}` → validate, persist job, `202 {job_id, status, cleaned_text}` |
 | GET | `/api/admin/dj/phrases/{job_id}` | Phrase job: stage, character/voice snapshot, cleaned text, expiry, failure, or `{media_id, duration_s}` when ready |
 | POST | `/api/admin/dj/phrases/validate` | Pure cleaned-text validation → `{cleaned_text, changes, text_hash, ok, rejected_reason}`; no synthesis or scheduling |
-| WS | `/api/chat/ws` | The Sheep Pen socket (SHEEP_PEN.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts, giles}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. No browser frame carries a user id, token/session hash, IP or IP hash |
+| WS | `/api/chat/ws` | The Sheep Pen socket (SHEEP_PEN.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts, giles}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `cooldown {until}`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. After
+`chat.spam_offense_limit` rate/repeat rejections inside
+`chat.spam_offense_window_s`, the user gets a cool-off (409-equivalent
+`cooldown` frame; error code `cooldown`) for the next `chat.cooldown_ladder_s`
+duration (5 min → 15 min → 1 h by cool-offs in 24 h). No browser frame carries a user id, token/session hash, IP or IP hash |
 | POST | `/api/chat/name` | Claim a display name `{token, name}`: NFKC/casefold/whitespace uniqueness, reserved/prohibited digest lists, 409 `name_taken`/`name_locked`, 400 for validation codes. A claimed name is locked (`chat.allow_name_changes` defaults false); the admin rename route bypasses the lock. Re-claiming the same name is idempotent. `no-store` |
 | GET | `/api/chat/history?after=<id>&limit=` | Cold load and gap fill: `{messages: [message…], last_id}`, oldest-first, tombstones applied, `no-store` |
 | POST | `/api/admin/chat/delete` | Operator: tombstone a message `{message_id, reason}` (admin listener, `require_dj`) |
 | POST | `/api/admin/chat/ban` | Operator: `{scope: user\|ip, target, seconds?, reason}` (no `seconds` = long-lived) |
-| POST | `/api/admin/chat/unban` | Operator: `{scope, target}` |
+| POST | `/api/admin/chat/unban` | Operator: `{scope, target}` (a user unban also clears an automatic spam cool-off) |
 | POST | `/api/admin/chat/name` | Operator: rename `{user_id, name}` or release (`name` omitted) |
 | POST | `/api/admin/chat/posting` | Operator: `{enabled, ttl_s?}` posting switch |
 | POST | `/api/admin/chat/giles` | Operator: `{paused}` Giles switch |
@@ -1336,6 +1343,9 @@ chat:                      # THE SHEEP PEN (SHEEP_PEN.md; RADIO §11, §14)
   rate_ip_per_min: 20
   rate_conn_per_ip: 8
   repeat_window_s: 10
+  spam_offense_limit: 5    # rate/repeat rejections before a cool-off
+  spam_offense_window_s: 60
+  cooldown_ladder_s: [300, 900, 3600]   # 5 min, 15 min, 1 h
   giles_interval_s: 600
   giles_idle_interval_s: 1800
   giles_min_messages: 6
@@ -1750,8 +1760,9 @@ is the tombstone set; `session:{token_hash}` maps the browser token to the
 server user id; `name:{name_norm}` is the reservation pre-check (`SET NX EX`);
 `sent:{user_id}:{client_msg_id}` makes a resend idempotent; `ban:user:{id}` and
 `ban:ip:{ip_hash}` carry TTLs; `rate:user:{id}`, `rate:ip:{ip_hash}`,
-`rate:conn:{ip_hash}` are single-key Lua
-`INCR`+`EXPIRE` counters; `moderation:cursor`, `worker:heartbeat`, `slow_mode`,
+`rate:conn:{ip_hash}` and `rate:offense:{user_id}` are single-key Lua
+`INCR`+`EXPIRE` counters; `cool:user:{id}` is an automatic spam cool-off (TTL,
+never a `chat_bans` row); `moderation:cursor`, `worker:heartbeat`, `slow_mode`,
 `posting_disabled`, `giles:paused`, `giles:last` and `giles:state` are the
 worker/operator keys. `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no
 secret; the raw IP is never stored, logged or returned. Message text and IP

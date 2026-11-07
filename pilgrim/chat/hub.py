@@ -168,6 +168,9 @@ class ChatHub:
                 self.deliver(frame, target_user=envelope["user_id"])
             elif envelope.get("ip_hash"):
                 self.deliver(frame, target_ip=envelope["ip_hash"])
+        elif kind == "cooldown":
+            self.deliver(protocol.cooldown_frame(float(envelope.get("until") or 0.0)),
+                         target_user=envelope.get("user_id"))
         # moderation_flag / posting_disabled / giles_paused / unbanned stay
         # internal: the admin surface reads them, browsers do not.
 

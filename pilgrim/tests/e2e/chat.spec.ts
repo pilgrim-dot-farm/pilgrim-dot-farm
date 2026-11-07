@@ -101,6 +101,25 @@ test("links are rejected and the rate limit is central", async ({ browser }) => 
   }
 });
 
+test("repeated spamming triggers a cool-off", async ({ browser }) => {
+  const a = await participant(browser, "SpamTester");
+  try {
+    await a.page.fill("#chat-input", "first message");
+    await a.page.click("#chat-send");
+    await expect(a.page.locator("#chat-log", { hasText: "first message" })).toBeVisible({ timeout: 10000 });
+    for (let i = 0; i < 5; i++) {
+      await a.page.fill("#chat-input", `burst ${i}`);
+      await a.page.click("#chat-send");
+    }
+    await expect(a.page.locator("#chat-log .chat-msg.system", { hasText: "Cooling off" }))
+      .toBeVisible({ timeout: 10000 });
+    await expect(a.page.locator("#chat-send")).toBeDisabled();
+    await expect(a.page.locator("#chat-input")).toBeDisabled();
+  } finally {
+    await a.context.close();
+  }
+});
+
 test("reconnect replays without duplicates", async ({ browser }) => {
   const a = await participant(browser, "ReplayTester");
   try {

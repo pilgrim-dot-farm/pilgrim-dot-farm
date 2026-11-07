@@ -227,6 +227,9 @@ chat:
   rate_ip_per_min: 20
   rate_conn_per_ip: 8
   repeat_window_s: 10
+  spam_offense_limit: 5      # rejected sends before a cool-off
+  spam_offense_window_s: 60
+  cooldown_ladder_s: [300, 900, 3600]   # 5 min, 15 min, 1 h
   giles_interval_s: 600
   giles_idle_interval_s: 1800
   giles_min_messages: 6

@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from pilgrim.chat import identity, protocol
+from pilgrim.chat.actions import ChatActions
 from pilgrim.chat.audit import AuditLog, NullAudit
 from pilgrim.chat.hub import ChatHub, Socket
 from pilgrim.chat.redis_store import ChatStore
@@ -60,6 +61,20 @@ async def _ban_until(cache: ChatStore, store: Store, scope: str, target: str,
     return float(row["until"]) if row else None
 
 
+async def _cooldown_until(cache: ChatStore, user_id: str,
+                          wall: float) -> float | None:
+    try:
+        raw = await cache.get(f"cool:user:{user_id}")
+        if raw:
+            doc = json.loads(raw) if isinstance(raw, str) else raw
+            until = float(doc.get("until") or 0.0)
+            if until > wall:
+                return until
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 async def _slow_mode(cache: ChatStore) -> float | None:
     try:
         raw = await cache.get("slow_mode")
@@ -93,6 +108,7 @@ def register_chat_routes(app: FastAPI, station: Any, store: Store,
     cfg: Config = station.cfg
     audit = audit or NullAudit()
     clock = clock or Clock()
+    actions = ChatActions(cfg, store, cache, audit, clock)
 
     # ------------------------------------------------------------ REST
     @app.post("/api/chat/name")
@@ -181,16 +197,18 @@ def register_chat_routes(app: FastAPI, station: Any, store: Store,
                 banned_until = await _ban_until(cache, store, "ip", iph, wall)
             if banned_until is None:
                 banned_until = await _ban_until(cache, store, "user", uid, wall)
+            cooldown_until = await _cooldown_until(cache, uid, wall)
             slow = await _slow_mode(cache)
             rows = await cache.recent(50)
             history = await _rows_to_frames(list(reversed(rows)), cache, store)
             await send(protocol.welcome_frame(
                 name=user.get("name"), banned_until=banned_until,
-                slow_mode=slow, last_id=hub.last_id, history=history))
+                cooldown_until=cooldown_until, slow_mode=slow,
+                last_id=hub.last_id, history=history))
 
             async def accept_send(frame: protocol.Send) -> None:
                 await _accept_send(frame, user, sock, iph, cache, store, hub,
-                                   cfg, audit, clock, send)
+                                   cfg, audit, clock, send, actions)
 
             async def reader() -> None:
                 while True:
@@ -262,7 +280,7 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
                        iph: str | None, cache: ChatStore, store: Store,
                        hub: ChatHub, cfg: Config,
                        audit: AuditLog | NullAudit, clock: Clock,
-                       send: Any) -> None:
+                       send: Any, actions: ChatActions) -> None:
     """One message through the accept path. Nothing is written until Layer A,
     bans and rate limits pass (SHEEP_PEN.md §0.7.3)."""
     uid = user["user_id"]
@@ -284,6 +302,27 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
     if not user.get("name"):
         await reject("name_required", "Pick a name first.")
         return
+
+    cool = await _cooldown_until(cache, uid, wall)
+    if cool:
+        await send(protocol.cooldown_frame(cool))
+        return
+
+    async def note_offense() -> None:
+        """Count a rate/repeat rejection; at the limit, mute for the next
+        ladder duration (5 min → 15 min → 1 h)."""
+        try:
+            n = await cache.incr_with_ttl(f"rate:offense:{uid}",
+                                          cfg.chat.spam_offense_window_s)
+        except Exception:  # noqa: BLE001 - the limiter itself already rejected
+            return
+        if n >= cfg.chat.spam_offense_limit:
+            # `cooldown_user` publishes the targeted `cooldown` event, which the
+            # task's subscriber fans out to this user's sockets. Do not also
+            # send it directly here (that would show the notice twice).
+            await actions.cooldown_user(uid, "repeated spam")
+            with contextlib.suppress(Exception):
+                await cache.delete(f"rate:offense:{uid}")
 
     try:
         if iph:
@@ -319,6 +358,8 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
     screen = screen_text(frame.text, cfg.chat, repeated=repeated)
     if not screen.ok:
         await reject(screen.code or "invalid", screen.detail, frame.text)
+        if screen.code == "repeat":
+            await note_offense()
         return
 
     slow = await _slow_mode(cache)
@@ -333,6 +374,7 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
     if n_user > 1 or n_ip > cfg.chat.rate_ip_per_min:
         await send(protocol.error_frame("rate", "Easy there — give it a moment."))
         await audit.awrite("chat.rate_limited", user_id=uid, ip_hash=iph)
+        await note_offense()
         return
 
     fields = {"user_id": uid, "name": str(user.get("name") or ""),

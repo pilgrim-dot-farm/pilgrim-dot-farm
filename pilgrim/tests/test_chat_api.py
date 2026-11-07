@@ -250,3 +250,23 @@ def test_name_conflict_and_reserved(cfg, tmp_env):
         r = _claim(client, TOKEN_B, "thistle")
         assert r.status_code == 409 and r.json()["code"] == "name_taken"
         assert _claim(client, TOKEN_B, "Giles").status_code == 400
+
+
+def test_spam_cool_off_after_repeated_rate_rejections(cfg, tmp_env):
+    _, store, _ = tmp_env
+    app, _, _, _ = _app(cfg, store)
+    with TestClient(app) as client:
+        _claim(client, TOKEN_A, "Spammy")
+        with client.websocket_connect("/api/chat/ws") as ws:
+            _hello(ws, TOKEN_A)
+            _send(ws, "first", "spam-0001")
+            _recv_until(ws, "ack")
+            _recv_until(ws, "message")
+            for i in range(cfg.chat.spam_offense_limit):
+                _send(ws, f"burst {i}", f"spam-{i + 2:04d}")
+                assert _recv_until(ws, "error")["code"] == "rate"
+            frame = _recv_until(ws, "cooldown")
+            assert frame["until"] > time.time()
+            # the next send is refused by the cool-off, not the rate limiter
+            _send(ws, "after cooldown", "spam-9999")
+            assert _recv_until(ws, "cooldown")["until"] == frame["until"]
