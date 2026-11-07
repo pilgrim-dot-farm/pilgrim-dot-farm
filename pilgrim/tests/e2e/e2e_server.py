@@ -25,11 +25,21 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pilgrim import voting
 from pilgrim.audio.normalize import encode_mp3
+from pilgrim.chat.actions import ChatActions
+from pilgrim.chat.audit import NullAudit
+from pilgrim.chat.giles import Giles
+from pilgrim.chat.hub import ChatHub
+from pilgrim.chat.redis_store import ChatStore
+from pilgrim.chat.review import Reviewer
+from pilgrim.chat.routes import register_chat_routes
 from pilgrim.config import RNG, Clock, Config, ensure_dirs, load_config
 from pilgrim.scheduler import Scheduler
 from pilgrim.selector import RandomSelector
+from pilgrim.server import _load_prompts
 from pilgrim.store import Store
+from pilgrim.tests.fakes import FakeLLM
 from pilgrim.tests.fakes.fake_flux import encode_png
+from pilgrim.tests.fakes.fake_redis import FakeAsyncRedis
 
 _CFG = load_config()
 
@@ -133,14 +143,90 @@ def build_app() -> FastAPI:
     @asynccontextmanager
     async def _lifespan(app: FastAPI):
         task = asyncio.create_task(sched.run())
+        await chat_hub.start()
         try:
             yield
         finally:
+            await chat_hub.stop()
             task.cancel()
 
     app = FastAPI(title="pilgrim e2e", lifespan=_lifespan)
     app.state.store = store
     app.state.sched = sched
+
+    # ---- THE SHEEP PEN (SHEEP_PEN.md §12 e2e): the real routes over the async
+    # fake Valkey, with fakes for Layer B and Giles. ----
+    chat_clock = Clock()
+    chat_client = FakeAsyncRedis(lambda: time.time())
+    chat_cache = ChatStore(cfg, chat_client)
+    chat_hub = ChatHub(cfg, chat_cache, store, chat_clock)
+    chat_audit = NullAudit()
+    chat_actions = ChatActions(cfg, store, chat_cache, chat_audit, chat_clock)
+    chat_llm = FakeLLM(responses={
+        "Review the messages": {
+            "decisions": [], "summary": "e2e"},
+        "Write one dispatch": {
+            "text": "The sheep pen has been debating tractors. "
+                    "Outstanding in my field, apparently. "
+                    "This is Giles signing off with a reminder that I'm "
+                    "outstanding in my field."},
+    })
+    chat_prompts = _load_prompts(cfg)
+    chat_reviewer = Reviewer(cfg, store, chat_cache, chat_actions, chat_llm,  # type: ignore[arg-type]
+                             chat_prompts, clock=chat_clock, audit=chat_audit)
+    chat_giles = Giles(cfg, store, chat_cache, chat_llm, chat_prompts,  # type: ignore[arg-type]
+                       clock=chat_clock, audit=chat_audit)
+
+    class _ChatStation:
+        def __init__(self) -> None:
+            self.cfg = cfg
+
+        @staticmethod
+        def _client_ip(conn):
+            return conn.client.host if (conn.client and conn.client.host) else None
+
+    register_chat_routes(app, _ChatStation(), store, chat_cache, chat_hub,
+                         chat_audit, chat_clock)
+
+    @app.post("/api/test/chat/giles")
+    async def test_giles():
+        """Test-only: clear the cadence gates and file one Giles dispatch."""
+        await chat_cache.set("giles:last", "0")
+        await chat_cache.set_json("giles:state", {"last_active_ts": 0,
+                                                   "last_idle_ts": 0})
+        out = await chat_giles.maybe_dispatch()
+        return {"ok": out is not None, "dispatch": out}
+
+    @app.post("/api/test/chat/delete/{message_id}")
+    async def test_delete(message_id: str):
+        return {"ok": await chat_actions.delete_message(message_id,
+                                                        actor="e2e",
+                                                        reason="e2e delete")}
+
+    @app.post("/api/test/chat/ban")
+    async def test_ban(user_id: str):
+        until = await chat_actions.ban_user(user_id, "e2e ban", actor="e2e",
+                                            until=time.time() + 600)
+        return {"ok": True, "until": until}
+
+    @app.post("/api/test/chat/unban")
+    async def test_unban(user_id: str):
+        return {"ok": True,
+                "cleared": await chat_actions.unban("user", user_id, actor="e2e")}
+
+    @app.post("/api/test/chat/posting")
+    async def test_posting(enabled: bool = True):
+        await chat_actions.set_posting_disabled(not enabled, actor="e2e")
+        return {"ok": True}
+
+    @app.post("/api/test/chat/slow")
+    async def test_slow(interval_s: float = 10.0):
+        await chat_actions.set_slow_mode(interval_s, actor="e2e")
+        return {"ok": True}
+
+    @app.post("/api/test/chat/review")
+    async def test_review():
+        return await chat_reviewer.run_once()
 
     @app.post("/api/station/start")
     async def start():

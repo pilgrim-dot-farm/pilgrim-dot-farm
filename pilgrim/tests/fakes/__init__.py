@@ -30,10 +30,12 @@ class FakeLLM:
         self.fail_after = None
         self.auto = "canned"
 
-    async def chat_json(self, model, system, user, max_tokens=800):
+    async def chat_json(self, model, system, user, max_tokens=800, temperature=0.8):
         self.calls += 1
         if self.fail_after is not None and self.calls > self.fail_after:
-            raise RuntimeError("fake llm failure")
+            from pilgrim.pipelines.llm import LLMError
+
+            raise LLMError("fake llm failure")
         for key, val in self.responses.items():
             if key and key in user:
                 return val
@@ -41,6 +43,14 @@ class FakeLLM:
             "text": "Welcome to Pilgrim Dot Farm, where the pickles never sleep.",
             "est_duration_s": 8.0, "evergreen": True,
         }
+
+    async def chat_text(self, model, system, user, max_tokens=800, temperature=0.8):
+        self.calls += 1
+        if self.fail_after is not None and self.calls > self.fail_after:
+            from pilgrim.pipelines.llm import LLMError
+
+            raise LLMError("fake llm failure")
+        return "fake text"
 
     async def close(self):
         pass

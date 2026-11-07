@@ -29,12 +29,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.requests import HTTPConnection
 from starlette.responses import Response
 from starlette.types import Scope
 
 from pilgrim import dj_contracts as dj
 from pilgrim import voting
 from pilgrim.album_art import ArtWorker
+from pilgrim.chat import identity
+from pilgrim.chat.actions import ChatActions
+from pilgrim.chat.audit import AuditLog
+from pilgrim.chat.redis_store import ChatStore
+from pilgrim.chat.redis_store import connect as chat_connect
 from pilgrim.config import (
     PAID_OVERRIDE_ENV,
     RNG,
@@ -138,9 +144,10 @@ class PublicSurface:
             ip = mapped
         return ip.compressed
 
-    def _client_ip(self, request: Request) -> str | None:
+    def _client_ip(self, request: HTTPConnection) -> str | None:
         """Resolve the canonical public client IP through the deployment's
-        trusted-proxy chain (SPLIT_PLAN §3.2).
+        trusted-proxy chain (SPLIT_PLAN §3.2). A `Request` and a `WebSocket`
+        share `.client`/`.headers`, so the chat socket reuses this unchanged.
 
         A peer is trusted only when its canonical address is inside a
         configured network (`visitors.trusted_proxies`, single IPs and CIDRs).
@@ -803,7 +810,7 @@ def _load_prompts(cfg: Config) -> dict:
     for f in ("voice.md", "song_brief.md", "station_song.md", "news.md", "moderation.md",
               "field.md", "sfx_cues.md", "sfx_joke.md", "paid_request.md",
               "paid_summary.md", "promo.md", "album_art_scene.md",
-              "album_art_flux.md"):
+              "album_art_flux.md", "chat_moderation.md", "field_chat.md"):
         p = pdir / f
         if p.exists():
             out[f.replace(".md", "")] = p.read_text()
@@ -1533,6 +1540,154 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
                          for row in station.db.paid_requests(statuses, limit)],
             "mismatches": station.db.mismatch_events(50),
         }
+
+    # ---- The Sheep Pen (SHEEP_PEN.md §0.5.2, §10). These routes exist only on
+    # the Mac's loopback admin listener, behind require_dj. They act by writing
+    # to Valkey (events stream + PUBLISH), which every Fargate task observes.
+    # The web tier has no admin routes (_add_api_404 answers 404). ----
+    class ChatDeleteIn(BaseModel):
+        message_id: str = Field(min_length=3, max_length=64)
+        reason: str | None = Field(default=None, max_length=200)
+
+    class ChatBanIn(BaseModel):
+        scope: str = Field(pattern="^(user|ip)$")
+        target: str = Field(min_length=1, max_length=64)
+        seconds: int | None = Field(default=None, ge=1)
+        reason: str = Field(default="operator ban", max_length=200)
+
+    class ChatUnbanIn(BaseModel):
+        scope: str = Field(pattern="^(user|ip)$")
+        target: str = Field(min_length=1, max_length=64)
+
+    class ChatNameIn(BaseModel):
+        user_id: str = Field(min_length=1, max_length=64)
+        name: str | None = Field(default=None, max_length=80)
+
+    class ChatPostingIn(BaseModel):
+        enabled: bool
+        ttl_s: int | None = Field(default=None, ge=1)
+
+    class ChatGilesIn(BaseModel):
+        paused: bool
+
+    class ChatSlowIn(BaseModel):
+        interval_s: float | None = Field(default=None, gt=0)
+
+    _chat: dict[str, Any] = {"cache": None, "audit": None, "actions": None}
+
+    async def _chat_actions() -> ChatActions:
+        if not cfg.chat.enabled:
+            raise HTTPException(404, detail={"code": "chat_disabled",
+                                             "detail": "chat is disabled"})
+        if _chat["cache"] is None:
+            url = load_secret(REDIS_URL_ENV)
+            if not url:
+                raise HTTPException(503, detail={"code": "chat_unavailable",
+                    "detail": f"{REDIS_URL_ENV} is not set"})
+            cache = chat_connect(url, cfg)
+            _chat["cache"] = cache
+            _chat["audit"] = AuditLog(cfg)
+            _chat["actions"] = ChatActions(cfg, station.db, cache,
+                                           _chat["audit"], station.clock)
+        return _chat["actions"]
+
+    @app.get("/api/admin/chat/state", dependencies=[Depends(require_dj)])
+    async def admin_chat_state():
+        """Backlog, cursor, switches and recent decisions (SHEEP_PEN.md §10)."""
+        await _chat_actions()
+        cache: ChatStore = _chat["cache"]
+        try:
+            cursor = await cache.get("moderation:cursor")
+            heartbeat = await cache.get("worker:heartbeat")
+            slow = await cache.get("slow_mode")
+            disabled = await cache.exists("posting_disabled")
+            paused = await cache.exists("giles:paused")
+            length = await cache.xlen()
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(503, detail={"code": "chat_unavailable",
+                "detail": f"Valkey unreachable: {type(e).__name__}"}) from None
+        return {
+            "cursor": cursor,
+            "stream_len": length,
+            "worker_heartbeat": heartbeat,
+            "posting_disabled": disabled,
+            "giles_paused": paused,
+            "slow_mode": float(slow) if slow else None,
+            "pending_review": len(station.db.pending_chat_messages(500)),
+            "recent_decisions": station.db.recent_chat_moderation(50),
+        }
+
+    @app.post("/api/admin/chat/delete", dependencies=[Depends(require_dj)])
+    async def admin_chat_delete(payload: ChatDeleteIn):
+        actions = await _chat_actions()
+        ok = await actions.delete_message(payload.message_id, actor="operator",
+                                          reason=payload.reason)
+        return {"ok": ok}
+
+    @app.post("/api/admin/chat/ban", dependencies=[Depends(require_dj)])
+    async def admin_chat_ban(payload: ChatBanIn):
+        actions = await _chat_actions()
+        if payload.scope == "user":
+            until = await actions.ban_user(payload.target, payload.reason,
+                                           actor="operator",
+                                           until=(station.clock.wall() + payload.seconds
+                                                  if payload.seconds else None))
+        else:
+            until = await actions.ban_ip(payload.target, payload.reason,
+                                         actor="operator", seconds=payload.seconds)
+        return {"ok": True, "until": until}
+
+    @app.post("/api/admin/chat/unban", dependencies=[Depends(require_dj)])
+    async def admin_chat_unban(payload: ChatUnbanIn):
+        actions = await _chat_actions()
+        return {"ok": True, "cleared": await actions.unban(payload.scope,
+                                                            payload.target,
+                                                            actor="operator")}
+
+    @app.post("/api/admin/chat/name", dependencies=[Depends(require_dj)])
+    async def admin_chat_name(payload: ChatNameIn):
+        """Rename a user (keeps the user id) or release their name."""
+        await _chat_actions()
+        cache: ChatStore = _chat["cache"]
+        user = station.db.chat_user(payload.user_id)
+        if user is None:
+            raise HTTPException(404, detail={"code": "no_such_user",
+                "detail": "no chat user with that id"})
+        if not payload.name:
+            await identity.release_name(station.db, cache, payload.user_id,
+                                        user.get("name_norm"),
+                                        epoch=station.clock.wall())
+            return {"ok": True, "released": True}
+        try:
+            updated = await identity.claim_name(station.db, cache, cfg, user,
+                                                payload.name,
+                                                epoch=station.clock.wall())
+        except identity.NameError_ as e:
+            status = 409 if e.code == "name_taken" else 400
+            raise HTTPException(status, detail={"code": e.code}) from None
+        return {"ok": True, "name": updated.get("name")}
+
+    @app.post("/api/admin/chat/posting", dependencies=[Depends(require_dj)])
+    async def admin_chat_posting(payload: ChatPostingIn):
+        actions = await _chat_actions()
+        await actions.set_posting_disabled(not payload.enabled, actor="operator",
+                                           ttl_s=payload.ttl_s)
+        return {"ok": True, "posting_enabled": payload.enabled}
+
+    @app.post("/api/admin/chat/giles", dependencies=[Depends(require_dj)])
+    async def admin_chat_giles(payload: ChatGilesIn):
+        actions = await _chat_actions()
+        await actions.set_giles_paused(payload.paused, actor="operator")
+        return {"ok": True, "paused": payload.paused}
+
+    @app.post("/api/admin/chat/slow_mode", dependencies=[Depends(require_dj)])
+    async def admin_chat_slow(payload: ChatSlowIn):
+        actions = await _chat_actions()
+        if payload.interval_s:
+            await actions.set_slow_mode(payload.interval_s, actor="operator")
+        else:
+            await actions.clear_slow_mode(actor="operator")
+        return {"ok": True, "interval_s": payload.interval_s}
 
 
 

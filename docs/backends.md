@@ -769,3 +769,52 @@ Probed 2026-11-05 from the Mac over the bastion's tailnet route with redis-py
   routes on its own). `SCAN`, `GETDEL`, `SET ... EX` all work.
 - The plain `redis.Redis` client (not `RedisCluster`) is the right one: the
   serverless endpoint proxies routing.
+
+---
+
+## 13. The Sheep Pen — Valkey chat, CloudWatch audit and the Mac worker
+
+Sources: SHEEP_PEN.md §0.3–§0.7 (dated 2026-11-07) and the AWS ElastiCache
+serverless supported-commands page
+(https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/SupportedCommands.html).
+
+**Valkey (chat).** Same `rediss://` serverless cache as §12, same
+`cache.key_prefix` and `cache.timeout_s`. Every chat key is
+`pilgrim:{chat}:<name>` (hash tag in the body) so multi-key commands and the
+rate-limit Lua script stay in one slot. Serverless runs cluster mode behind
+one endpoint: `PSUBSCRIBE`/`PUNSUBSCRIBE` are unavailable (use the exact
+channel `pilgrim:{chat}:pubsub`); `XADD`/`XRANGE`/`XREVRANGE`/`XTRIM`,
+`PUBLISH`/`SUBSCRIBE`, `EVAL`/`EVALSHA` are supported; `KEYS`, `CLIENT
+LIST/ID`, `FUNCTION`, `WAIT` are not. Subscriptions do not survive a cache
+failover or scale event: the per-task subscriber reconnects and resubscribes,
+and every task runs `XRANGE (last_id +` every `chat.resync_s` so a publish
+failure or Pub/Sub gap is delivered by resync.
+
+`ECPU` is the practical ceiling (roughly one ECPU per simple command per KB).
+Today's heartbeat already costs one `SET` per listener every 5 s; the chat
+accept path adds two rate-limit `EVAL`s, one `XADD`, one `SET NX` and one
+`PUBLISH` per message, plus per-task fan-out is local (not per browser). The
+serverless cache is configured at `ecpu_per_second.maximum = 1000` and stays
+there in this release (SHEEP_PEN.md §0.6.7); the EMF metric
+`chat_messages_per_s` and the per-listener command count are what a later
+fleet/cache sizing exercise uses.
+
+**CloudWatch.** Container stdout already reaches `/aws/ecs/pg-app/app`
+through the execution role, but the deployed **task role** has no `logs:`
+permission (SHEEP_PEN.md §0.4). Chat audit lines (message text, `ip_hash`) go
+to the dedicated group `/aws/pilgrim/chat-audit` with boto3 `PutLogEvents`:
+the Mac worker uses `media.aws_profile` (`mac-studio`, which holds `logs:*`
+since 2026-11-07); the Fargate task needs a scoped
+`logs:CreateLogStream`/`PutLogEvents`/`DescribeLogStreams` statement on that
+group ARN in `tasks_iam_role_statements` (`ecs.tf`). A denied or missing
+credential is a logged degradation, never a crash. Ordinary structured events
+stay on stdout with the JSON formatter (`logging.format: json` in the
+container overlay). Metrics are EMF JSON lines on stdout (no extra IAM).
+
+**Mac worker.** `python -m pilgrim.chat_worker`, its own launchd unit beside
+`pilgrim/deploy/mac/origin.sh`. It reads the same repo-root `.env`
+(`REDIS_URL`, `DATABASE_URL`/`DB_PASS_SECRET_ARN`, `LITELLM_TOKEN`), runs
+Layer B (Ornith) every `chat.review_interval_s`, Giles every
+`chat.giles_interval_s`, and the 7-day purge once a day. It writes
+`pilgrim:{chat}:worker:heartbeat` (TTL 120) so the admin route can prove it is
+alive. It never imports `scheduler.py`, `producer.py` or `selector.py`.

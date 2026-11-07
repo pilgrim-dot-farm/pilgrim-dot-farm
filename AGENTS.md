@@ -11,6 +11,8 @@ the edge/gateway/origin layout. BRAVE.md (Steps 1–8, shipped 2026-11-04) is
 the reference for web search: Brave Search API direct, searxng retired.
 SCALABILITY.md is the plan for the VPC move (Fargate web tier, RDS Postgres,
 ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
+SHEEP_PEN_PLAN.md (Steps 1–12) is the plan for The Sheep Pen chat; SHEEP_PEN.md
+is its brief (read the brief first, then the plan).
 
 You are building an AI-generated radio station. **`RADIO.md` is the source of
 truth.** Read the relevant section of RADIO.md before implementing anything,

@@ -935,6 +935,15 @@ the station name.
   browser's own rating of this airing, which replaces the magenta and is
   restored per airing from `pd_rating:<epoch>:<seq>`. Hover/focus previews
   the level in cyan; arrow keys move between turkeys.
+- **THE SHEEP PEN** (SHEEP_PEN.md; one shared anonymous room between the
+  request line and the hit counter): a connection status line, a display-name
+  claim row (3–24 characters, unique; the message input stays disabled until a
+  name is claimed), a scrolling log rendered with `textContent` only, a
+  200-character counter and Send. Giles's dispatches are visually distinct
+  (magenta rule, `GILES · FIELD REPORT` label) and are never presented as an
+  ordinary listener. Read-only before naming; no IPs, user ids or moderation
+  metadata appear. No framework, no build step, and nothing in `chat.js`
+  touches playback.
 - **MODEL CREDITS**: credits the five production/dev models plus Kokoro-82M,
   each model name linking to its Hugging Face model card in a new tab (see
   MODELS.md for the on-air attribution copy; DeepSeek is a development credit
@@ -1140,6 +1149,17 @@ refill target.
 | POST | `/api/admin/dj/phrases` | `{command_id, character_id, text, cleaned_text_hash}` → validate, persist job, `202 {job_id, status, cleaned_text}` |
 | GET | `/api/admin/dj/phrases/{job_id}` | Phrase job: stage, character/voice snapshot, cleaned text, expiry, failure, or `{media_id, duration_s}` when ready |
 | POST | `/api/admin/dj/phrases/validate` | Pure cleaned-text validation → `{cleaned_text, changes, text_hash, ok, rejected_reason}`; no synthesis or scheduling |
+| WS | `/api/chat/ws` | The Sheep Pen socket (SHEEP_PEN.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts, giles}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. No browser frame carries a user id, token/session hash, IP or IP hash |
+| POST | `/api/chat/name` | Claim/change a display name `{token, name}`: NFKC/casefold/whitespace uniqueness, reserved/prohibited digest lists, 409 `name_taken`, 400 for validation codes; a free change keeps the user id. `no-store` |
+| GET | `/api/chat/history?after=<id>&limit=` | Cold load and gap fill: `{messages: [message…], last_id}`, oldest-first, tombstones applied, `no-store` |
+| POST | `/api/admin/chat/delete` | Operator: tombstone a message `{message_id, reason}` (admin listener, `require_dj`) |
+| POST | `/api/admin/chat/ban` | Operator: `{scope: user\|ip, target, seconds?, reason}` (no `seconds` = long-lived) |
+| POST | `/api/admin/chat/unban` | Operator: `{scope, target}` |
+| POST | `/api/admin/chat/name` | Operator: rename `{user_id, name}` or release (`name` omitted) |
+| POST | `/api/admin/chat/posting` | Operator: `{enabled, ttl_s?}` posting switch |
+| POST | `/api/admin/chat/giles` | Operator: `{paused}` Giles switch |
+| POST | `/api/admin/chat/slow_mode` | Operator: `{interval_s}` or clear |
+| GET | `/api/admin/chat/state` | Operator: cursor, stream length, worker heartbeat, switches, pending review, recent decisions |
 
 `/api/admin/dj/skip`, `/api/admin/dj/queue`, and
 `/api/admin/dj/commands/{command_id}` are planned (TUI.md §5, §7) and are not
@@ -1160,7 +1180,14 @@ paid routes (`POST /api/paid-requests`, `GET /api/paid-requests/{token}`,
 database probe — `art.backend` is the art worker's cached `ok|down|busy`
 (`disabled` when off), never a live FLUX call, because a render blocks the
 image server for ~40 s (ALBUM_ART.md Step 5). It is the only health shape a
-browser or edge sees. Any other `/api/*` path on the public listener is `404`. The
+browser or edge sees. Any other `/api/*` path on the public listener is `404`. The Sheep Pen's three public routes exist on the **web tier** only
+(`pilgrim/chat/routes.py`, registered from `web_app.create_web_app` before the
+HTTP-only 404 catch-all) and on the fakes e2e server; the Mac station process
+serves only `/api/admin/chat/*`. Chat is one shared room: every web task keeps
+one Valkey subscriber on the exact channel `pilgrim:{chat}:pubsub` and fans
+frames to its own sockets through a bounded queue, so scaling out later is a
+terraform-only change (SHEEP_PEN.md §0.6.7, §11).
+The
 **admin** listener (`station.admin_host:station.admin_port`; loopback `:5081`)
 is a superset: every route above plus `/api/station/start`,
 `/api/station/stop`, `/api/admin/voices`, and every `/api/admin/dj/*` route,
@@ -1267,9 +1294,50 @@ models:
   commercials: ornith
   liners: ornith
   field_report: qwen38
+  chat_moderation: Ornith-1.5-9B   # Layer B review worker (SHEEP_PEN.md §6)
+  chat_giles: qwen38               # Giles's text-only chat dispatches
   music: MiniMax-Music-3     # LiteLLM model group for `auth: litellm` song backends
   context_tokens: {qwen38: 262144}  # calls send max_tokens = context - prompt (no artificial
                              # limit); omitting it gets the server's 8192 default
+
+chat:                      # THE SHEEP PEN (SHEEP_PEN.md; RADIO §11, §14)
+  enabled: true
+  max_length: 200          # code points; client maxlength mirrors it
+  name_min: 3
+  name_max: 24
+  name_release_days: 30    # inactivity before a name is released
+  name_changes_per_day: 5
+  history_max: 2000        # XADD MAXLEN ~
+  resync_s: 5              # XRANGE gap recovery cadence
+  ping_s: 30               # <= 60: Cloudflare closes idle sockets at ~100 s
+  client_queue_max: 256
+  reconnect_min_s: 1
+  reconnect_max_s: 20
+  review_interval_s: 300
+  review_batch: 40
+  review_context: 15
+  review_retry_s: 60
+  backlog_alarm_s: 900
+  slow_mode_on_backlog: true
+  slow_mode_s: 10
+  delete_confidence: 0.8
+  ban_confidence: 0.9
+  ban_ladder_s: [600, 3600, 86400]
+  ip_ban_after_users: 3
+  ip_ban_s: 3600
+  max_deletes_per_run: 10
+  max_bans_per_run: 3
+  rate_user_s: 3           # one message per user per window
+  rate_ip_per_min: 20
+  rate_conn_per_ip: 8
+  repeat_window_s: 10
+  giles_interval_s: 600
+  giles_idle_interval_s: 1800
+  giles_min_messages: 6
+  giles_cooldown_s: 900
+  giles_max_chars: 400
+  retention_days: 7        # fixed at 7; equal to terraform chat_log_retention_days
+  audit_log_group: /aws/pilgrim/chat-audit
 
 voices:
   dj: am_liam
@@ -1535,7 +1603,8 @@ sfx:                          # SFX.md; never on news
     rimshot: {prompt: "...", duration_s: 1.5, seed: 22, evergreen: true, approved: false}
 
 logging:
-  level: INFO            # Python logging level (DEBUG|INFO|WARNING|ERROR)
+  level: INFO
+  format: text              # text (Mac) | json (container overlay, Logs Insights)            # Python logging level (DEBUG|INFO|WARNING|ERROR)
   dir: logs              # relative to pilgrim/
   file: station.log
   max_bytes: 10485760    # rotate at 10 MB
@@ -1658,6 +1727,31 @@ marks, counts verified, dry run by default (the copy runs in a transaction
 and rolls back). `airplay` keeps one row per heartbeat on both engines
 (operator decision 2026-11-05: the 5 s precision is wanted and 20 GB is
 plenty); on the split, the web tier writes those rows.
+
+**The Sheep Pen (SHEEP_PEN.md; RADIO §11, §14).** Four new tables hold the
+durable audit copy; Valkey holds everything hot. `chat_messages.id` is the
+Valkey stream id everywhere (frames, audit, moderation rows).
+`chat_users.name_norm` has a partial unique index (`WHERE released_at IS NULL`)
+and is the name-uniqueness authority; `chat_messages` keeps one row per
+accepted message with `status` `pending_review|accepted|deleted|flagged`, text
+nulled after `chat.retention_days`; `chat_bans` keeps `scope` `user|ip` rows;
+`chat_moderation` keeps one idempotent row per action (`action_id` unique).
+Chat keys are `pilgrim:{chat}:<name>` — `cache.key_prefix` plus a literal
+`{chat}` hash tag, so a Lua script or multi-key command stays in one slot
+(Valkey Serverless is cluster mode). `messages` is a stream trimmed with
+`MAXLEN ~ chat.history_max`; `events` carries moderation/admin events;
+`pubsub` is the exact live channel (no `PSUBSCRIBE` on serverless); `deleted`
+is the tombstone set; `session:{token_hash}` maps the browser token to the
+server user id; `name:{name_norm}` is the reservation pre-check (`SET NX EX`);
+`sent:{user_id}:{client_msg_id}` makes a resend idempotent; `ban:user:{id}` and
+`ban:ip:{ip_hash}` carry TTLs; `rate:user:{id}`, `rate:ip:{ip_hash}`,
+`rate:conn:{ip_hash}` and `rate:namechg:{user_id}` are single-key Lua
+`INCR`+`EXPIRE` counters; `moderation:cursor`, `worker:heartbeat`, `slow_mode`,
+`posting_disabled`, `giles:paused`, `giles:last` and `giles:state` are the
+worker/operator keys. `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no
+secret; the raw IP is never stored, logged or returned. Message text and IP
+hashes go only to the audit log group (`chat.audit_log_group`, 7-day
+retention), never to stdout.
 
 **Hot state (SCALABILITY.md Step 3; `pilgrim/hotstate.py`).** With
 `REDIS_URL` set the station publishes, every `cache.publish_s` from its own
@@ -1860,6 +1954,21 @@ Random selection is chosen for Phase 1 partly because it is easy to test.
 - `fake_llm`: returns canned valid and invalid JSON.
 - `fake_sfx`: returns a 48 kHz mono tone of exactly the requested
   duration (like MOSS-SoundEffect); can inject outages.
+- `fake_redis`: sync `FakeRedis` for `hotstate` plus `FakeAsyncRedis` for the
+  Sheep Pen (streams, exact-channel Pub/Sub, sets, TTLs, the single-key
+  `INCR`+`EXPIRE` eval, CROSSSLOT enforcement and failure injection).
+- `fake_llm`: also accepts `temperature`, provides `chat_text`, and raises
+  `LLMError` on injected failure so the worker's outage paths run.
+
+**Sheep Pen tests** (SHEEP_PEN.md §12; `tests/test_chat_*.py`): name
+uniqueness/409/release/reserved/NFKC variants, obscured digest matching (no
+plaintext term in `pilgrim/chat/prohibited.py`), no profanity filtering, link
+and HTML rejection, Unicode length, canonical IP pseudonym only, rate limits
+across instances, socket lifecycle, Pub/Sub fan-out, replay after reconnect,
+duplicate suppression, deletion/ban propagation, Layer B checkpoints and
+malformed/outage paths, per-run caps, 7-day purge with an injected clock, Giles
+idle/active and exactly-once sign-off, and slow-client backpressure.
+`tests/e2e/chat.spec.ts` covers the mobile UI in fresh browser contexts.
 
 **Simulated clock:** scheduler and producers take a `Clock` interface. Run
 **24 simulated hours in seconds** and assert:

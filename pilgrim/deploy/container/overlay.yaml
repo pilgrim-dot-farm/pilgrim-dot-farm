@@ -31,3 +31,4 @@ library:
 
 logging:
   dir: data/logs           # stdout is the real log sink in a container; the file is a courtesy
+  format: json             # Logs Insights queries the web tier's structured lines

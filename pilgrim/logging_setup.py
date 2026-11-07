@@ -14,6 +14,7 @@ stays clean under ``grep`` and log rotation.
 """
 from __future__ import annotations
 
+import json
 import logging
 import logging.handlers
 import os
@@ -77,6 +78,32 @@ class TextFormatter(logging.Formatter):
         return line
 
 
+class JsonFormatter(logging.Formatter):
+    """One JSON object per line (SHEEP_PEN.md §0.5.5; RADIO §7).
+
+    Selected by ``logging.format: json`` (the container overlay). CloudWatch
+    Logs Insights queries the fields directly, and EMF metric lines survive
+    the formatter unchanged because the message is already a JSON object.
+    """
+
+    def _timestamp(self, record: logging.LogRecord) -> str:
+        ts = datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds")
+        return ts[:-6] + "Z" if ts.endswith("+00:00") else ts
+
+    def format(self, record: logging.LogRecord) -> str:
+        obj: dict[str, object] = {
+            "ts": self._timestamp(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        for k in sorted(k for k in record.__dict__ if k not in _RESERVED):
+            obj[k] = record.__dict__[k]
+        if record.exc_info:
+            obj["exc"] = self.formatException(record.exc_info)
+        return json.dumps(obj, default=str)
+
+
 class ConsoleFormatter(TextFormatter):
     """TextFormatter with ANSI color on the level word, for the console.
 
@@ -110,8 +137,8 @@ def _should_colorize(stream: object) -> bool:
 
 
 def setup_logging(cfg: Config) -> None:
-    """Install a colored console handler + a plain rotating file handler.
-    Call at app/seed start."""
+    """Install a console handler + a rotating file handler. Call at app/seed
+    start. ``logging.format`` selects text (default) or JSON."""
     root = logging.getLogger()
     root.setLevel(cfg.logging.level)
     for h in list(root.handlers):
@@ -119,17 +146,19 @@ def setup_logging(cfg: Config) -> None:
 
     log_dir = ROOT / cfg.logging.dir
     log_dir.mkdir(parents=True, exist_ok=True)
+    use_json = cfg.logging.format == "json"
 
-    # File: plain text, no ANSI, safe under grep and rotation.
+    # File: plain text (or JSON), no ANSI, safe under grep and rotation.
     fh = logging.handlers.RotatingFileHandler(
         log_dir / cfg.logging.file, maxBytes=cfg.logging.max_bytes,
         backupCount=cfg.logging.backups)
-    fh.setFormatter(TextFormatter())
+    fh.setFormatter(JsonFormatter() if use_json else TextFormatter())
     root.addHandler(fh)
 
-    # Console: colored when writing to a terminal.
+    # Console: colored when writing to a terminal (text only).
     sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(ConsoleFormatter(use_color=_should_colorize(sys.stdout)))
+    sh.setFormatter(JsonFormatter() if use_json
+                    else ConsoleFormatter(use_color=_should_colorize(sys.stdout)))
     root.addHandler(sh)
 
     logging.getLogger("radio.server").info(

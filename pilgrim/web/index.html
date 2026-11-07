@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PILGRIM DOT FARM — radio</title>
-<link rel="stylesheet" href="style.css?v=20261105c">
+<link rel="stylesheet" href="style.css?v=20261107a">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -132,6 +132,28 @@
     </div>
   </section>
 
+  <section class="window sheep" data-win="sheep">
+    <div class="win-bar">
+      <span class="win-title">THE SHEEP PEN</span>
+      <span id="chat-status" class="chat-status">connecting…</span>
+    </div>
+    <div class="win-body sheep">
+      <div class="chat-name-row">
+        <input id="chat-name-input" type="text" maxlength="24" autocomplete="off"
+               placeholder="Pick a name for the pen…">
+        <button id="chat-name-btn" type="button">Claim</button>
+      </div>
+      <div id="chat-err" class="req-err hidden"></div>
+      <div id="chat-log" class="chat-log" aria-live="polite" aria-label="Sheep Pen chat"></div>
+      <div class="chat-compose">
+        <input id="chat-input" type="text" maxlength="200" autocomplete="off"
+               placeholder="Read the pen — pick a name to join in." disabled>
+        <span id="chat-count" class="chat-count">0/200</span>
+        <button id="chat-send" type="button" disabled>Send</button>
+      </div>
+    </div>
+  </section>
+
   <section class="window hit" data-win="hit">
     <div class="win-bar">
       <span class="win-title">HIT COUNTER & SOCIAL</span>
@@ -211,5 +233,6 @@
 <script src="visitors.js?v=20261105b"></script>
 <script src="rating.js?v=20261103a"></script>
 <script src="player.js?v=20261105b"></script>
+<script src="chat.js?v=20261107a"></script>
 </body>
 </html>

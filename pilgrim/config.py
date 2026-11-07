@@ -115,6 +115,12 @@ class Models(BaseModel):
     liners: str
     field_report: str = "qwen38"  # field reporter copy (SFX.md §4.2)
     art_scene: str = "qwen38"  # cover-art scene writer (ALBUM_ART.md Step 3)
+    # Sheep Pen chat (SHEEP_PEN.md): Layer B review runs on the reasoning model
+    # the station already uses for commercials/liners; Giles files text only.
+    chat_moderation: str = "Ornith-1.5-9B"
+    chat_giles: str = "qwen38"
+    # optional second model tried after repeated moderation failures
+    chat_moderation_fallback: str | None = None
     # MiniMax Music 3 model group id, sent only to `auth: litellm` song
     # backends (the LiteLLM router picks the deployment by it).
     music: str | None = None
@@ -650,6 +656,9 @@ class Logging(BaseModel):
     file: str = "station.log"
     max_bytes: int = 10485760  # 10 MB
     backups: int = 5
+    # SHEEP_PEN.md §0.5.5: the container overlay selects JSON so Logs Insights
+    # can query the web tier; the Mac keeps the greppable text default.
+    format: Literal["text", "json"] = "text"
 
 
 class DjCharacter(BaseModel):
@@ -836,6 +845,69 @@ class Sfx(BaseModel):
     cues: dict[str, SfxCue] = Field(default_factory=dict)
 
 
+class Chat(BaseModel):
+    """The Sheep Pen (SHEEP_PEN.md; RADIO §11, §12, §14).
+
+    One shared room on the Fargate web tier: WebSockets + Valkey Pub/Sub for
+    live delivery, Streams for history/replay, Postgres for the durable audit
+    copy. Layer B (Ornith) and Giles run in the separate Mac worker.
+    """
+    enabled: bool = True
+    max_length: int = 200          # code points, server-enforced (client maxlength mirrors it)
+    name_min: int = 3
+    name_max: int = 24
+    name_release_days: int = 30    # inactivity before a name is released
+    name_changes_per_day: int = 5
+    history_max: int = 2000        # XADD MAXLEN ~ (stream entries)
+    resync_s: float = 5.0          # gap recovery cadence (XRANGE after last id)
+    ping_s: float = 30.0           # <= 60: Cloudflare closes idle sockets at ~100 s
+    client_queue_max: int = 256    # per-socket bounded fan-out queue
+    reconnect_min_s: float = 1.0
+    reconnect_max_s: float = 20.0
+    review_interval_s: float = 300.0
+    review_batch: int = 40
+    review_context: int = 15
+    review_retry_s: float = 60.0
+    backlog_alarm_s: float = 900.0
+    slow_mode_on_backlog: bool = True
+    slow_mode_s: float = 10.0      # per-user interval while backlogged
+    delete_confidence: float = 0.8
+    ban_confidence: float = 0.9
+    ban_ladder_s: list[int] = Field(default_factory=lambda: [600, 3600, 86400])
+    ip_ban_after_users: int = 3    # distinct users banned from one IP within 24 h
+    ip_ban_s: int = 3600
+    max_deletes_per_run: int = 10
+    max_bans_per_run: int = 3
+    rate_user_s: float = 3.0       # one message per user per this window
+    rate_ip_per_min: int = 20      # messages per canonical IP per minute
+    rate_conn_per_ip: int = 8      # concurrent sockets per canonical IP
+    repeat_window_s: float = 10.0  # identical text within this window is spam
+    giles_interval_s: float = 600.0
+    giles_idle_interval_s: float = 1800.0
+    giles_min_messages: int = 6
+    giles_cooldown_s: float = 900.0
+    giles_max_chars: int = 400
+    retention_days: int = 7        # SHEEP_PEN.md §0.6.4: fixed at 7
+    audit_log_group: str = "/aws/pilgrim/chat-audit"
+
+    @model_validator(mode="after")
+    def _validate(self) -> Chat:
+        if self.max_length <= 0:
+            raise ValueError("chat.max_length must be > 0")
+        if self.name_min < 1 or self.name_min > self.name_max:
+            raise ValueError("chat.name_min must be >= 1 and <= chat.name_max")
+        if not 1.0 <= self.ping_s <= 60.0:
+            raise ValueError("chat.ping_s must be in [1, 60] (Cloudflare idle limit)")
+        if self.resync_s <= 0 or self.review_interval_s <= 0 or self.giles_interval_s <= 0:
+            raise ValueError("chat.resync_s/review_interval_s/giles_interval_s must be > 0")
+        if self.retention_days != 7:
+            raise ValueError("chat.retention_days is fixed at 7 (SHEEP_PEN.md §0.6.4; "
+                             "keep it equal to the terraform chat_log_retention_days)")
+        if not self.ban_ladder_s or any(int(s) <= 0 for s in self.ban_ladder_s):
+            raise ValueError("chat.ban_ladder_s must be a non-empty list of positive seconds")
+        return self
+
+
 class Config(BaseModel):
     station: Station = Field(default_factory=Station)
     hosts: Hosts = Field(default_factory=Hosts)  # type: ignore[arg-type]
@@ -851,6 +923,7 @@ class Config(BaseModel):
     visitors: Visitors = Field(default_factory=Visitors)
     idle: Idle = Field(default_factory=Idle)
     cache: Cache = Field(default_factory=Cache)
+    chat: Chat = Field(default_factory=Chat)
     voting: Voting = Field(default_factory=Voting)
     ratings: Ratings = Field(default_factory=Ratings)
     audio: Audio = Field(default_factory=Audio)
