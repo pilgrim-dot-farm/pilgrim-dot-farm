@@ -30,6 +30,8 @@ models:
   commercials: "Ornith-1.5-9B"
   liners: "Ornith-1.5-9B"
   field_report: qwen38
+  chat_moderation: "Ornith-1.5-9B"   # Layer B review worker (SHEEP_PEN.md §6)
+  chat_giles: qwen38                   # Giles's chat dispatches (SHEEP_PEN.md §0.7.10)
   music: MiniMax-Music-3   # LiteLLM model group for songs.gen_backends with auth: litellm
   # Context window per model. Calls send max_tokens = context - prompt estimate
   # (no artificial output limit); omitting max_tokens hits qwen38's server
@@ -190,6 +192,49 @@ cache:
   wake_ttl_s: 60
   timeout_s: 2             # per-call socket timeout; a slow cache degrades, never blocks playout
 
+# The Sheep Pen chat (SHEEP_PEN.md; RADIO §11, §12, §14). One shared room on
+# the Fargate web tier; Layer B (Ornith) and Giles run in the separate Mac
+# worker. retention_days is fixed at 7 and must equal the terraform
+# chat_log_retention_days (SHEEP_PEN.md §0.6.4, §0.7.9).
+chat:
+  enabled: true
+  max_length: 200
+  name_min: 3
+  name_max: 24
+  name_release_days: 30
+  name_changes_per_day: 5
+  history_max: 2000
+  resync_s: 5
+  ping_s: 30              # Cloudflare closes idle sockets at ~100 s
+  client_queue_max: 256
+  reconnect_min_s: 1
+  reconnect_max_s: 20
+  review_interval_s: 300
+  review_batch: 40
+  review_context: 15
+  review_retry_s: 60
+  backlog_alarm_s: 900
+  slow_mode_on_backlog: true
+  slow_mode_s: 10
+  delete_confidence: 0.8
+  ban_confidence: 0.9
+  ban_ladder_s: [600, 3600, 86400]
+  ip_ban_after_users: 3
+  ip_ban_s: 3600
+  max_deletes_per_run: 10
+  max_bans_per_run: 3
+  rate_user_s: 3
+  rate_ip_per_min: 20
+  rate_conn_per_ip: 8
+  repeat_window_s: 10
+  giles_interval_s: 600
+  giles_idle_interval_s: 1800
+  giles_min_messages: 6
+  giles_cooldown_s: 900
+  giles_max_chars: 400
+  retention_days: 7
+  audit_log_group: /aws/pilgrim/chat-audit
+
 # Community request-queue votes (VOTING.md). Votes decide which FREE request is
 # written next; paid requests stay ahead of every free one; work already in
 # flight is never reordered; a free queued request at/below `bury_threshold` is
@@ -230,6 +275,7 @@ logging:
   file: station.log
   max_bytes: 10485760    # 10 MB
   backups: 5
+  format: text           # text (Mac) | json (container overlay, Logs Insights)
 
 media:                       # RADIO §8.4: S3 + CloudFront is the media source of truth
   publish: true              # uploader task in the station process

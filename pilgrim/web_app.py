@@ -37,6 +37,11 @@ from fastapi.responses import JSONResponse
 
 from pilgrim import dj_contracts as dj
 from pilgrim.aws_secrets import STRIPE_SECRET_ARN_ENV, export_secret_env
+from pilgrim.chat.audit import AuditLog
+from pilgrim.chat.hub import ChatHub
+from pilgrim.chat.redis_store import ChatStore
+from pilgrim.chat.redis_store import connect as chat_connect
+from pilgrim.chat.routes import register_chat_routes
 from pilgrim.config import Clock, Config, load_api_key, load_brave_key, load_config, load_secret
 from pilgrim.db import env_summary as db_env_summary
 from pilgrim.db import open_store
@@ -142,6 +147,9 @@ class WebStation(PublicSurface):
         self.search = BraveSearch(cfg, load_brave_key())
         self.copyright = CopyrightScreen(cfg, self.search)
         self.producer = _Stages(hot)
+        self.chat_cache: ChatStore | None = None
+        self.chat_hub: ChatHub | None = None
+        self.chat_audit: AuditLog | None = None
         self._setup_payments(cfg)
 
     # ------------------------------------------------------------ documents
@@ -248,6 +256,26 @@ def create_web_app(cfg: Config, station: WebStation) -> FastAPI:
                             headers={"Cache-Control": "no-store"})
 
     _add_public_routes(app, station, _web_health)
+    # The Sheep Pen (SHEEP_PEN.md §0.7.2): registered before the HTTP-only
+    # 404 catch-all so the WebSocket route is reachable.
+    if cfg.chat.enabled and station.chat_cache is not None and station.chat_hub is not None:
+        register_chat_routes(app, station, station.db, station.chat_cache,
+                             station.chat_hub, station.chat_audit, station.clock)
+
+    @app.on_event("startup")
+    async def _chat_start() -> None:
+        if station.chat_hub is not None:
+            await station.chat_hub.start()
+
+    @app.on_event("shutdown")
+    async def _chat_stop() -> None:
+        # SIGTERM/ECS stop: close every socket with 1012; clients reconnect
+        # with jitter and replay from last_id (SHEEP_PEN.md §0.7.7).
+        if station.chat_hub is not None:
+            await station.chat_hub.stop()
+        if station.chat_cache is not None:
+            await station.chat_cache.close()
+
     _add_api_404(app)
     if cfg.station.serve_web:
         _mount_web(app, cfg)
@@ -271,8 +299,16 @@ def build_web_station(cfg: Config) -> WebStation:
     if not api_key:
         log.warning("LITELLM_TOKEN not set; request moderation and paid summaries will fail")
     station = WebStation(cfg, store, hot, api_key)
+    if cfg.chat.enabled:
+        try:
+            station.chat_cache = chat_connect(url, cfg)
+            station.chat_hub = ChatHub(cfg, station.chat_cache, store, station.clock)
+            station.chat_audit = AuditLog(cfg)
+        except Exception as e:  # noqa: BLE001 - chat is optional; radio never waits
+            log.warning("web.chat_unavailable", extra={"error": type(e).__name__})
     log.info("web.ready", extra={"db": db_env_summary(), "serve_web": cfg.station.serve_web,
-                                 "payments": station.payments_active})
+                                 "payments": station.payments_active,
+                                 "chat": cfg.chat.enabled})
     return station
 
 

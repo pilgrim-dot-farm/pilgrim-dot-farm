@@ -104,9 +104,10 @@ class LLM:
         return ""
 
     async def chat_json(self, model: str, system: str, user: str,
-                        max_tokens: int | None = None) -> dict[str, Any]:
+                        max_tokens: int | None = None,
+                        temperature: float = 0.8) -> dict[str, Any]:
         """Ask an LLM for a JSON object. Returns parsed, validated-by-caller dict."""
-        content = await self._complete(model, system, user, max_tokens)
+        content = await self._complete(model, system, user, max_tokens, temperature)
         if not content or not content.strip():
             raise LLMTruncated("llm empty content (reasoning ate the token budget?)")
         try:
@@ -117,12 +118,13 @@ class LLM:
             raise
 
     async def chat_text(self, model: str, system: str, user: str,
-                        max_tokens: int | None = None) -> str:
+                        max_tokens: int | None = None,
+                        temperature: float = 0.8) -> str:
         """Like chat_json but just returns the raw content string."""
-        return await self._complete(model, system, user, max_tokens)
+        return await self._complete(model, system, user, max_tokens, temperature)
 
     async def _complete(self, model: str, system: str, user: str,
-                        max_tokens: int | None) -> str:
+                        max_tokens: int | None, temperature: float = 0.8) -> str:
         """One completion, read as an SSE stream.
 
         Streaming is deliberate: qwen38 is a reasoning model, and a full
@@ -143,7 +145,7 @@ class LLM:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "temperature": 0.8,
+            "temperature": temperature,
             "stream": True,
         }
         if max_tokens is None:
