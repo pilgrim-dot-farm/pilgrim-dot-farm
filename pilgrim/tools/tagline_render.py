@@ -28,10 +28,36 @@ from pilgrim.store import Store
 
 
 def read_lines() -> list[str]:
-    if len(sys.argv) > 1:
-        return [a.strip() for a in sys.argv[1:] if a.strip()]
+    args = sys.argv[1:]
+    out: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--speed":
+            i += 2  # skip the flag and its value
+            continue
+        if a.startswith("--speed="):
+            i += 1
+            continue
+        if a.strip():
+            out.append(a.strip())
+        i += 1
+    if out:
+        return out
     raw = sys.stdin.read()
     return [ln.strip() for ln in raw.splitlines() if ln.strip()]
+
+
+def read_speed() -> float | None:
+    """`--speed N` overrides the config voice speed. Short lines can exceed
+    the speech-rate QC ceiling (4.2 words/s) at the default speed; a slower
+    render brings them back inside the band (same fix as liner 9274)."""
+    for i, a in enumerate(sys.argv):
+        if a == "--speed" and i + 1 < len(sys.argv):
+            return float(sys.argv[i + 1])
+        if a.startswith("--speed="):
+            return float(a.split("=", 1)[1])
+    return None
 
 
 def existing_liner_texts(store: Store) -> set[str]:
@@ -55,6 +81,7 @@ async def main() -> int:
     cfg = load_config()
     store = open_store(cfg)  # live engine: RDS when DATABASE_URL is set, else SQLite
     voice = cfg.voices.liners
+    speed = read_speed()
     vp = VoicePipeline(cfg, None, KokoroClient(cfg))  # type: ignore[arg-type]  # render-only, no LLM
     publisher = MediaPublisher(cfg, store, S3ObjectStore(cfg))
     have = existing_liner_texts(store)
@@ -66,10 +93,11 @@ async def main() -> int:
                 skipped += 1
                 continue
             try:
-                rendered = await vp.render_literal(text, voice=voice)
+                rendered = await vp.render_literal(text, voice=voice, speed=speed)
                 item = VoicePipeline.item_dict(
                     "liner", {"text": text, "evergreen": True}, rendered)
                 item["meta"]["kind"] = "station_id"
+                item["meta"]["render_speed"] = rendered["speed"]
                 rid = store.add_item(
                     type_="liner", media_path=item["media_path"],
                     duration_s=item["duration_s"],

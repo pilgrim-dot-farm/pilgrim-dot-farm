@@ -90,6 +90,7 @@ liner or station ID.
 57. We don't have influencers. Our employees are fueled by electrons and compensated with airflow.
 58. We put your thoughts through the barnyard. Some of them come out pasteurized.
 59. Pilgrim Dot Farm — Our GPUs are competing with the furnace. The furnace has yet to generate a single hit.
+60. You waited for your song. We made it worse.
 
 ## On-air notes
 
