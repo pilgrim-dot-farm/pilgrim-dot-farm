@@ -89,6 +89,7 @@ liner or station ID.
 56. You don't need April showers for us to bring the Mayflower.
 57. We don't have influencers. Our employees are fueled by electrons and compensated with airflow.
 58. We put your thoughts through the barnyard. Some of them come out pasteurized.
+59. Pilgrim Dot Farm — Our GPUs are competing with the furnace. The furnace has yet to generate a single hit.
 
 ## On-air notes
 
@@ -109,3 +110,7 @@ liner or station ID.
   features (turkey ratings, two-arrows requests) — if those features ship or
   change, recheck the copy. Line 55 is a dry historical reference, not cruelty
   copy; keep it out of the Tree Fiddy Report and news-adjacent slots.
+- **Third bank (2026-11-07):** lines 56–59 are operator lines. Line 59 keeps its
+  em dash in canon; on air it renders as "Pilgrim Dot Farm. Our GPUs are
+  competing with the furnace." (a period, not a dash) so the TTS does not
+  stumble. "GPUs" is spoken as the letters, per lines 20 and 31.
