@@ -8,8 +8,12 @@ async function claim(page: Page, name: string) {
   await page.goto("/");
   await page.fill("#chat-name-input", name);
   await page.click("#chat-name-btn");
-  await expect(page.locator("#chat-status")).toHaveText("in the pen", { timeout: 10000 });
+  await expect(page.locator("#chat-status")).toHaveText("GRAZE UPON IT", { timeout: 10000 });
   await expect(page.locator("#chat-input")).toBeEnabled();
+  // a claimed name is locked: no client-side rename path
+  await expect(page.locator("#chat-name-input")).toBeDisabled();
+  await expect(page.locator("#chat-name-btn")).toHaveText("Claimed");
+  await expect(page.locator("#chat-name-btn")).toBeDisabled();
 }
 
 async function participant(browser: Browser, name: string) {
@@ -47,6 +51,14 @@ test("two participants send and receive", async ({ browser }) => {
     await b.page.fill("#chat-input", "hello from bram");
     await b.page.click("#chat-send");
     await expect(a.page.locator("#chat-log", { hasText: "hello from bram" })).toBeVisible({ timeout: 10000 });
+
+    // each display name gets its own palette colour, not one shared cyan
+    const colors = await a.page.$$eval(
+      ".chat-msg:not(.giles) .chat-author",
+      (els) => els.map((e) => getComputedStyle(e).color));
+    expect(colors.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(colors).size).toBeGreaterThanOrEqual(2);
+    expect(colors).not.toContain("rgb(36, 224, 255)");
   } finally {
     await a.context.close();
     await b.context.close();
@@ -97,7 +109,7 @@ test("reconnect replays without duplicates", async ({ browser }) => {
     await a.page.click("#chat-send");
     await expect(a.page.locator("#chat-log", { hasText: text })).toBeVisible({ timeout: 10000 });
     await a.page.reload();
-    await expect(a.page.locator("#chat-status")).toHaveText("in the pen", { timeout: 10000 });
+    await expect(a.page.locator("#chat-status")).toHaveText("GRAZE UPON IT", { timeout: 10000 });
     await expect(a.page.locator("#chat-log .chat-msg", { hasText: text })).toHaveCount(1);
   } finally {
     await a.context.close();

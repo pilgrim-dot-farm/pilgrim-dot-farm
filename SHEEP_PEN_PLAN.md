@@ -59,7 +59,9 @@ Places the work lands (§0.5):
    gets 409 with "that name is taken" and no further detail. A change to a
    free name keeps `user_id`; the old reservation is deleted. Changes are
    capped at `chat.name_changes_per_day` (5) per 24 h via one Redis `INCR` with
-   TTL. Release: worker daily sweep for `released_at IS NULL` users whose
+   TTL. **Amended 2026-11-07 after the first release: a claimed name is
+   locked** (`chat.allow_name_changes: false`); only the admin rename route
+   may change it, and `name_changes_per_day` was removed. Release: worker daily sweep for `released_at IS NULL` users whose
    `last_seen` is older than `chat.name_release_days`, plus the admin route.
 3. **IP pseudonym.** `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no
    secret (§0.6.5). Raw IPs never stored, logged, returned, or put in a frame.
@@ -133,7 +135,7 @@ Places the work lands (§0.5):
     Textual console has no chat screen today; the HTTP surface is complete and
     testable without one.
 15. **Config keys.** New `chat:` block: `enabled`, `max_length`,
-    `name_min`, `name_max`, `name_release_days`, `name_changes_per_day`,
+    `name_min`, `name_max`, `name_release_days`, `allow_name_changes`,
     `history_max`, `resync_s`, `ping_s`, `client_queue_max`,
     `reconnect_min_s`, `reconnect_max_s`, `review_interval_s`, `review_batch`,
     `review_context`, `review_retry_s`, `backlog_alarm_s`,
@@ -511,9 +513,9 @@ this change.
    the metric.
 3. **Audit log group name.** The plan uses `/aws/pilgrim/chat-audit`; confirm
    or supply the preferred name before terraform apply.
-4. **Name-change cap.** 5 per 24 h is the plan's default
-   (`chat.name_changes_per_day`); confirm it is strict enough for the
-   impersonation concern in §4.
+4. **Name changes.** Settled 2026-11-07: names are locked on claim
+   (`chat.allow_name_changes: false`); only the operator rename route changes
+   one.
 
 ## Drift log (dated facts checked against the checkout, 2026-11-07)
 
@@ -561,3 +563,18 @@ the worker and admin controls are verified per SHEEP_PEN §14. The remote
 Playwright MCP was not used for interactive acceptance; the repository
 Playwright suite (fresh contexts, desktop + 320 px) covered the UI, per the
 brief's fallback when the MCP offers no isolated context.
+
+
+## Operator amendment (2026-11-07, after the first image push)
+
+- A claimed display name is **locked** to its user. The REST/WS claim path
+  refuses a different name with 409 `name_locked` (re-claiming the same name is
+  idempotent); only `/api/admin/chat/name` may rename. `chat.name_changes_per_day`
+  is removed; `chat.allow_name_changes` (default false) is the operator switch.
+- Each display name is coloured from the standard xterm **256-colour palette**
+  by a stable hash of the lowercased name. Purple/violet/magenta hues (HSV
+  255–345) and entries with lightness < 0.45 or saturation < 0.25 are filtered
+  out, so names stay readable on the dark pane and are not all cyan. Giles
+  keeps the magenta field-report styling.
+- The connection status text is **GRAZE UPON IT** (was "in the pen"); the
+  operator's staged pane title is `SHEEP PEN`.

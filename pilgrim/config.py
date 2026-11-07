@@ -857,7 +857,9 @@ class Chat(BaseModel):
     name_min: int = 3
     name_max: int = 24
     name_release_days: int = 30    # inactivity before a name is released
-    name_changes_per_day: int = 5
+    # Operator decision (2026-11-07): a claimed name is locked to that user.
+    # Only the admin rename route may change it (it bypasses this flag).
+    allow_name_changes: bool = False
     history_max: int = 2000        # XADD MAXLEN ~ (stream entries)
     resync_s: float = 5.0          # gap recovery cadence (XRANGE after last id)
     ping_s: float = 30.0           # <= 60: Cloudflare closes idle sockets at ~100 s

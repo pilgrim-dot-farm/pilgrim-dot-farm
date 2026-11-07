@@ -19,6 +19,70 @@
   const RECONNECT_MAX = 20000;
   const LAST_KEY = "pd_chat_last";
 
+  /* Every display name gets a stable colour from the standard xterm 256-colour
+     palette (0-255), not one shared cyan. Purple/violet/magenta hues are
+     filtered out, as are colours too dark or too grey to read on the dark
+     pane, so the set is readable and varied. The hash is over the lowercased
+     name, so the same name is the same colour on every browser. */
+  const XTERM_256 = (() => {
+    const base = ["#000000", "#800000", "#008000", "#808000", "#000080",
+      "#800080", "#008080", "#c0c0c0", "#808080", "#ff0000", "#00ff00",
+      "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"];
+    const steps = [0, 95, 135, 175, 215, 255];
+    const out = base.slice();
+    for (const r of steps) for (const g of steps) for (const b of steps) {
+      out.push("#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join(""));
+    }
+    for (let i = 0; i < 24; i++) {
+      const v = 8 + i * 10;
+      out.push("#" + [v, v, v].map((n) => n.toString(16).padStart(2, "0")).join(""));
+    }
+    return out;
+  })();
+
+  function rgbOf(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function hslOf(hex) {
+    const [r, g, b] = rgbOf(hex).map((v) => v / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    const d = max - min;
+    if (d === 0) return { h: 0, s: 0, l };
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) h = ((b - r) / d + 2) * 60;
+    else h = ((r - g) / d + 4) * 60;
+    return { h, s, l };
+  }
+
+  const CHAT_COLORS = (() => {
+    const seen = new Set();
+    const out = [];
+    for (const hex of XTERM_256) {
+      const { h, s, l } = hslOf(hex);
+      if (l < 0.45 || s < 0.25) continue;          // readable, not grey
+      if (h >= 255 && h <= 345) continue;          // no purple/violet/magenta
+      if (seen.has(hex)) continue;
+      seen.add(hex);
+      out.push(hex);
+    }
+    return out.length ? out : ["#24e0ff"];
+  })();
+
+  function nameColor(name) {
+    let h = 2166136261;
+    const text = String(name || "").toLowerCase();
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return CHAT_COLORS[Math.abs(h) % CHAT_COLORS.length];
+  }
+
   const token = (window.PD_VOTER && window.PD_VOTER.id())
     ? window.PD_VOTER.id() : "";
   let name = null;
@@ -75,6 +139,7 @@
     const who = document.createElement("span");
     who.className = "chat-author";
     who.textContent = m.giles ? "GILES" : (m.name || "someone");
+    if (!m.giles) who.style.color = nameColor(m.name);
     const body = document.createElement("span");
     body.className = "chat-text";
     body.textContent = m.text || "";   // textContent = no HTML injection
@@ -107,7 +172,11 @@
       ? "Say something to the pen…"
       : "Read the pen — pick a name to join in.";
     nameInput.value = name || "";
-    nameBtn.textContent = name ? "Change" : "Claim";
+    // A claimed name is locked (operator decision 2026-11-07): no client-side
+    // rename path. Only the admin route can change it.
+    nameInput.disabled = !!name;
+    nameBtn.disabled = !!name;
+    nameBtn.textContent = name ? "Claimed" : "Claim";
   }
 
   async function claimName() {
@@ -131,8 +200,8 @@
         showErr("That name is taken — pick another.");
       } else if (body.code === "name_reserved") {
         showErr("That name belongs to the station.");
-      } else if (body.code === "name_changes") {
-        showErr("Too many name changes today — try again tomorrow.");
+      } else if (body.code === "name_locked") {
+        showErr("Your name is locked — ask the operator if it needs changing.");
       } else if (body.code === "name_length") {
         showErr("Names are 3 to 24 characters.");
       } else {
@@ -141,7 +210,7 @@
     } catch (e) {
       showErr("Couldn't reach the pen — try again.");
     } finally {
-      nameBtn.disabled = false;
+      nameBtn.disabled = !!name;
     }
   }
 
@@ -198,7 +267,7 @@
           systemMessage("You're banned from posting until " +
             new Date(frame.banned_until * 1000).toLocaleTimeString() + ".");
         }
-        setStatus("in the pen", "on");
+        setStatus("GRAZE UPON IT", "on");
         backoff = RECONNECT_MIN;
         updateCompose();
         break;
@@ -223,6 +292,7 @@
         else if (frame.code === "repeat") showErr("You just said that.");
         else if (frame.code === "name_required") showErr("Pick a name first.");
         else if (frame.code === "posting_disabled") showErr("The pen is closed for a moment.");
+        else if (frame.code === "name_locked") showErr("Your name is locked.");
         else if (frame.code === "banned") showErr("You're banned from posting.");
         else showErr(frame.detail || "The pen hiccupped — try again.");
         break;

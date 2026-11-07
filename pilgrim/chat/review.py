@@ -127,7 +127,6 @@ class Reviewer:
                 "warnings_30d": self.store.chat_moderation_count(
                     uid, "warn", _iso(wall - 30 * 86400)),
                 "bans_30d": self.store.bans_since("user", uid, _iso(wall - 30 * 86400)),
-                "name_changes_24h": 0,
                 "first_seen_age_h": round(age_h, 1),
                 "currently_banned": bool(self.store.active_chat_ban("user", uid, wall)),
             }

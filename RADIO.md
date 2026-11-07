@@ -937,9 +937,14 @@ the station name.
   the level in cyan; arrow keys move between turkeys.
 - **THE SHEEP PEN** (SHEEP_PEN.md; one shared anonymous room between the
   request line and the hit counter): a connection status line, a display-name
-  claim row (3–24 characters, unique; the message input stays disabled until a
-  name is claimed), a scrolling log rendered with `textContent` only, a
-  200-character counter and Send. Giles's dispatches are visually distinct
+  claim row (3–24 characters, unique; a claimed name is locked to that user —
+  the admin rename route is the only way to change it — and the message input
+  stays disabled until a name is claimed), a scrolling log rendered with
+  `textContent` only, a
+  200-character counter and Send. Each display name is coloured from the
+  standard xterm 256-colour palette by a stable hash of the name (purple,
+  violet and magenta hues and unreadably dark/grey entries filtered out), so
+  listeners are distinguishable; Giles's dispatches are visually distinct
   (magenta rule, `GILES · FIELD REPORT` label) and are never presented as an
   ordinary listener. Read-only before naming; no IPs, user ids or moderation
   metadata appear. No framework, no build step, and nothing in `chat.js`
@@ -1150,7 +1155,7 @@ refill target.
 | GET | `/api/admin/dj/phrases/{job_id}` | Phrase job: stage, character/voice snapshot, cleaned text, expiry, failure, or `{media_id, duration_s}` when ready |
 | POST | `/api/admin/dj/phrases/validate` | Pure cleaned-text validation → `{cleaned_text, changes, text_hash, ok, rejected_reason}`; no synthesis or scheduling |
 | WS | `/api/chat/ws` | The Sheep Pen socket (SHEEP_PEN.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts, giles}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. No browser frame carries a user id, token/session hash, IP or IP hash |
-| POST | `/api/chat/name` | Claim/change a display name `{token, name}`: NFKC/casefold/whitespace uniqueness, reserved/prohibited digest lists, 409 `name_taken`, 400 for validation codes; a free change keeps the user id. `no-store` |
+| POST | `/api/chat/name` | Claim a display name `{token, name}`: NFKC/casefold/whitespace uniqueness, reserved/prohibited digest lists, 409 `name_taken`/`name_locked`, 400 for validation codes. A claimed name is locked (`chat.allow_name_changes` defaults false); the admin rename route bypasses the lock. Re-claiming the same name is idempotent. `no-store` |
 | GET | `/api/chat/history?after=<id>&limit=` | Cold load and gap fill: `{messages: [message…], last_id}`, oldest-first, tombstones applied, `no-store` |
 | POST | `/api/admin/chat/delete` | Operator: tombstone a message `{message_id, reason}` (admin listener, `require_dj`) |
 | POST | `/api/admin/chat/ban` | Operator: `{scope: user\|ip, target, seconds?, reason}` (no `seconds` = long-lived) |
@@ -1306,7 +1311,7 @@ chat:                      # THE SHEEP PEN (SHEEP_PEN.md; RADIO §11, §14)
   name_min: 3
   name_max: 24
   name_release_days: 30    # inactivity before a name is released
-  name_changes_per_day: 5
+  allow_name_changes: false   # a claimed name is locked; admin rename bypasses
   history_max: 2000        # XADD MAXLEN ~
   resync_s: 5              # XRANGE gap recovery cadence
   ping_s: 30               # <= 60: Cloudflare closes idle sockets at ~100 s
@@ -1745,7 +1750,7 @@ is the tombstone set; `session:{token_hash}` maps the browser token to the
 server user id; `name:{name_norm}` is the reservation pre-check (`SET NX EX`);
 `sent:{user_id}:{client_msg_id}` makes a resend idempotent; `ban:user:{id}` and
 `ban:ip:{ip_hash}` carry TTLs; `rate:user:{id}`, `rate:ip:{ip_hash}`,
-`rate:conn:{ip_hash}` and `rate:namechg:{user_id}` are single-key Lua
+`rate:conn:{ip_hash}` are single-key Lua
 `INCR`+`EXPIRE` counters; `moderation:cursor`, `worker:heartbeat`, `slow_mode`,
 `posting_disabled`, `giles:paused`, `giles:last` and `giles:state` are the
 worker/operator keys. `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no

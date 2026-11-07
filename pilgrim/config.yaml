@@ -202,7 +202,7 @@ chat:
   name_min: 3
   name_max: 24
   name_release_days: 30
-  name_changes_per_day: 5
+  allow_name_changes: false   # a claimed name is locked; admin rename still works
   history_max: 2000
   resync_s: 5
   ping_s: 30              # Cloudflare closes idle sockets at ~100 s

@@ -91,31 +91,38 @@ async def test_released_name_can_be_reclaimed(cfg, tmp_env):
     assert got["name"] == "barn"
 
 
-async def test_change_to_taken_keeps_the_old_name(cfg, tmp_env):
+async def test_a_claimed_name_is_locked(cfg, tmp_env):
     _, store, _ = tmp_env
     _, cache = _pair(cfg)
     a = await identity.resolve_user(store, cache, TOKEN_A, None)
-    b = await identity.resolve_user(store, cache, TOKEN_B, None)
     await identity.claim_name(store, cache, cfg, a, "First")
-    await identity.claim_name(store, cache, cfg, b, "Second")
+    user = store.chat_user(a["user_id"]) or {}
+    # changing to a free name is refused too (operator decision 2026-11-07)
     with pytest.raises(identity.NameError_) as e:
-        await identity.claim_name(store, cache, cfg, a, "Second")
-    assert e.value.code == "name_taken"
+        await identity.claim_name(store, cache, cfg, user, "Second")
+    assert e.value.code == "name_locked"
     assert (store.chat_user(a["user_id"]) or {}).get("name") == "First"
 
 
-async def test_name_change_cap(cfg, tmp_env):
+async def test_reclaiming_the_same_name_is_idempotent(cfg, tmp_env):
     _, store, _ = tmp_env
     _, cache = _pair(cfg)
     a = await identity.resolve_user(store, cache, TOKEN_A, None)
-    await identity.claim_name(store, cache, cfg, a, "Name0")
-    for i in range(1, cfg.chat.name_changes_per_day + 1):
-        user = store.chat_user(a["user_id"]) or {}
-        await identity.claim_name(store, cache, cfg, user, f"Name{i}")
+    first = await identity.claim_name(store, cache, cfg, a, "SameName")
     user = store.chat_user(a["user_id"]) or {}
-    with pytest.raises(identity.NameError_) as e:
-        await identity.claim_name(store, cache, cfg, user, "OneMore")
-    assert e.value.code == "name_changes"
+    again = await identity.claim_name(store, cache, cfg, user, "samename")
+    assert again["name"] == first["name"] == "SameName"
+
+
+async def test_operator_rename_can_change_a_locked_name(cfg, tmp_env):
+    _, store, _ = tmp_env
+    _, cache = _pair(cfg)
+    a = await identity.resolve_user(store, cache, TOKEN_A, None)
+    await identity.claim_name(store, cache, cfg, a, "First")
+    user = store.chat_user(a["user_id"]) or {}
+    updated = await identity.claim_name(store, cache, cfg, user, "Second",
+                                        allow_change=True)
+    assert updated["name"] == "Second"
 
 
 async def test_session_round_trip(cfg, tmp_env):
