@@ -595,3 +595,10 @@ ECS is not yet rolled (`ecs_release` unchanged).
   unaffected. A targeted `cooldown` frame reaches that user's sockets, the
   client disables compose until it expires, and an operator user-unban clears
   it. Existing per-user 3 s and per-IP 20/min limits stay.
+
+**Spam cool-off image (2026-11-07):** commit `fe0ac81`, tags
+`pilgrimdotfarm/front-end:fe0ac81` and `:latest`, manifest digest
+`sha256:fb167e03f10ec65e70f81b704ce1a9236b32e12aabc77df4238b28e67b8d42e8`
+(arm64 manifest `sha256:12dfafc8b0bddd4729ce3e88f77eec81bc4d334f831642bc615172086f6079d0`).
+Checks: `make lint`, 919 tests, `make sim`, 37 e2e, `make pg-test` all pass.
+ECS is not yet rolled (`ecs_release` unchanged).
