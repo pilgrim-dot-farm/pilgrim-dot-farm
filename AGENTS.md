@@ -3,7 +3,9 @@
 Active work plans: IDLE.md (freeze playout + pause production when nobody is
 listening; one agent, Steps 1–5) and VOTING.md (turkey song ratings +
 request-queue votes + mobile queue; agents A–E, Steps 1–8). FIX_RATINGS.md (Steps 1–5) amends VOTING.md's
-rating UI and the web tier's rating window. IDLE.md and
+rating UI and the web tier's rating window. UI_REFACTOR.md (Steps 1–6, app
+shell: ABOUT pane, desktop nav, phone tabs + mini player) is the plan for the
+desktop/phone shell. IDLE.md and
 VOTING.md Agent A may run concurrently in separate worktrees. ALBUM_ART.md
 (Steps 1–11) and PAYMENT.md (Steps 0–12b) are shipped and stay as reference.
 SPLIT_PLAN.md is complete (Steps 1–10) and stays the reference for

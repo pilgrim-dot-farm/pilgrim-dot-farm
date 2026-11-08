@@ -887,8 +887,29 @@ S3 is the source of truth for listener audio; the M5 no longer streams it
 
 ### 9.1 UI
 
-Retro window shell on a vertical stack, scrollable `#desktop` so every pane
-stays reachable on small screens:
+Retro window shell. On desktop (≥ 900 px) the panes are a vertical stack
+in the scrollable `#desktop` with a fixed left **section nav** (RADIO /
+REQUEST LINE / SHEEP PEN / ABOUT) in the margin that scrolls to a pane and
+highlights the one in view; the 484 px column, header and footer are
+unchanged by the nav. On phones (≤ 899 px) the page is an app
+(UI_REFACTOR.md): a one-line header (hat + station name, no tagline), **one
+pane at a time** filling the screen, a **mini player** (state dot, audible
+song as *Title — Artist*, round PLAY/STOP) and four bottom tabs **RADIO /
+REQUEST / CHAT / ABOUT**; the footer is hidden and its copyright line ends
+the ABOUT pane. Inactive panes stay laid out (visibility, not display) so
+scroll positions, chat follow-the-bottom and typed text survive a tab
+change; the selected tab persists in `sessionStorage` `pd_tab`. The shell
+is sized by the visual viewport (`--vvh`); while a text field has focus and
+the keyboard is up the tabs and mini player hide so the composer sits above
+the keys. The mini player is a mirror of `#btn-play`, `#indicator` and
+`pd:nowplaying` and its PLAY clicks the real button inside the gesture;
+`player.js`, `#sink` and the AudioContext are untouched (§9.2). On phones
+only the cover art shrinks (floor 140 px) so RADIO fits without scrolling;
+the rate row, play row and meter keep their width, so the indicator/art
+edge alignment below is a desktop rule. Pane title bars are hidden on
+phones (the tabs name the pane); SHEEP PEN's bar survives as a thin status
+strip carrying only the connection state. Landscape phones stay in the
+phone shell. The panes:
 
 - **RADIO BROADCAST** (title exactly `RADIO BROADCAST`): a square **cover
 art frame** above the play row (`min(100%, 300px)`, 1:1, retro-pane border,
@@ -994,11 +1015,16 @@ the station name.
   ordinary listener. Read-only before naming; no IPs, user ids or moderation
   metadata appear. No framework, no build step, and nothing in `chat.js`
   touches playback.
-- **MODEL CREDITS**: credits the five production/dev models plus Kokoro-82M,
+- **ABOUT** (UI_REFACTOR.md, 2026-11): one pane holding, in this order and
+  with these exact sub-headings, **HIT COUNTER & SOCIAL**, **CORPORATE
+  MISSION STATEMENT**, **INFRA AND DATA FLOW**, **CREDITS** (the former
+  standalone panes, content unchanged), and on phones a final `© <year>
+  Pilgrim Dot Farm LLC` line.
+- *(sub-section of ABOUT)* **MODEL CREDITS**: credits the five production/dev models plus Kokoro-82M,
   each model name linking to its Hugging Face model card in a new tab (see
   MODELS.md for the on-air attribution copy; DeepSeek is a development credit
   and is flagged as such).
-- **HIT COUNTER**: above the visitor line, **Paid requests: X** and
+- *(sub-section of ABOUT)* **HIT COUNTER**: above the visitor line, **Paid requests: X** and
   **Total request: Y**, both read from `station.db` and returned by the same
   page-load `POST /api/visitors` (§11, §14). X counts priority requests that
   actually became paid — Stripe confirmed or an operator comp, both of which
