@@ -1278,3 +1278,11 @@ image `pilgrimdotfarm/front-end:4073bee` + `:latest`, digest
 `ecs_release` 15 → 16 (`pg-app:12`, HEALTHY), live site serves
 `style.css?v=20261109b` / `shell.js?v=20261109b` / `requests.js?v=20261109b`
 and `img/cornucopia.webp`.
+
+**Feedback round 2 (2026-11-08):** commits `3492b4f` + `b688d4e`, image
+`pilgrimdotfarm/front-end:b688d4e` + `:latest`, digest
+`sha256:f5110a493291fe024d775f446f172380e66a70a1328d4e43f8d450af19d367de`,
+`ecs_release` 17 → 18 (`pg-app:14`, HEALTHY). Paid flow: grey promo step with
+APPLY (two attempts), enumerated (1/3)(2/3)(3/3) stages, both lyrics and music
+required, Cancel removed, stale-token lock fixed. Live test passed
+(request 587, paid, queued).
