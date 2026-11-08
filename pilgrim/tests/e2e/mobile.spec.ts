@@ -164,3 +164,34 @@ test("OFF AIR disables the mini PLAY too", async ({ page }) => {
   await expect(page.locator("#mini-play")).toBeDisabled();
   await expect(page.locator("#mini-text")).toHaveText("OFF THE AIR");
 });
+
+test("keyboard contract: shell follows --vvh and frees the bottom while typing", async ({ page }) => {
+  await tab(page, "sheep");
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--vvh", "400px");
+    document.body.classList.add("kbd-open");
+  });
+  await expect(page.locator("#nav-mobile")).toBeHidden();
+  await expect(page.locator("#mini")).toBeHidden();
+  const compose = (await page.locator(".chat-compose").boundingBox())!;
+  expect(compose.y + compose.height).toBeLessThanOrEqual(400 + 1);
+  await expect(page.locator("#chat-name-input")).toBeVisible();
+  await page.evaluate(() => {
+    document.documentElement.style.removeProperty("--vvh");
+    document.body.classList.remove("kbd-open");
+  });
+  await expect(page.locator("#nav-mobile")).toBeVisible();
+});
+
+test("focusing a REQUEST field scrolls it into the pane", async ({ page }) => {
+  await tab(page, "requests");
+  await page.locator("#pay-art").focus();
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const body = document.querySelector('[data-win="requests"] > .win-body')!.getBoundingClientRect();
+    const f = document.getElementById("pay-art")!.getBoundingClientRect();
+    return { top: f.top - body.top, bottom: body.bottom - f.bottom };
+  });
+  expect(m.top).toBeGreaterThanOrEqual(-1);
+  expect(m.bottom).toBeGreaterThanOrEqual(-1);
+});
