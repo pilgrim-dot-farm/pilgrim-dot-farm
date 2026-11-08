@@ -53,3 +53,47 @@ test("highlight follows manual scrolling, both directions", async ({ page }) => 
   await desk.evaluate(el => el.scrollTo(0, 0));
   await expect(page.locator("#nav-desktop [data-go='radio']")).toHaveAttribute("aria-current", "page");
 });
+
+test("crossing the breakpoint while on air never touches the AudioContext", async ({ page }) => {
+  await page.addInitScript(() => {
+    const Orig = window.AudioContext;
+    const ctxs: AudioContext[] = [];
+    (window as any).__ctxProbe = () => ctxs.map(c => ({ state: c.state, t: c.currentTime }));
+    window.AudioContext = class extends Orig { constructor(...a: any[]) { super(...a); ctxs.push(this); } } as any;
+  });
+  const probe = () => page.evaluate(() => (window as any).__ctxProbe() as { state: string; t: number }[]);
+  await page.goto("/");
+  await page.click("#btn-play");
+  await expect(page.locator("#indicator")).toHaveClass(/onair/, { timeout: 15_000 });
+  const before = await probe();
+  expect(before).toHaveLength(1);
+  expect(before[0].state).toBe("running");
+  await page.setViewportSize({ width: 820, height: 720 });     // phone shell
+  await expect(page.locator("#nav-mobile")).toBeVisible();
+  await expect(page.locator('[data-win="radio"]')).toHaveClass(/active/);
+  await page.click('#nav-mobile [data-go="sheep"]');
+  await page.setViewportSize({ width: 1280, height: 720 });    // desktop again
+  await expect(page.locator("#nav-desktop")).toBeVisible();
+  await expect(page.locator("#nav-mobile")).toBeHidden();
+  await expect(page.locator('[data-win="sheep"]')).toBeVisible();
+  await expect(page.locator('[data-win="radio"]')).toBeVisible();
+  await expect(page.locator("#indicator")).toHaveClass(/onair/);
+  await page.waitForTimeout(1500);
+  const after = await probe();
+  expect(after, "a second AudioContext appeared across the breakpoint").toHaveLength(1);
+  expect(after[0].state).toBe("running");
+  expect(after[0].t - before[0].t, "the audio clock stalled across the breakpoint").toBeGreaterThan(1);
+});
+
+test("at 900 px the nav still clears the column; at 899 px the phone shell shows", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 720 });
+  await page.goto("/");
+  const m = await page.evaluate(() => ({
+    navRight: document.getElementById("nav-desktop")!.getBoundingClientRect().right,
+    colLeft: document.querySelector('[data-win="radio"]')!.getBoundingClientRect().left,
+  }));
+  expect(m.navRight).toBeLessThan(m.colLeft);
+  await page.setViewportSize({ width: 899, height: 720 });
+  await expect(page.locator("#nav-desktop")).toBeHidden();
+  await expect(page.locator("#nav-mobile")).toBeVisible();
+});
