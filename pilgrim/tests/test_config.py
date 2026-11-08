@@ -119,3 +119,36 @@ def test_shipped_container_overlay_loads():
     assert cfg.library.dir.startswith("data/")
     assert cfg.library.db.startswith("data/")
     assert cfg.logging.dir.startswith("data/")
+
+
+def test_paid_parts_defaults_and_composed_limit():
+    """PROMPT_UPGRADE.md Step 1: per-box limits, and paid_max_length must fit
+    the three parts plus their labels."""
+    from pilgrim.config import Payments
+
+    pay = Payments()
+    assert (pay.parts.lyrics_max, pay.parts.music_max,
+            pay.parts.art_max) == (4000, 3000, 800)
+    assert pay.paid_max_length >= 4000 + 3000 + 800 + 40
+    cfg = load_config()
+    assert cfg.payments.parts.art_max == 800
+
+
+def test_paid_parts_limits_positive():
+    from pilgrim.config import PaidParts
+
+    with pytest.raises(ValidationError):
+        PaidParts(lyrics_max=0)
+    with pytest.raises(ValidationError):
+        PaidParts(music_max=-1)
+
+
+def test_paid_max_length_must_fit_the_parts():
+    from pilgrim.config import PaidParts, Payments
+
+    with pytest.raises(ValidationError, match="must fit the three parts"):
+        Payments(paid_max_length=3600)
+    assert Payments(paid_max_length=7840).paid_max_length == 7840
+    assert Payments(paid_max_length=8000,
+                    parts=PaidParts(lyrics_max=100, music_max=100,
+                                    art_max=100)).paid_max_length == 8000
