@@ -920,6 +920,9 @@ download never touches playback. The site header/browser title retain
 the station name.
 - **REQUEST LINE**: the request form + active queue, then a **RECENTLY PLAYED
   FOR YOU** list of the three most recent serviced/airéd requests.
+  **GROUND RULES** comes before **FREE FOR ALL** and holds the shared request
+  guidance as naturally wrapping text. The free input placeholder reads
+  *Enter free request here.*
   The queue table is **Votes** / Request / Status (VOTING.md; no Title
   column — titles appear in the aired table once a request airs): each
   free row has ↑ score ↓ (40 px boxes with a 44 px hit area; pressed = filled
@@ -929,26 +932,32 @@ the station name.
   thin visible scrollbar and a bottom gradient while there is more below
   (`has-more`). On phones the Status column folds under the request text (two
   visual columns) and nothing scrolls horizontally down to 320 px.
-- **PAID REQUE$T** (PROMPT_UPGRADE.md Step 5, PAYMENT.md): the *SKIP THE
-  BARNYARD! YOUR SONG, YOUR RULES!* note stays above the **PRIORITY REQUEST**
-  button (`($3 MIN)`, the real Stripe minimum). The panel opens on three
-  numbered creative departments, each a labelled box with a two-or-three-word
-  subtitle and one helper line: **1 LYRICS** (*The words*; subject, story,
-  title or a full lyric sheet), **2 MUSICAL DIRECTION** (*The sound*; genre,
-  instruments, vocals, tempo, mood), **3 COVER ART** (*Optional*; scene, style,
-  colours, atmosphere, framed as a choice — *Or let the farm surprise you*).
+- **PRIORITY REQUEST** (PROMPT_UPGRADE.md Step 5, PAYMENT.md; simplified UI
+  2026-11-08): the *SKIP THE BARNYARD! YOUR SONG, YOUR RULES!* note and
+  *Help us pay the power and cloud bills!* stay below the heading. The form
+  is always visible, with no opening button or introductory paragraph. Three
+  numbered creative departments each have a label and one helper line:
+  **1 LYRICS** (*Subject, story, title, exact words.*), **2 MUSICAL DIRECTION**
+  (*Genre, instruments vocals, tempo, and etc.*), **3 COVER ART (Optional)**
+  (*Direct artistic, e.g. style, colors, and general scene.*). The optional
+  label uses the same font as COVER ART. Textarea borders match their step
+  colours (cyan, purple, pink), including focus. The lyrics placeholder reads
+  *A love song about a sentient vending machine.*
   Lyrics or musical direction is required; cover art alone is not a song
-  request. The one-line intro above the boxes reads *Your imagination. Our
-  questionable machinery.* The technical help (section tags, a full MiniMax
+  request. The technical help (section tags, a full MiniMax
   structured caption, how to describe imagery, the 4,000 / 3,000 / 800 limits)
-  lives in one collapsed *Want to get technical?* block, so the main form
+  lives in one collapsed *Want to get technical?* block with a larger summary
+  (17 px; help content remains 13 px), so the main form
   never says LLM, prompt, caption, MiniMax, FLUX, token or metadata. The
   client posts `{lyrics, music, art}` (§11); the `maxlength` values mirror
   `payments.parts`, and the server is the authority. Drafts persist across a
   reload in `sessionStorage` under `pd_pay_draft` (`{lyrics, music, art, ts}`,
-  24 h), restored when the panel opens and cleared when the request reaches
+  24 h), restored on page load and cleared when the request reaches
   the line, on Cancel, or on an explicit clear — never merely because the page
-  loaded. The button reads **CHECK IT & PAY**; the terms line says *Your
+  loaded. Cancel clears the draft and keeps the form visible. The button
+  reads **CHECK IT & PAY**, at 16 px with the former opening button's
+  green/cyan/green gradient; it is disabled while checks/payment confirmation
+  are pending or priority requests are closed. The terms line says *Your
   request goes ahead of free submissions. Chip in what you like: $3.50
   suggested, $3 minimum.*
 - **RATE THIS SONG** (VOTING.md, FIX_RATINGS.md): a row above the cover art

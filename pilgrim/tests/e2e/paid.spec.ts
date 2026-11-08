@@ -12,7 +12,6 @@ const MUSIC = "Death metal.";
 
 async function openPanel(page: Page) {
   await page.goto("/");
-  await page.click("#pay-open");
   await expect(page.locator("#pay-panel")).toBeVisible();
 }
 
@@ -118,13 +117,12 @@ test("drafts survive a reload and Cancel clears them", async ({ page }) => {
   await page.fill("#pay-art", "a chrome vending machine");
 
   await page.reload();
-  await page.click("#pay-open");
   await expect(page.locator("#pay-lyrics")).toHaveValue(LYRICS);
   await expect(page.locator("#pay-music")).toHaveValue(MUSIC);
   await expect(page.locator("#pay-art")).toHaveValue("a chrome vending machine");
 
   await page.click("#pay-cancel");
-  await page.click("#pay-open");
+  await expect(page.locator("#pay-panel")).toBeVisible();
   await expect(page.locator("#pay-lyrics")).toHaveValue("");
   await expect(page.locator("#pay-music")).toHaveValue("");
   await expect(page.locator("#pay-art")).toHaveValue("");
