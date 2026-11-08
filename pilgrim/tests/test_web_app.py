@@ -181,19 +181,31 @@ def test_client_ip_prefers_cf_connecting_ip_from_a_trusted_peer(tmp_env, monkeyp
 def test_cached_scheduler_rating_window_grace_and_song_start():
     """FIX_RATINGS.md Step 1 (VOTING.md V8 over the published snapshot): the
     grace branch reads `_cum` and `position()`, which the cached scheduler
-    must provide; a rating for a song the snapshot has not reached is closed."""
+    must provide; a rating for a song the snapshot has not reached is closed.
+
+    The programme is the slice the station really publishes: `items` start at
+    the on-air row and `prev` is the row that just ended."""
     from pilgrim.voting import rating_window
     from pilgrim.web_app import CachedScheduler
-    program = {"items": [
+    rows = [
+        {"seq": 9, "type": "liner", "media_id": 54, "duration_s": 6.0},
         {"seq": 10, "type": "song", "media_id": 2928, "duration_s": 180.0},
         {"seq": 11, "type": "liner", "media_id": 55, "duration_s": 8.0},
         {"seq": 12, "type": "song", "media_id": 777, "duration_s": 200.0},
-    ]}
+    ]
 
-    def window(seq, offset, ask_seq):
+    def published(on_seq, with_prev=True):
+        i = next(k for k, r in enumerate(rows) if r["seq"] == on_seq)
+        doc = {"items": rows[i:]}
+        if with_prev and i > 0:
+            doc["prev"] = rows[i - 1]
+        return doc
+
+    def window(seq, offset, ask_seq, with_prev=True):
         st = {"epoch": "e1", "revision": 1, "current_seq": seq,
               "current_offset_s": offset}
-        return rating_window(CachedScheduler(st, program), "e1", ask_seq, 5.0)
+        return rating_window(CachedScheduler(st, published(seq, with_prev)),
+                             "e1", ask_seq, 5.0)
 
     assert window(10, 100.0, 10) == (True, 2928)      # the song is on air
     assert window(11, 2.0, 10) == (True, 2928)        # liner on air, 2 s in: grace
@@ -201,10 +213,50 @@ def test_cached_scheduler_rating_window_grace_and_song_start():
     assert window(12, 1.0, 10) == (False, None)       # two rows later: closed
     assert window(10, 179.5, 12) == (False, None)     # a future song is closed
     assert window(11, 2.0, 11) == (False, None)       # a liner is never ratable
+    # an old publisher without `prev`: the grace cannot open (the bug this fixes)
+    assert window(11, 2.0, 10, with_prev=False) == (False, None)
     sched = CachedScheduler({"epoch": "e1", "current_seq": 11,
-                             "current_offset_s": 2.0}, program)
+                             "current_offset_s": 2.0}, published(11))
+    assert [r["seq"] for r in sched._items] == [10, 11, 12]
     assert sched._cum == [0.0, 180.0, 188.0]
     assert sched.position() == 182.0
     # a frozen station is closed (IDLE.md), whatever the row
     st = {"epoch": "e1", "current_seq": 10, "current_offset_s": 1.0, "idle": True}
-    assert rating_window(CachedScheduler(st, program), "e1", 10, 5.0) == (False, None)
+    assert rating_window(CachedScheduler(st, published(10)), "e1", 10, 5.0) == (False, None)
+
+
+def test_published_prev_row_opens_the_grace_on_the_web_tier(tmp_env, monkeypatch):
+    """End to end over the cache: once the station has moved past a song, the
+    published document carries that song as `prev`, the HTTP programme does
+    not, and a rating for it inside `ratings.grace_s` is accepted."""
+    from pilgrim.config import SimClock
+    station, web, c, r = _pair(tmp_env, monkeypatch)
+    sched = station.scheduler
+    # a hand-advanced clock from where the real one stands (AGENTS §1.3)
+    sim = SimClock()
+    sim.advance(station.clock.now())
+    station.clock = sched.clock = sim
+    first_seq, _ = sched.on_air()
+    rows = sched._items
+    i = next(k for k, row in enumerate(rows) if row["seq"] == first_seq)
+    # find a song row with a successor inside the committed window
+    song_idx = next(k for k in range(i, len(rows) - 1) if rows[k]["type"] == "song")
+    song = rows[song_idx]
+    # move the playhead 2 s into the row after the song
+    station.clock.advance(sched._cum[song_idx + 1] - sched.position() + 2.0)
+    on_seq, offset = sched.on_air()
+    assert on_seq == rows[song_idx + 1]["seq"] and 1.5 < offset < 3.0
+    station.hot_tick()
+    doc = station.hot.read("program")
+    assert doc["prev"] == {"seq": song["seq"], "media_id": song["item_id"],
+                           "type": "song", "duration_s": song["duration_s"]}
+    assert doc["items"][0]["seq"] == on_seq
+    body = c.get("/api/station/program").json()
+    assert "prev" not in body and body["items"][0]["seq"] == on_seq
+    resp = c.post("/api/station/rating",
+                  json={"voter_id": "b" * 32, "epoch": station.epoch,
+                        "seq": song["seq"], "stars": 5})
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["item_id"] == song["item_id"]
+    # the origin agrees (same window rule, same store)
+    assert station.db.song_rating(song["item_id"])["count"] == 1
