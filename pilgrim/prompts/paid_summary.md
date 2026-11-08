@@ -13,3 +13,8 @@ anything that is only a section marker. No quotes, no markdown, no lists, and
 never the word "summary". Never mention payment.
 
 Return only the sentence.
+
+The brief may arrive as labelled parts: "Lyrics:" (what the song is about,
+sometimes full lyrics), "Music:" (how it should sound). Describe the song from
+both; the style from the Music part, the subject from the Lyrics part. Ignore
+the labels themselves and never mention a cover or artwork.

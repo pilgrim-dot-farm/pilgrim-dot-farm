@@ -691,3 +691,149 @@ async def test_backfill_replaces_raw_text_labels(tmp_env, monkeypatch):
 def test_abandon_window_is_72_hours(cfg):
     assert cfg.payments.abandon_after_s == 72 * 3600
     assert cfg.requests.queue_cap == 50 and cfg.requests.free_queue_max == 100
+
+
+# --------------------------------------------------------------------------- #
+# three-box request (PROMPT_UPGRADE.md Step 2)
+# --------------------------------------------------------------------------- #
+LYRICS = "A raccoon becomes president of the moon."
+MUSIC = "Death metal."
+ART = "A chrome raccoon on a lunar podium, painted like an 80s fantasy album."
+
+
+def _post_parts(client: TestClient, **parts):
+    return client.post("/api/paid-requests", json=parts)
+
+
+def test_three_box_stores_parts_and_composed_text(tmp_env, monkeypatch):
+    _, app, station, fake = _build(tmp_env, monkeypatch)
+    c = TestClient(app)
+    r = _post_parts(c, lyrics=LYRICS, music=MUSIC, art=ART)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    row = station.db.all_requests()[0]
+    assert row["lyrics_text"] == LYRICS
+    assert row["music_text"] == MUSIC
+    assert row["art_text"] == ART
+    assert row["text"] == (f"Lyrics:\n{LYRICS}\n\nMusic:\n{MUSIC}\n\n"
+                           f"Album art:\n{ART}")
+    assert row["stage"] == "ready"
+    token = r.json()["token"]
+    status = c.get(f"/api/paid-requests/{token}")
+    assert status.status_code == 200 and status.json()["status"] == "checking"
+    assert status.json()["stage"] == "ready"
+    assert len(fake.create_calls) == 0  # checkout is a separate call
+    assert _checkout(c, token).status_code == 200
+
+
+def test_three_box_empty_art_is_stored_as_empty_string(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music="", art="")
+    assert r.status_code == 200
+    row = station.db.all_requests()[0]
+    assert row["lyrics_text"] == LYRICS and row["music_text"] == ""
+    assert row["art_text"] == ""
+    assert row["text"] == f"Lyrics:\n{LYRICS}"
+
+
+def test_legacy_text_row_has_null_parts(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    assert _post_paid(TestClient(app), "a bossa nova about a night bus").status_code == 200
+    row = station.db.all_requests()[0]
+    assert row["lyrics_text"] is None and row["music_text"] is None
+    assert row["art_text"] is None
+    assert row["text"] == "a bossa nova about a night bus"
+
+
+def test_three_box_validation(tmp_env, monkeypatch):
+    cfg, app, station, _ = _build(tmp_env, monkeypatch)
+    c = TestClient(app)
+    # art alone is not a song request
+    assert _post_parts(c, art=ART).status_code == 422
+    assert _post_parts(c, lyrics="  ", music="", art=ART).status_code == 422
+    # per-box limits
+    assert _post_parts(c, lyrics="x" * (cfg.payments.parts.lyrics_max + 1)).status_code == 422
+    assert _post_parts(c, music="x" * (cfg.payments.parts.music_max + 1)).status_code == 422
+    assert _post_parts(c, music="loud",
+                       art="x" * (cfg.payments.parts.art_max + 1)).status_code == 422
+    # both forms at once
+    assert _post_parts(c, text="legacy", lyrics="words").status_code == 422
+    # neither form
+    assert c.post("/api/paid-requests", json={}).status_code == 422
+    assert station.db.all_requests() == []
+
+
+def test_comp_token_on_lyrics_box(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch, active=False)
+    secret = "operator-comp-secret-0123456789"
+    station.override_token = secret
+    c = TestClient(app)
+    r = _post_parts(c, lyrics=f"{secret}\n{LYRICS}", music=MUSIC)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    row = station.db.all_requests()[0]
+    assert row["comped"] == 1
+    assert row["status"] == "queued"  # comped rows skip payment into the line
+    assert secret not in row["text"] and secret not in (row["lyrics_text"] or "")
+    assert row["lyrics_text"] == LYRICS
+    assert row["text"].startswith(f"Lyrics:\n{LYRICS}")
+
+
+def test_comp_token_in_music_or_art_box_is_rejected(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    secret = "operator-comp-secret-0123456789"
+    station.override_token = secret
+    c = TestClient(app)
+    for payload in ({"lyrics": LYRICS, "music": secret},
+                    {"lyrics": LYRICS, "music": MUSIC, "art": secret}):
+        r = _post_parts(c, **payload)
+        assert r.status_code == 200 and r.json()["rejected"] is True
+    assert station.db.all_requests() == []
+
+
+def test_moderation_sees_all_parts_copyright_never_sees_art(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    seen_moderation, seen_copyright = [], []
+
+    async def _moderate(text: str):
+        seen_moderation.append(text)
+        return True, None
+
+    async def _check(text: str, request_id=None):
+        from pilgrim.pipelines.copyright import Verdict
+        seen_copyright.append(text)
+        return Verdict(outcome="clear", reason="")
+
+    monkeypatch.setattr(station.moderator, "moderate", _moderate)
+    monkeypatch.setattr(station.copyright, "check", _check)
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, art=ART)
+    assert r.status_code == 200
+    assert len(seen_moderation) == 1
+    assert ART in seen_moderation[0] and LYRICS in seen_moderation[0]
+    assert len(seen_copyright) == 1
+    assert ART not in seen_copyright[0]
+    assert LYRICS in seen_copyright[0] and MUSIC in seen_copyright[0]
+
+
+def test_summary_llm_sees_no_art_and_fallback_skips_labels(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    seen = []
+
+    async def _summary(model, system, user, max_tokens=4096):
+        seen.append(user)
+        return "a lunar raccoon death metal anthem"
+
+    monkeypatch.setattr(station.llm, "chat_text", _summary)
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, art=ART)
+    assert r.status_code == 200
+    assert len(seen) == 1
+    assert json.loads(seen[0]) == (f"Lyrics:\n{LYRICS}\n\nMusic:\n{MUSIC}")
+    assert ART not in seen[0]
+
+    async def _fail(model, system, user, max_tokens=4096):
+        raise RuntimeError("model down")
+
+    monkeypatch.setattr(station.llm, "chat_text", _fail)
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, art=ART)
+    assert r.status_code == 200
+    row = station.db.all_requests()[0]  # newest first
+    assert row["summary"] == LYRICS
+    assert not row["summary"].startswith("Lyrics:")
