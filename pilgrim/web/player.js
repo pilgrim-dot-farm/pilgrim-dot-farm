@@ -28,6 +28,9 @@
   // so the PLAY row never moves. Art is cosmetic: a load error falls back
   // silently and never touches playback, the indicator or OFF AIR logic.
   const ART_PLACEHOLDER = "img/fall.jpg";
+  // On-air default cover: shown while the radio is playing when the audible
+  // item has no uploaded art. The idle placeholder stays fall.jpg.
+  const ART_LIVE = "img/IMG_6238.jpeg";
   let shownArt = ART_PLACEHOLDER;
 
   let ctx = null, analyser = null, raf = null;
@@ -351,7 +354,7 @@
     if (key === msKey) return;
     msKey = key;
     try {
-      const art = named && it.art_url ? it.art_url : new URL(ART_PLACEHOLDER, location.href).href;
+      const art = (named && it.art_url) ? it.art_url : new URL(ART_LIVE, location.href).href;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: named ? it.title : "PILGRIM DOT FARM",
         artist: named ? it.artist : "live radio",
@@ -544,7 +547,9 @@
      audible song with an uploaded art_url shows its cover, anything else
      shows the placeholder. The next song's art is never shown early. */
   function setCoverArt(it, named) {
-    const url = (named && it && it.art_url) ? it.art_url : ART_PLACEHOLDER;
+    // Playing without per-song art shows the live default; idle shows fall.
+    const url = (named && it && it.art_url) ? it.art_url
+      : (playing ? ART_LIVE : ART_PLACEHOLDER);
     if (url === shownArt) return;
     shownArt = url;
     coverArt.src = url;
