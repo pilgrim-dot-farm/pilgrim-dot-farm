@@ -185,6 +185,7 @@ test("aired requests table shows up to five with a prep time", async ({ page }) 
   // at least 3 ch so "min" never breaks one character per line; the queue's
   // Status column still folds under the request text; nothing scrolls horizontally.
   await page.setViewportSize({ width: 360, height: 420 });
+  await page.click('#nav-mobile [data-go="requests"]');
   await expect(airedTable.getByRole("columnheader", { name: "Prep Time" }))
     .toBeVisible();
   const prep = await airedTable.evaluate((table) => {
@@ -252,14 +253,18 @@ test("a failed visitor counter never breaks PLAY or request submission", async (
   await expect(page.locator(".req-recent-item")).toHaveCount(5, { timeout: 10_000 });
 });
 
-test("all panes stay reachable by scrolling on a small screen", async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 420 });
+test("phone: panes are tabs; ABOUT scrolls and ends with the copyright", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
   await page.goto("/");
-  const desktop = page.locator("#desktop");
-  await desktop.evaluate(el => el.scrollTo(0, el.scrollHeight));
-  await page.waitForTimeout(300);
-  const hit = page.locator('[data-sub="hit"]');
-  await hit.scrollIntoViewIfNeeded();
-  await expect(hit).toBeVisible();
+  await expect(page.locator('[data-win="radio"]')).toBeVisible();
+  await expect(page.locator('[data-win="about"]')).toBeHidden();
+  await page.click('#nav-mobile [data-go="about"]');
+  await expect(page.locator('[data-win="about"]')).toBeVisible();
+  await expect(page.locator('[data-win="radio"]')).toBeHidden();
+  const body = page.locator('[data-win="about"] > .win-body');
+  await body.evaluate(el => el.scrollTo(0, el.scrollHeight));
   await expect(page.locator('[data-sub="credits"]')).toBeVisible();
+  await expect(page.locator(".about-copyright")).toBeVisible();
+  await expect(page.locator(".about-copyright")).toContainText("Pilgrim Dot Farm LLC");
+  await expect(page.locator("#footer")).toBeHidden();
 });

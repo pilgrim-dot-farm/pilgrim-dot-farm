@@ -218,6 +218,7 @@ test("mobile: no horizontal scroll, 40px vote targets, status under the title", 
   for (const width of [360, 320]) {
     await page.setViewportSize({ width, height: 640 });
     await page.goto("/");
+    await page.click('#nav-mobile [data-go="requests"]');
     await expect(page.locator(".req-item").first()).toBeVisible();
     const noOverflow = await page.evaluate(() =>
       document.documentElement.scrollWidth <= window.innerWidth);
@@ -229,11 +230,14 @@ test("mobile: no horizontal scroll, 40px vote targets, status under the title", 
     // the Status column is hidden and its text sits under the title
     await expect(page.locator(".req-item .req-status").first()).toBeHidden();
     await expect(page.locator(".req-item .req-status-inline").first()).toBeVisible();
-    // the rating row never overflows its art width
+    // the rating row never overflows the pane's content box (on phones the
+    // art may be narrower than the row: UI_REFACTOR.md D8)
+    await page.click('#nav-mobile [data-go="radio"]');
     const rate = page.locator("#rate-row");
     const rw = (await rate.boundingBox())!.width;
-    const art = (await page.locator(".art-frame").boundingBox())!.width;
-    expect(rw).toBeLessThanOrEqual(art + 1);
+    const inner = await page.locator(".win-body.radio").evaluate(el =>
+      el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight));
+    expect(rw).toBeLessThanOrEqual(inner + 1);
     for (const t of await page.locator(".turkey").all()) {
       const b = await t.boundingBox();
       expect(b!.width).toBeGreaterThanOrEqual(40);

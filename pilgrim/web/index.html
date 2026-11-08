@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>PILGRIM DOT FARM — radio</title>
 <link rel="stylesheet" href="style.css?v=20261109a">
 </head>
@@ -265,6 +265,20 @@
 <footer id="footer">
   <div class="copyright">© <span id="year" class="year"></span> Pilgrim Dot Farm LLC</div>
 </footer>
+
+<div id="mini" class="mini idle">
+  <button type="button" id="mini-title" class="mini-title" data-go="radio" aria-label="Open the radio">
+    <span class="mini-dot" aria-hidden="true"></span>
+    <span id="mini-text" class="mini-text">PILGRIM DOT FARM</span>
+  </button>
+  <button type="button" id="mini-play" class="mini-play" aria-label="Play">▶</button>
+</div>
+<nav id="nav-mobile" class="nav-mobile" aria-label="Sections">
+  <button type="button" data-go="radio" aria-current="page">RADIO</button>
+  <button type="button" data-go="requests">REQUEST</button>
+  <button type="button" data-go="sheep">CHAT</button>
+  <button type="button" data-go="about">ABOUT</button>
+</nav>
 
 <script>
   document.querySelectorAll('.year').forEach(el => { el.textContent = new Date().getFullYear(); });
