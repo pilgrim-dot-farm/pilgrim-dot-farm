@@ -37,9 +37,11 @@ def test_subject_text_prefers_lyrics():
     assert RequestParts(art="art").subject_text() == ""
 
 
-def test_has_song_requires_lyrics_or_music():
-    assert RequestParts(lyrics="x").has_song
-    assert RequestParts(music="x").has_song
+def test_has_song_requires_both_lyrics_and_music():
+    # UI feedback 2026-11-08: departments 1 and 2 are both required.
+    assert RequestParts(lyrics="x", music="y").has_song
+    assert not RequestParts(lyrics="x").has_song
+    assert not RequestParts(music="y").has_song
     assert not RequestParts(art="x").has_song
     assert not RequestParts().has_song
 

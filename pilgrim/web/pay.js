@@ -16,8 +16,11 @@
   const taLyrics = $("pay-lyrics"), taMusic = $("pay-music"), taArt = $("pay-art");
   const advanced = panel ? panel.querySelector(".pay-advanced") : null;
   const boxes = [taLyrics, taMusic, taArt].filter(Boolean);
-  const go = $("pay-go"), cancel = $("pay-cancel"), msg = $("pay-msg");
+  const go = $("pay-go"), msg = $("pay-msg");
   const mount = $("pay-checkout");
+  const stepsEl = $("pay-steps");
+  const promoInput = $("pay-promo"), promoApply = $("pay-promo-apply"),
+        promoMsg = $("pay-promo-msg");
   if (!panel || !mount || boxes.length !== 3) return;
 
   const STORE_KEY = "pd_pay_token";
@@ -35,6 +38,8 @@
   let doneTimer = null;
   let pollStarted = 0;
   let stripePromise = null;
+  let promoCode = null;      // validated operator comp code (never persisted)
+  let promoAttempts = 2;     // feedback 2026-11-08: two wrong tries, then grey
 
   function showMsg(text, ok) {
     msg.textContent = text || "";
@@ -47,12 +52,86 @@
     render();
   }
 
+  /* Enumerated wait states (feedback 2026-11-08): the server's real stages. */
+  const STEP_ORDER = ["moderation", "copyright", "checkout"];
+  function showSteps(stage) {
+    if (!stepsEl) return;
+    stepsEl.hidden = false;
+    const at = STEP_ORDER.indexOf(stage);
+    Array.from(stepsEl.children).forEach((li, i) => {
+      li.classList.toggle("active", i === at);
+      li.classList.toggle("done", at > i);
+    });
+  }
+  function hideSteps() {
+    if (!stepsEl) return;
+    stepsEl.hidden = true;
+    Array.from(stepsEl.children).forEach((li) => {
+      li.classList.remove("active", "done");
+    });
+  }
+
+  function setPromoMsg(text, ok) {
+    if (!promoMsg) return;
+    promoMsg.textContent = text || "";
+    promoMsg.classList.toggle("ok", !!text && ok);
+    promoMsg.classList.toggle("err", !!text && !ok);
+  }
+
+  /* APPLY validates the code server-side (constant time, never echoed). The
+     client counts two failures and then greys the row out; a network failure
+     does not spend an attempt. */
+  async function applyPromo() {
+    if (!promoInput || !promoApply || promoCode || promoAttempts <= 0) return;
+    const code = promoInput.value.trim();
+    if (!code) { setPromoMsg("Enter a promo code first.", false); return; }
+    promoApply.disabled = true;
+    try {
+      const r = await fetch("/api/paid-requests/promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        promoCode = code;
+        promoInput.disabled = true;
+        setPromoMsg("Success! This one's on us", true);
+        return;
+      }
+      if (!r.ok) throw new Error("promo check failed");
+      promoAttempts -= 1;
+      if (promoAttempts > 0) {
+        promoApply.disabled = false;
+        setPromoMsg("FAILED: " + promoAttempts + " attempts remain.", false);
+      } else {
+        promoInput.disabled = true;
+        setPromoMsg("FAILED: no attempts remain.", false);
+      }
+    } catch (e) {
+      promoApply.disabled = false;
+      setPromoMsg("Couldn't check the code. Try again.", false);
+    }
+  }
+
+  function resetPromo() {
+    promoCode = null;
+    promoAttempts = 2;
+    if (promoInput) { promoInput.value = ""; promoInput.disabled = false; }
+    if (promoApply) promoApply.disabled = false;
+    setPromoMsg("");
+  }
+
   function render() {
     const locked = state === "checking" || state === "paying" || state === "confirming";
     for (const ta of boxes) ta.disabled = locked;
     if (advanced) advanced.open = false;
     setEnabled(paidEnabled);
-    cancel.disabled = state === "checking" || state === "confirming";
+    // the promo box is frozen while the request is in flight, and stays grey
+    // after two wrong tries or a successful code
+    if (promoInput && !promoCode) promoInput.disabled = locked || promoAttempts <= 0;
+    if (promoApply && !promoCode) promoApply.disabled = locked || promoAttempts <= 0;
+    if (state !== "checking") hideSteps();
     if (state === "idle") {
       mount.textContent = "";
       showMsg("");
@@ -148,6 +227,7 @@
         const pos = d.position ? " (#" + d.position + ")" : "";
         showMsg("✓ You're in the priority line" + pos + ".", true);
         clearDraft();
+        resetPromo();
         setState("done");
         doneTimer = setTimeout(() => setState("idle"), 8000);
         return;
@@ -170,10 +250,6 @@
     }
   }
 
-  const STAGE_MSG = {
-    moderation: "Checking for unseemly content…",
-    copyright: "Checking for existing copyrighted material…",
-  };
   const CHECK_TIMEOUT_MS = 120000;
 
   function backToComposing(text) {
@@ -200,10 +276,11 @@
         if (d.stage === "ready") {
           checkoutAsked = true;
           clearTimers();
+          showSteps("checkout");
           await requestCheckout();
           return;
         }
-        if (STAGE_MSG[d.stage]) showMsg(STAGE_MSG[d.stage], true);
+        if (STEP_ORDER.includes(d.stage)) showSteps(d.stage);
       } else if (d.status === "rejected") {
         backToComposing("Head's up: " + (d.reason || "that didn't pass the DJ's taste filter."));
         return;
@@ -219,6 +296,7 @@
         const pos = d.position ? " (#" + d.position + ")" : "";
         showMsg("✓ You're in the priority line" + pos + ".", true);
         clearDraft();
+        resetPromo();
         setState("done");
         doneTimer = setTimeout(() => setState("idle"), 8000);
         return;
@@ -241,6 +319,7 @@
   }
 
   async function requestCheckout() {
+    showSteps("checkout");
     try {
       const r = await fetch("/api/paid-requests/" + encodeURIComponent(token) + "/checkout",
                             { method: "POST" });
@@ -289,18 +368,28 @@
   async function submitPaid() {
     const lyrics = taLyrics.value.trim(), music = taMusic.value.trim(),
           art = taArt.value.trim();
-    if (!lyrics && !music) {
-      showMsg("Give us a subject or a sound and we'll take it from there.", false);
-      (lyrics || !music ? taLyrics : taMusic).focus();
+    // Feedback 2026-11-08: both departments one and two are required.
+    if (!lyrics || !music) {
+      showMsg("Both LYRICS and MUSICAL DIRECTION are required.", false);
+      (!lyrics ? taLyrics : taMusic).focus();
       return;
     }
-    showMsg("Checking with the DJ…", true);
+    if (promoInput && promoInput.value.trim() && !promoCode) {
+      showMsg("Apply your promo code first.", false);
+      promoInput.focus();
+      return;
+    }
+    showMsg("Sending your request…", true);
     setState("checking");
+    showSteps("moderation");
+    if (stepsEl) stepsEl.scrollIntoView({ block: "nearest" });
     try {
+      const body = { lyrics, music, art };
+      if (promoCode) body.promo = promoCode;
       const r = await fetch("/api/paid-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lyrics, music, art }),
+        body: JSON.stringify(body),
       });
       const d = await r.json().catch(() => ({}));
       if (r.status === 503) {
@@ -335,14 +424,9 @@
 
   for (const ta of boxes) ta.addEventListener("input", saveDraft);
   go.addEventListener("click", submitPaid);
-  cancel.addEventListener("click", () => {
-    if (state === "paying") destroyCheckout();
-    clearTimers();
-    clearToken();
-    token = null;
-    clientSecret = null;
-    clearDraft();
-    setState("idle");
+  if (promoApply) promoApply.addEventListener("click", applyPromo);
+  if (promoInput) promoInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); applyPromo(); }
   });
 
   window.PD_PAY = { setEnabled };

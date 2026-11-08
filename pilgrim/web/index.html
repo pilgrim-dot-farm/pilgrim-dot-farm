@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>PILGRIM DOT FARM — radio</title>
-<link rel="stylesheet" href="style.css?v=20261109b">
+<link rel="stylesheet" href="style.css?v=20261109c">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -105,8 +105,8 @@
       <div id="req-err" class="req-err hidden"></div>
       <div class="req-list-head pay-head">PRIORITY REQUEST</div>
       <div class="pay-note">
-	      <span style="font-size: 1.25em; display: block;">SKIP THE BARNYARD!<br>YOUR SONG, YOUR RULES!</span><br>
-        Help us pay the power and cloud bills!
+        <span class="pay-note-head">SKIP THE BARNYARD!<br>YOUR SONG, YOUR RULES!</span>
+        <span class="pay-note-sub">(Help us pay the power and cloud bills)</span>
       </div>
       <div id="pay-panel" class="pay-panel">
         <section class="pay-field pay-field-lyrics">
@@ -125,9 +125,20 @@
 
         <section class="pay-field pay-field-art">
           <label for="pay-art" class="pay-label"><span class="pay-num">3</span><span>COVER ART (Optional)</span></label>
-          <p class="pay-help">Direct artistic, e.g. style, colors, and general scene.</p>
+          <p class="pay-help">Artistic description, e.g. style, colors, scene.</p>
           <textarea id="pay-art" rows="2" maxlength="800"
                     placeholder="A chrome vending machine on a moonlit cliff, painted like an 80s fantasy album…"></textarea>
+        </section>
+
+        <section class="pay-field pay-field-promo">
+          <label for="pay-promo" class="pay-label"><span class="pay-num">4</span>PROMO CODE</label>
+          <p class="pay-help">Got a code? Skip the payment line.</p>
+          <div class="pay-promo-row">
+            <input id="pay-promo" type="text" maxlength="64" autocomplete="off"
+                   spellcheck="false" placeholder="Enter promo code">
+            <button id="pay-promo-apply" type="button">APPLY</button>
+          </div>
+          <div id="pay-promo-msg" class="pay-promo-msg" role="status" aria-live="polite"></div>
         </section>
 
         <details class="pay-advanced">
@@ -156,11 +167,15 @@
         <p class="pay-terms">Your request goes ahead of free submissions. Chip in
           what you like: $3.50 suggested, $3 minimum.</p>
 
+        <div id="pay-msg" class="req-err hidden"></div>
+        <ol id="pay-steps" class="pay-steps" hidden>
+          <li data-step="moderation">(1/3) Checking for unseemly content</li>
+          <li data-step="copyright">(2/3) Checking for existing copyrighted material</li>
+          <li data-step="checkout">(3/3) Preparing secure payment</li>
+        </ol>
         <div class="pay-actions">
           <button id="pay-go" class="pay-btn" type="button">CHECK IT &amp; PAY</button>
-          <button id="pay-cancel" type="button" class="pay-cancel">Cancel</button>
         </div>
-        <div id="pay-msg" class="req-err hidden"></div>
         <div id="pay-checkout" class="pay-checkout"></div>
       </div>
       <div class="req-list-head">NOW QUEUED</div>
@@ -289,7 +304,7 @@
 <script src="voter.js?v=20261103a"></script>
 <script src="requests.js?v=20261109b"></script>
 <script src="votes.js?v=20261103a"></script>
-<script src="pay.js?v=20261031d"></script>
+<script src="pay.js?v=20261109c"></script>
 <script src="visitors.js?v=20261105b"></script>
 <script src="rating.js?v=20261103a"></script>
 <script src="player.js?v=20261105b"></script>

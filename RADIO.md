@@ -955,32 +955,44 @@ the station name.
   thin visible scrollbar and a bottom gradient while there is more below
   (`has-more`). On phones the Status column folds under the request text (two
   visual columns) and nothing scrolls horizontally down to 320 px.
-- **PRIORITY REQUEST** (PROMPT_UPGRADE.md Step 5, PAYMENT.md; simplified UI
-  2026-11-08): the *SKIP THE BARNYARD! YOUR SONG, YOUR RULES!* note and
-  *Help us pay the power and cloud bills!* stay below the heading. The form
-  is always visible, with no opening button or introductory paragraph. Three
-  numbered creative departments each have a label and one helper line:
+- **PRIORITY REQUEST** (PROMPT_UPGRADE.md Step 5, PAYMENT.md; UI feedback
+  2026-11-08): the *SKIP THE BARNYARD! YOUR SONG, YOUR RULES!* headline and the
+  parenthesised *(Help us pay the power and cloud bills)* line (no
+  punctuation, the same grey as GROUND RULES) stay below the heading. The
+  form is always visible, with no opening button or introductory paragraph.
+  Four numbered creative departments each have a label and one helper line:
   **1 LYRICS** (*Subject, story, title, exact words.*), **2 MUSICAL DIRECTION**
   (*Genre, instruments vocals, tempo, and etc.*), **3 COVER ART (Optional)**
-  (*Direct artistic, e.g. style, colors, and general scene.*). The optional
-  label uses the same font as COVER ART. Textarea borders match their step
+  (*Artistic description, e.g. style, colors, scene.*), **4 PROMO CODE**
+  (*Got a code? Skip the payment line.*, the whole block grey). The optional
+  label uses the same font as COVER ART; textarea and promo input text is
+  13 px, the same as the helper lines. Textarea borders match their step
   colours (cyan, purple, pink), including focus. The lyrics placeholder reads
   *A love song about a sentient vending machine.*
-  Lyrics or musical direction is required; cover art alone is not a song
-  request. The technical help (section tags, a full MiniMax
-  structured caption, how to describe imagery, the 4,000 / 3,000 / 800 limits)
-  lives in one collapsed *Want to get technical?* block with a larger summary
-  (17 px; help content remains 13 px), so the main form
-  never says LLM, prompt, caption, MiniMax, FLUX, token or metadata. The
-  client posts `{lyrics, music, art}` (§11); the `maxlength` values mirror
+  **Both lyrics and musical direction are required** (art and promo are
+  optional); cover art alone is not a song request. The technical help
+  (section tags, a full MiniMax structured caption, how to describe imagery,
+  the 4,000 / 3,000 / 800 limits) lives in one collapsed *Want to get
+  technical?* block with a larger summary (17 px; help content remains
+  13 px), so the main form never says LLM, prompt, caption, MiniMax, FLUX,
+  token or metadata. The client posts `{lyrics, music, art}` (plus `promo`
+  when a code was applied) (§11); the `maxlength` values mirror
   `payments.parts`, and the server is the authority. Drafts persist across a
   reload in `sessionStorage` under `pd_pay_draft` (`{lyrics, music, art, ts}`,
-  24 h), restored on page load and cleared when the request reaches
-  the line, on Cancel, or on an explicit clear — never merely because the page
-  loaded. Cancel clears the draft and keeps the form visible. The button
+  24 h), restored on page load and cleared when the request reaches the line
+  or on an explicit clear — never merely because the page loaded. There is no
+  Cancel button: the payment UI closes itself when it is done. The button
   reads **CHECK IT & PAY**, at 16 px with the former opening button's
   green/cyan/green gradient; it is disabled while checks/payment confirmation
-  are pending or priority requests are closed. The terms line says *Your
+  are pending or priority requests are closed. While the station checks the
+  request, three enumerated wait states are listed under the button — *(1/3)
+  Checking for unseemly content*, *(2/3) Checking for existing copyrighted
+  material*, *(3/3) Preparing secure payment* — the active one in cyan and
+  completed ones ticked, and the list is scrolled into view on phones. The
+  promo box's **APPLY** validates the operator comp code server-side without
+  echoing it; a wrong code reads *FAILED: N attempts remain.* in red, two
+  wrong tries grey the box out, and a valid code reads *Success! This one's
+  on us* in green and the request skips Stripe. The terms line says *Your
   request goes ahead of free submissions. Chip in what you like: $3.50
   suggested, $3 minimum.*
 - **RATE THIS SONG** (VOTING.md, FIX_RATINGS.md): a row above the cover art
@@ -1214,7 +1226,8 @@ refill target.
 | GET | `/api/requests` | Request board: `{queue: [{id, text, status, paid, stage, song_title, score, votable, buried}], recent: [{text, song_title, song_artist, paid, wait_s}], cap, voting_enabled}` — queue = queued+producing+ready in queue order (≤ `queue_cap`), `song_title` set from `ready` on; `stage` is set only on `producing` rows: `waiting` until its turn at the brief LLM (briefs run one at a time), `writing` while the lyrics/brief are written, `generating` once the song model runs, `rendered` once the song exists but its intro is being made or it waits for the requests ahead of it (ready order is air order) (the board shows "in line" / "being written" / "being generated" / "generated, in line"; `queued` also shows "in line"); `score` is the vote sum, `votable` false for paid rows or when `voting.enabled` is false, `buried` true for a free queued row at/below `voting.bury_threshold` (VOTING.md §1); recent = **last 5** aired, never scored (no retrospective voting). The page renders the queue as Votes / Request / Status (scrolls, header pinned) and recent as Prompt / Title / Prep Time. `wait_s` (Prep Time) is whole seconds from `prep_started_at` — the moment lyrics/brief writing began — to the **earlier of `aired_at` and `due_at`**. `due_at` is the wall time the song was scheduled to air when it was teed up (committed or spliced into the programme, §5.2); with listeners present it agrees with `aired_at` to within seconds, but with nobody listening the playhead is frozen (§3, IDLE.md D3) and `aired_at` only lands on the next PLAY, hours later: that wait is capped at when the song would have aired. Time spent in line or waiting for the station to come back is not prep, and a row with no recorded writing start (aired before that column existed) sends `null`, which the page renders as an em dash (`—`) — measured-or-nothing, never queue idle dressed up as prep. Rows that aired before `due_at` existed are recovered from the station log by `make due-backfill` (tee-up line + frozen spans; dry run unless `DUE_ARGS="--apply"`). `POST` answers `line_full: true` when the free line is at `free_queue_max` |
 | POST | `/api/requests/{id}/vote` | VOTING.md: `{voter_id, value}` where `voter_id` is the browser's 32-hex id and `value` ∈ {−1, 0, +1} (0 retracts). Upsert per `(request_id, voter_id)`; only free rows in `queued/producing/ready` are votable. `200 {ok, score, mine, open}`; `404 not_found`; `409 {code: voting_closed\|not_votable, score}`; `422` bad body/id; `429` rate limit or `too_many_voters` (max distinct ids per IP per request); `404` when `voting.enabled` is false. `no-store` |
 | POST | `/api/station/rating` | VOTING.md: `{voter_id, epoch, seq, stars 1-5}` for the on-air song. The window is server-authoritative (epoch must match, `seq` must be the on-air song or the song that just ended within `ratings.grace_s`; a frozen station is closed). `200 {ok, item_id, count, avg, mine}`; `409 {code: rating_closed}`; `422`; `429`; `404` when `ratings.enabled` is false. `no-store` |
-| POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art}` or legacy `{text}` (PAYMENT.md Step 12b; PROMPT_UPGRADE.md Step 2): rate limit -> normalise -> operator-comp check (first line of the lyrics box, or of `text`, == `PAID_OVERRIDE_TOKEN`, stripped) -> prefilter. Three-box body: at least one of lyrics/music; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only is `422`. Prefilter reject: `{ok:false, rejected:true, reason}`. Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
+| POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art[, promo]}` or legacy `{text}` (PAYMENT.md Step 12b; PROMPT_UPGRADE.md Step 2; UI feedback 2026-11-08): rate limit -> normalise -> operator-comp check (`promo` == `PAID_OVERRIDE_TOKEN` after constant-time compare, or the legacy first line of the lyrics box / `text` == the token, stripped) -> prefilter. A wrong `promo` is `403`. Three-box body: **both lyrics and music required**; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only (or one department alone) is `422`. Prefilter reject: `{ok:false, rejected:true, reason}`. Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
+| POST | `/api/paid-requests/promo` | `{code}` -> `{ok}`: validates the operator comp code in constant time for the promo box's APPLY button; never echoes or stores the code. The client counts two wrong tries and greys the box out; the code is re-checked on submit |
 | GET | `/api/paid-requests/{token}` | `{status, position, stage, comped, reason?}` (`no-store`): `stage` is `moderation\|copyright\|ready` while `status=checking`; `reason` only when `rejected`. Reconciles an `awaiting_payment` row with Stripe when payments are active |
 | POST | `/api/paid-requests/{token}/checkout` | Only for a non-comped row at `checking/ready`: claims it once (`-> awaiting_payment`) and creates the Checkout Session → `{ok, client_secret, publishable_key, expires_at}`; `client_secret` is returned once and never stored. `409` not ready / already claimed, `424` Stripe failure (row `abandoned`), `503` payments inactive |
 | POST | `/api/stripe/webhook` | Signature-verified Stripe events (PAYMENT.md Step 5) |

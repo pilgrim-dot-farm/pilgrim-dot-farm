@@ -38,7 +38,9 @@ class RequestParts:
 
     @property
     def has_song(self) -> bool:
-        return bool(self.lyrics or self.music)
+        """Both lyrics and musical direction are required (UI feedback
+        2026-11-08); cover art is optional and never sufficient."""
+        return bool(self.lyrics and self.music)
 
     def composed(self) -> str:
         """`Lyrics:\\n…\\n\\nMusic:\\n…\\n\\nAlbum art:\\n…`; empty parts omitted."""
