@@ -86,46 +86,39 @@
       <span class="win-title">REQUEST LINE</span>
     </div>
     <div class="win-body requests">
+      <div class="req-list-head pay-head">GROUND RULES</div>
+      <p class="req-note">Leave a line for the DJ. Each one generates a song.
+        Keep it cleanish. Innuendo welcome. No explicit sexual content, hateful, or illegal requests.</p>
       <div class="req-list-head pay-head">FREE FOR ALL</div>
-      <p class="req-note">Leave a line for the DJ. Each one generates a song.<br>
-      Keep it cleanish.  Innuendo welcome.<br>No explicit sexual content, hateful, or illegal requests.</p>
       <div class="req-form">
         <input id="req-input" type="text" maxlength="160" autocomplete="off"
-               placeholder="Request a tune or leave a line for Liam…">
+               placeholder="Enter free request here.">
         <button id="req-send">Send</button>
       </div>
       <div id="req-err" class="req-err hidden"></div>
-      <div class="req-list-head pay-head">I NEED ABOUT TREE FIDDY</div>
+      <div class="req-list-head pay-head">PRIORITY REQUEST</div>
       <div class="pay-note">
 	      <span style="font-size: 1.25em; display: block;">SKIP THE BARNYARD!<br>YOUR SONG, YOUR RULES!</span><br>
         Help us pay the power and cloud bills!
       </div>
-      <button id="pay-open" class="pay-btn" type="button">PRIORITY REQUEST<br>($3 MIN)</button>
-      <div id="pay-panel" class="pay-panel hidden">
-        <p class="pay-intro">Tell us what to sing, how to sound, and what goes on the
-          cover. Take control of all three, or leave the details to us.<br>
-          <span class="pay-wink">Your imagination. Our questionable machinery.</span></p>
-
+      <div id="pay-panel" class="pay-panel">
         <section class="pay-field pay-field-lyrics">
-          <label for="pay-lyrics" class="pay-label"><span class="pay-num">1</span>LYRICS
-            <span class="pay-sub">The words</span></label>
-          <p class="pay-help">Set the subject, story, title, or even write the lyrics yourself.</p>
+          <label for="pay-lyrics" class="pay-label"><span class="pay-num">1</span>LYRICS</label>
+          <p class="pay-help">Subject, story, title, exact words.</p>
           <textarea id="pay-lyrics" rows="4" maxlength="4000"
-                    placeholder="A love song about a sentient vending machine. Or paste your own lyrics…"></textarea>
+                    placeholder="A love song about a sentient vending machine."></textarea>
         </section>
 
         <section class="pay-field pay-field-music">
-          <label for="pay-music" class="pay-label"><span class="pay-num">2</span>MUSICAL DIRECTION
-            <span class="pay-sub">The sound</span></label>
-          <p class="pay-help">Choose the genre, instruments, vocals, tempo, and mood. Get as specific as you like.</p>
+          <label for="pay-music" class="pay-label"><span class="pay-num">2</span>MUSICAL DIRECTION</label>
+          <p class="pay-help">Genre, instruments vocals, tempo, and etc.</p>
           <textarea id="pay-music" rows="3" maxlength="3000"
                     placeholder="1980s synth-pop, dramatic female vocals, pounding drums, absurdly heroic…"></textarea>
         </section>
 
         <section class="pay-field pay-field-art">
-          <label for="pay-art" class="pay-label"><span class="pay-num">3</span>COVER ART
-            <span class="pay-sub">Optional</span></label>
-          <p class="pay-help">Direct the artwork's scene, style, colors, and atmosphere. Or let the farm surprise you.</p>
+          <label for="pay-art" class="pay-label"><span class="pay-num">3</span><span>COVER ART (Optional)</span></label>
+          <p class="pay-help">Direct artistic, e.g. style, colors, and general scene.</p>
           <textarea id="pay-art" rows="2" maxlength="800"
                     placeholder="A chrome vending machine on a moonlit cliff, painted like an 80s fantasy album…"></textarea>
         </section>
@@ -157,7 +150,7 @@
           what you like: $3.50 suggested, $3 minimum.</p>
 
         <div class="pay-actions">
-          <button id="pay-go" type="button">CHECK IT &amp; PAY</button>
+          <button id="pay-go" class="pay-btn" type="button">CHECK IT &amp; PAY</button>
           <button id="pay-cancel" type="button" class="pay-cancel">Cancel</button>
         </div>
         <div id="pay-msg" class="req-err hidden"></div>

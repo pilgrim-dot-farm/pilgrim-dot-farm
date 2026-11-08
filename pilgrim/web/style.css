@@ -171,7 +171,7 @@ body {
 .pay-head { margin-top: 4px; }
 .pay-note { color: var(--cyan); font-size: 14px; letter-spacing: 1px; }
 .pay-btn {
-  width: 100%; height: 56px; font-size: 20px; font-family: inherit; font-weight: bold;  /* 1.5x the 13.33px UA button default */
+  width: 100%; min-height: 48px; font-size: 16px; font-family: inherit; font-weight: bold;
   letter-spacing: 2px; white-space: pre-line; cursor: pointer; border: none; border-radius: 6px;
   color: #0a0118; background-color: #00FF66;
   background-image: linear-gradient(
@@ -187,36 +187,30 @@ body {
 .pay-panel textarea {
   width: 100%; box-sizing: border-box; font-family: inherit; font-size: 15px;
   padding: 10px; border-radius: 6px; resize: vertical; min-height: 56px;
-  border: 1px solid var(--violet); background: rgba(10,1,24,.6);
+  border: 1px solid var(--field-color); background: rgba(10,1,24,.6);
   color: var(--text); outline: none;
 }
 .pay-field-lyrics textarea { min-height: 88px; }
-.pay-intro { margin: 0; color: var(--text); font-size: 14px; line-height: 1.35; }
-.pay-wink { color: var(--dim); font-style: italic; }
-.pay-field { display: flex; flex-direction: column; gap: 4px;
+.pay-field { --field-color: var(--cyan); display: flex; flex-direction: column; gap: 4px;
              padding: 8px 10px; border-radius: 6px;
-             border-left: 3px solid var(--cyan); background: rgba(10,1,24,.35); }
-.pay-field-music { border-left-color: var(--violet); }
-.pay-field-art   { border-left-color: var(--magenta); }
-.pay-label { display: flex; align-items: baseline; gap: 8px; color: var(--cyan);
+             border-left: 3px solid var(--field-color); background: rgba(10,1,24,.35); }
+.pay-field-music { --field-color: var(--violet); }
+.pay-field-art   { --field-color: var(--magenta); }
+.pay-label { display: flex; align-items: baseline; gap: 8px; color: var(--field-color);
              font-size: 14px; font-weight: bold; letter-spacing: 1px; }
-.pay-field-music .pay-label { color: var(--violet); }
-.pay-field-art .pay-label   { color: var(--magenta); }
 .pay-num { display: inline-grid; place-items: center; width: 20px; height: 20px;
            border-radius: 50%; border: 1px solid currentColor; font-size: 12px; }
-.pay-sub { color: var(--dim); font-weight: normal; letter-spacing: 0; }
 .pay-help { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.3; }
 .pay-advanced { font-size: 13px; color: var(--dim); }
-.pay-advanced summary { cursor: pointer; color: var(--cyan); letter-spacing: 1px; }
+.pay-advanced summary { cursor: pointer; color: var(--cyan); font-size: 17px; letter-spacing: 1px; }
 .pay-advanced ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.35; }
 .pay-advanced code { color: var(--text); }
 .pay-terms { margin: 0; color: var(--cyan); font-size: 13px; }
-.pay-panel textarea:focus { border-color: var(--cyan); }
+.pay-panel textarea:focus { outline: 1px solid var(--field-color); }
 .pay-panel textarea::placeholder { color: var(--dim); }
 .pay-actions { display: flex; gap: 8px; }
 .pay-actions button {
   font-family: inherit; font-weight: bold; letter-spacing: 1px; cursor: pointer;
-  color: #0a0118; background: linear-gradient(90deg, var(--cyan), var(--violet));
   border: none; border-radius: 6px; padding: 10px 14px; flex: 1;
 }
 .pay-actions button:disabled { filter: grayscale(.7); cursor: not-allowed; }

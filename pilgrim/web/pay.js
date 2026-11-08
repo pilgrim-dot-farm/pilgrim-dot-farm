@@ -12,21 +12,21 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const btn = $("pay-open"), panel = $("pay-panel");
+  const panel = $("pay-panel");
   const taLyrics = $("pay-lyrics"), taMusic = $("pay-music"), taArt = $("pay-art");
   const advanced = panel ? panel.querySelector(".pay-advanced") : null;
   const boxes = [taLyrics, taMusic, taArt].filter(Boolean);
   const go = $("pay-go"), cancel = $("pay-cancel"), msg = $("pay-msg");
   const mount = $("pay-checkout");
-  if (!btn || !panel || !mount || boxes.length !== 3) return;
+  if (!panel || !mount || boxes.length !== 3) return;
 
-  const LABEL = "PRIORITY REQUEST\n($3 MIN)";
   const STORE_KEY = "pd_pay_token";
   const STORE_TTL_MS = 10 * 60 * 1000;
   const DRAFT_KEY = "pd_pay_draft";
   const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
   let state = "idle";
+  let paidEnabled = true;
   let checkout = null;
   let clientSecret = null;
   let publishableKey = null;
@@ -48,13 +48,10 @@
   }
 
   function render() {
-    panel.classList.toggle("hidden", state === "idle");
-    btn.classList.toggle("hidden", state !== "idle");
-    btn.disabled = state !== "idle";
     const locked = state === "checking" || state === "paying" || state === "confirming";
     for (const ta of boxes) ta.disabled = locked;
     if (advanced) advanced.open = false;
-    go.disabled = locked;
+    setEnabled(paidEnabled);
     cancel.disabled = state === "checking" || state === "confirming";
     if (state === "idle") {
       mount.textContent = "";
@@ -331,22 +328,10 @@
   }
 
   function setEnabled(enabled) {
-    if (enabled) {
-      btn.disabled = false;
-      btn.textContent = LABEL;
-    } else {
-      btn.disabled = true;
-      btn.textContent = LABEL + " (closed)";
-    }
+    paidEnabled = enabled;
+    go.disabled = !enabled || ["checking", "paying", "confirming"].includes(state);
+    go.textContent = enabled ? "CHECK IT & PAY" : "PRIORITY REQUESTS CLOSED";
   }
-
-  btn.addEventListener("click", () => {
-    if (state !== "idle") return;
-    showMsg("");
-    loadDraft();
-    setState("composing");
-    taLyrics.focus();
-  });
 
   for (const ta of boxes) ta.addEventListener("input", saveDraft);
   go.addEventListener("click", submitPaid);
@@ -362,6 +347,7 @@
 
   window.PD_PAY = { setEnabled };
 
+  loadDraft();
   const resumed = loadToken();
   if (resumed) {
     startChecking(resumed);   // checkPoll routes to the right phase
