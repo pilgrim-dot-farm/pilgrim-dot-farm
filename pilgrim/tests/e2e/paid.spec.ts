@@ -154,6 +154,8 @@ test("promo code: two wrong tries grey it out; a valid code goes green", async (
   // fourth department, grey (feedback 2026-11-08)
   await expect(page.locator(".pay-field-promo")).toBeVisible();
   await expect(page.locator("#pay-promo-apply")).toHaveText("APPLY");
+  // no reserved blank line under the input while there is no message
+  await expect(page.locator("#pay-promo-msg")).toBeHidden();
   const [grey, dim] = await page.evaluate(() => [
     getComputedStyle(document.querySelector(".pay-field-promo")!)
       .getPropertyValue("--field-color").trim(),

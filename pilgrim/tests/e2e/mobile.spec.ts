@@ -137,6 +137,20 @@ test("entering CHAT shows the newest messages", async ({ page }) => {
   expect(left).toBeLessThanOrEqual(2);
 });
 
+test("REQUEST: the queue box keeps its height and its rows on a phone", async ({ page }) => {
+  await tab(page, "requests");
+  const m = await page.evaluate(() => {
+    const wrap = document.querySelector(".req-scroll")!.getBoundingClientRect();
+    const rows = document.querySelectorAll("#req-queue tr.req-item").length;
+    const first = document.querySelector("#req-queue tr.req-item") as HTMLElement | null;
+    return { h: wrap.height, rows, rowH: first ? first.getBoundingClientRect().height : 0 };
+  });
+  expect(m.rows).toBeGreaterThan(0);
+  // before the fix the flex column squeezed this box to 0 px (2026-11-08)
+  expect(m.h).toBeGreaterThan(50);
+  expect(m.rowH).toBeGreaterThan(10);
+});
+
 test("mini player mirrors the radio pane and never restarts audio", async ({ page }) => {
   await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM");
   await expect(page.locator("#mini-play")).toHaveAttribute("aria-label", "Play");
