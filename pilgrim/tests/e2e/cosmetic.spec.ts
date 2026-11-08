@@ -25,7 +25,7 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     };
   });
   expect(heads.req).toEqual(heads.about);
-  expect(heads.about.align).toBe("center");
+  expect(heads.about.align).toBe("left");
   expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
   const subs = await page.$$eval(".about-sub", els => els.map(e => [e.getAttribute("data-sub"), e.querySelector(".about-head")!.textContent]));
   expect(subs).toEqual([

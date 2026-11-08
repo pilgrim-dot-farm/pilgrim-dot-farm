@@ -727,12 +727,12 @@ def test_three_box_stores_parts_and_composed_text(tmp_env, monkeypatch):
 
 def test_three_box_empty_art_is_stored_as_empty_string(tmp_env, monkeypatch):
     _, app, station, _ = _build(tmp_env, monkeypatch)
-    r = _post_parts(TestClient(app), lyrics=LYRICS, music="", art="")
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, art="")
     assert r.status_code == 200
     row = station.db.all_requests()[0]
-    assert row["lyrics_text"] == LYRICS and row["music_text"] == ""
+    assert row["lyrics_text"] == LYRICS and row["music_text"] == MUSIC
     assert row["art_text"] == ""
-    assert row["text"] == f"Lyrics:\n{LYRICS}"
+    assert row["text"] == f"Lyrics:\n{LYRICS}\n\nMusic:\n{MUSIC}"
 
 
 def test_legacy_text_row_has_null_parts(tmp_env, monkeypatch):
@@ -744,21 +744,68 @@ def test_legacy_text_row_has_null_parts(tmp_env, monkeypatch):
     assert row["text"] == "a bossa nova about a night bus"
 
 
-def test_three_box_validation(tmp_env, monkeypatch):
+def test_three_box_requires_both_lyrics_and_music(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    c = TestClient(app)
+    # art alone is not a song request; departments 1 AND 2 are both required
+    # (UI feedback 2026-11-08)
+    assert _post_parts(c, art=ART).status_code == 422
+    assert _post_parts(c, lyrics=LYRICS, art=ART).status_code == 422
+    assert _post_parts(c, music=MUSIC, art=ART).status_code == 422
+    assert _post_parts(c, lyrics="  ", music="", art=ART).status_code == 422
+    assert station.db.all_requests() == []
+
+
+def test_three_box_limits_and_forms(tmp_env, monkeypatch):
     cfg, app, station, _ = _build(tmp_env, monkeypatch)
     c = TestClient(app)
-    # art alone is not a song request
-    assert _post_parts(c, art=ART).status_code == 422
-    assert _post_parts(c, lyrics="  ", music="", art=ART).status_code == 422
-    # per-box limits
-    assert _post_parts(c, lyrics="x" * (cfg.payments.parts.lyrics_max + 1)).status_code == 422
-    assert _post_parts(c, music="x" * (cfg.payments.parts.music_max + 1)).status_code == 422
-    assert _post_parts(c, music="loud",
+    # per-box limits (the request-line limiter allows 5 attempts per app)
+    assert _post_parts(c, lyrics="x" * (cfg.payments.parts.lyrics_max + 1),
+                       music=MUSIC).status_code == 422
+    assert _post_parts(c, lyrics=LYRICS,
+                       music="x" * (cfg.payments.parts.music_max + 1)).status_code == 422
+    assert _post_parts(c, lyrics=LYRICS, music=MUSIC,
                        art="x" * (cfg.payments.parts.art_max + 1)).status_code == 422
     # both forms at once
     assert _post_parts(c, text="legacy", lyrics="words").status_code == 422
     # neither form
     assert c.post("/api/paid-requests", json={}).status_code == 422
+    assert station.db.all_requests() == []
+
+
+def test_promo_endpoint_validates_without_echo(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    secret = "operator-comp-secret-0123456789"
+    c = TestClient(app)
+    # no secret configured: never ok
+    assert c.post("/api/paid-requests/promo",
+                  json={"code": secret}).json() == {"ok": False}
+    station.override_token = secret
+    ok = c.post("/api/paid-requests/promo", json={"code": secret})
+    assert ok.status_code == 200 and ok.json() == {"ok": True}
+    bad = c.post("/api/paid-requests/promo", json={"code": "nope-nope-nope"})
+    assert bad.status_code == 200 and bad.json() == {"ok": False}
+    # the response never echoes the code
+    assert secret not in ok.text and secret not in bad.text
+
+
+def test_promo_body_comps_the_request(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch, active=False)
+    secret = "operator-comp-secret-0123456789"
+    station.override_token = secret
+    c = TestClient(app)
+    r = _post_parts(c, lyrics=LYRICS, music=MUSIC, promo=secret)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    row = station.db.all_requests()[0]
+    assert row["comped"] == 1 and row["status"] == "queued"
+    assert secret not in row["text"] and secret not in (row["lyrics_text"] or "")
+
+
+def test_wrong_promo_body_is_403(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    station.override_token = "operator-comp-secret-0123456789"
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, promo="wrong")
+    assert r.status_code == 403
     assert station.db.all_requests() == []
 
 

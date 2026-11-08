@@ -825,11 +825,13 @@ class RequestIn(BaseModel):
 
 
 class PaidRequestIn(BaseModel):
-    """`{lyrics, music, art}` (PROMPT_UPGRADE.md) or the legacy `{text}`."""
+    """`{lyrics, music, art}` (PROMPT_UPGRADE.md) or the legacy `{text}`.
+    `promo` is the operator comp code from its own UI box (2026-11-08)."""
     text: str | None = None
     lyrics: str | None = None
     music: str | None = None
     art: str | None = None
+    promo: str | None = None
 
     @model_validator(mode="after")
     def _one_form(self) -> PaidRequestIn:
@@ -839,6 +841,10 @@ class PaidRequestIn(BaseModel):
         if not three and not (self.text or "").strip():
             raise ValueError("text required")
         return self
+
+
+class PromoIn(BaseModel):
+    code: str = Field(..., min_length=1, max_length=64)
 
 
 PAID_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
@@ -1284,8 +1290,8 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         the background; the client polls the stage and asks for Checkout
         only once the row is `ready`.
 
-        PROMPT_UPGRADE.md Step 2: `{lyrics, music, art}` (at least one of
-        lyrics/music) or the legacy `{text}`.
+        PROMPT_UPGRADE.md Step 2: `{lyrics, music, art}` (both lyrics and
+        music required) or the legacy `{text}`.
         """
         if _paid_rate_limited(request):
             raise HTTPException(
@@ -1303,10 +1309,17 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         else:
             parts = None
             text = _normalise_paid(payload.text or "")
-        # Operator comp (D7): the first line of the lyrics box, or of the
-        # legacy text. A comp consumes that line only.
+        # Operator comp (D7): the promo box (validated on APPLY and again
+        # here) or the legacy first line of the lyrics box / text.
+        promo_ok = False
+        if payload.promo:
+            promo_ok = bool(secret) and hmac.compare_digest(
+                payload.promo.strip().encode(), secret.encode())
+            if not promo_ok:
+                raise HTTPException(403, "That promo code didn't work.")
         comp_source = parts.lyrics if parts else text
         comped, stripped = _split_override(comp_source, secret)
+        comped = comped or promo_ok
         if comped and parts is not None:
             parts = RequestParts(stripped, parts.music, parts.art)
             text = parts.composed()
@@ -1321,7 +1334,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         if parts is not None:
             if not parts.has_song:
                 raise HTTPException(
-                    422, "tell us what the song is about or how it should sound")
+                    422, "both lyrics and musical direction are required")
             for name, value, cap in (("Lyrics", parts.lyrics, limits.lyrics_max),
                                      ("Musical direction", parts.music,
                                       limits.music_max),
@@ -1355,6 +1368,17 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         background.add_task(_run_paid_checks, station, int(row["id"]), text,
                             comped, parts)
         return {"ok": True, "token": row["public_token"], "stage": "moderation"}
+
+    @app.post("/api/paid-requests/promo")
+    async def validate_promo(payload: PromoIn):
+        """UI_REFACTOR feedback (2026-11-08): the promo code has its own box
+        with an APPLY button. Validate the operator comp code in constant time
+        without echoing or storing it; the client counts its own attempts and
+        the code is re-checked on submit."""
+        secret = _override_secret(station)
+        ok = bool(secret) and hmac.compare_digest(
+            payload.code.strip().encode(), secret.encode())
+        return {"ok": ok}
 
     @app.post("/api/paid-requests/{token}/checkout")
     async def start_paid_checkout(token: str):

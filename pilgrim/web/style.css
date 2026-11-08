@@ -6,6 +6,7 @@
   --violet: #a63dff;
   --ok: #3affa3;
   --warn: #ffd24a;
+  --bad: #ff4d6d;
   --text: #f2e9ff;
   --dim: #a28fc9;
 }
@@ -82,11 +83,8 @@ body {
 .req-form button:hover { filter: brightness(1.15); }
 .req-form button:disabled { filter: grayscale(.7); cursor: not-allowed; }
 .req-err { font-size: 15px; min-height: 14px; letter-spacing: 0.5px; transition: opacity .6s; }
-.req-list-head { margin: 0; padding: 10px 14px; font-size: 14px; font-weight: bold;
-  letter-spacing: 1px; text-align: center;
-  color: var(--text); text-shadow: 0 0 6px var(--magenta);
-  background: linear-gradient(90deg, rgba(255,47,214,.12), rgba(36,224,255,.06));
-  border-bottom: 1px solid rgba(166, 61, 255, .5); }
+.req-list-head { margin: 0; padding-bottom: 4px; font-size: 16px; letter-spacing: 2px;
+  color: var(--magenta); border-bottom: 1px solid var(--violet); text-align: left; }
 /* Request board tables: the queue is Votes | Request | Status (no Title; the
    aired table is Prompt | Title | Prep Time). The queue scrolls inside its own
    520 px box (up to 50 rows) with the header row pinned. */
@@ -194,6 +192,10 @@ body {
 /* PAID REQUE$T (PAYMENT.md §8.2). */
 .pay-head { margin-top: 4px; }
 .pay-note { color: var(--cyan); font-size: 14px; letter-spacing: 1px; }
+.pay-note-head { font-size: 1.25em; display: block; }
+/* Feedback 2026-11-08: no punctuation, parenthesised, the same grey as the
+   GROUND RULES text. */
+.pay-note-sub { display: block; margin-top: 8px; color: var(--dim); }
 .pay-btn {
   width: 100%; min-height: 48px; font-size: 16px; font-family: inherit; font-weight: bold;
   letter-spacing: 2px; white-space: pre-line; cursor: pointer; border: none; border-radius: 6px;
@@ -209,7 +211,7 @@ body {
 .pay-btn:disabled { opacity: .5; cursor: default; }
 .pay-panel { display: flex; flex-direction: column; gap: 8px; }
 .pay-panel textarea {
-  width: 100%; box-sizing: border-box; font-family: inherit; font-size: 15px;
+  width: 100%; box-sizing: border-box; font-family: inherit; font-size: 13px;
   padding: 10px; border-radius: 6px; resize: vertical; min-height: 56px;
   border: 1px solid var(--field-color); background: rgba(10,1,24,.6);
   color: var(--text); outline: none;
@@ -220,6 +222,30 @@ body {
              border-left: 3px solid var(--field-color); background: rgba(10,1,24,.35); }
 .pay-field-music { --field-color: var(--violet); }
 .pay-field-art   { --field-color: var(--magenta); }
+/* Fourth, optional step in grey (feedback 2026-11-08). */
+.pay-field-promo { --field-color: var(--dim); }
+.pay-promo-row { display: flex; gap: 8px; }
+.pay-promo-row input {
+  flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px;
+  padding: 10px; border-radius: 6px; resize: none;
+  border: 1px solid var(--field-color); background: rgba(10,1,24,.6);
+  color: var(--text); outline: none;
+}
+.pay-promo-row input:focus { outline: 1px solid var(--field-color); }
+.pay-promo-row input::placeholder { color: var(--dim); }
+.pay-promo-row input:disabled { opacity: .5; }
+.pay-promo-row button {
+  flex: none; font: inherit; font-size: 13px; font-weight: bold; letter-spacing: 1px;
+  padding: 0 16px; cursor: pointer; border-radius: 6px;
+  color: var(--dim); background: transparent; border: 1px solid var(--field-color);
+}
+.pay-promo-row button:hover:not(:disabled), .pay-promo-row button:focus-visible {
+  filter: brightness(1.2); outline: 2px solid var(--field-color); outline-offset: 1px;
+}
+.pay-promo-row button:disabled { opacity: .4; cursor: default; }
+.pay-promo-msg { min-height: 1.2em; font-size: 13px; letter-spacing: 1px; }
+.pay-promo-msg.ok { color: var(--ok); }
+.pay-promo-msg.err { color: var(--bad); }
 .pay-label { display: flex; align-items: baseline; gap: 8px; color: var(--field-color);
              font-size: 14px; font-weight: bold; letter-spacing: 1px; }
 .pay-num { display: inline-grid; place-items: center; width: 20px; height: 20px;
@@ -242,6 +268,13 @@ body {
   flex: 0 0 auto; background: transparent; color: var(--dim);
   border: 1px solid var(--violet);
 }
+/* Enumerated wait states (feedback 2026-11-08). */
+.pay-steps { margin: 0; padding: 0; list-style: none;
+  font-size: 13px; line-height: 1.6; letter-spacing: 1px; color: var(--dim); }
+.pay-steps[hidden] { display: none; }
+.pay-steps li.active { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+.pay-steps li.done { color: var(--ok); }
+.pay-steps li.done::before { content: "✓ "; }
 .pay-checkout:empty { display: none; }
 .pay-checkout iframe { width: 100%; border: 0; }
 
@@ -487,10 +520,9 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .win-body.about { padding: 0; gap: 0; align-items: stretch; text-align: left; }
 .about-sub + .about-sub { border-top: 1px solid var(--violet); }
 .about-head {
-  margin: 0; padding: 10px 14px; font-size: 14px; font-weight: bold;
-  letter-spacing: 1px; text-align: center; color: var(--text); text-shadow: 0 0 6px var(--magenta);
-  background: linear-gradient(90deg, rgba(255,47,214,.12), rgba(36,224,255,.06));
-  border-bottom: 1px solid rgba(166, 61, 255, .5);
+  margin: 0; padding: 0 24px 4px; font-size: 16px; font-weight: normal;
+  letter-spacing: 2px; text-align: left; color: var(--magenta);
+  border-bottom: 1px solid var(--violet);
 }
 /* The phone shell shows this instead of #footer (Step 3). */
 .about-copyright { display: none; }
