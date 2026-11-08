@@ -137,6 +137,9 @@
                                seq: airing.seq, stars }),
       });
       const d = await r.json().catch(() => ({}));
+      // The vote landed even if the song changed while the POST was in flight:
+      // remember it so a replay of this airing shows the cyan.
+      if (r.status === 200 && d.mine) VOTER.remember(airingKey(airing), d.mine);
       if (current !== airing) return;        // the song changed while in flight
       if (r.status === 200) {
         savedStars = d.mine;                 // cyan now outranks the pink

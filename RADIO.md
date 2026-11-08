@@ -1870,7 +1870,7 @@ so the web tier serves them without the origin or Postgres:
 | key | value (JSON) | TTL |
 |-----|--------------|-----|
 | `<prefix>alive` | `{epoch, pid, host, at}` | `cache.alive_ttl_s` |
-| `<prefix>program` | the `GET /api/station/program` body with no cursor (full window, URLs, epoch, revision, `start_offset_s`, `server_time`) | `cache.alive_ttl_s` |
+| `<prefix>program` | the `GET /api/station/program` body with no cursor (full window, URLs, epoch, revision, `start_offset_s`, `server_time`) plus `prev`, the committed row that just ended (`{seq, media_id, type, duration_s}`, absent at the head of the window). `prev` exists so the web tier's rating grace (VOTING.md V8) can see the song that just ended; the web tier strips it from the §11 response | `cache.alive_ttl_s` |
 | `<prefix>state` | the `GET /api/station/state` body | `cache.alive_ttl_s` |
 | `<prefix>health` | the public `GET /api/health` body | `cache.alive_ttl_s` |
 | `<prefix>stages` | `{request_id: stage}` for in-flight requests (the producer's `request_stage`, so the web tier's board can show "being written" etc.) | `cache.alive_ttl_s` |

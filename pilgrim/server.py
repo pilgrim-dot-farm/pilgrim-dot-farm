@@ -586,7 +586,15 @@ class Station(PublicSurface):
         return result
 
     def _hot_snapshot(self) -> dict:
-        return {"program": self.program_response(None),
+        program = self.program_response(None)
+        prev = self._previous_row()
+        if prev is not None:
+            # The published rows start at the on-air row, so the web tier's
+            # rating grace (VOTING.md V8; FIX_RATINGS.md Step 1) also needs the
+            # row that just ended. Cache document only: the web tier strips it
+            # from the HTTP response, so RADIO §11 is unchanged.
+            program["prev"] = prev
+        return {"program": program,
                 "state": self.public_state(),
                 "stages": {str(k): v for k, v in self.producer.request_stage.items()},
                 "health": {"on_air": self.on_air,
@@ -616,6 +624,22 @@ class Station(PublicSurface):
             except Exception as e:  # noqa: BLE001 - the cache must never break radio
                 log.warning("hotstate.tick_failed: %s", e)
             await asyncio.sleep(self.cfg.cache.publish_s)
+
+    def _previous_row(self) -> dict | None:
+        """The committed row just before the on-air one, in the programme-row
+        shape `CachedScheduler` reads (`seq`, `media_id`, `type`,
+        `duration_s`), or None at the head of the window."""
+        st = self.scheduler
+        on_seq, _offset = st.on_air()
+        if on_seq is None:
+            return None
+        items = st._items
+        idx = next((i for i, r in enumerate(items) if r["seq"] == on_seq), None)
+        if not idx:          # None (not in the window) or 0 (nothing before it)
+            return None
+        r = items[idx - 1]
+        return {"seq": int(r["seq"]), "media_id": int(r["item_id"]),
+                "type": r["type"], "duration_s": float(r["duration_s"])}
 
     def _public_rating(self, seq: int | None) -> dict | None:
         """The on-air item's rating window + lifetime aggregate (VOTING.md V10).

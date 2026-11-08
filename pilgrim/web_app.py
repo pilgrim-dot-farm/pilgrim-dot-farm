@@ -79,17 +79,26 @@ class CachedScheduler:
     tolerates (VOTING.md V8). `_cum` and `position()` mean what they mean on
     `Scheduler`, in program-seconds counted from the first published row, so
     the grace branch (`position() - _cum[idx] <= grace_s`) is the published
-    offset into the on-air row (FIX_RATINGS.md Step 1)."""
+    offset into the on-air row (FIX_RATINGS.md Step 1).
+
+    The published `items` start at the on-air row; the station also publishes
+    `prev`, the row that just ended, and it goes first here. Without it the
+    grace branch could never open on this tier (every click after the server
+    moved on was 409 `rating_closed`)."""
 
     def __init__(self, state: dict[str, Any], program: dict[str, Any]) -> None:
         self.epoch: str = str(state.get("epoch") or "")
         self.revision: int = int(state.get("revision") or 0)
         self.frozen: bool = bool(state.get("idle"))
+        rows = list(program.get("items", []))
+        prev = program.get("prev")
+        if isinstance(prev, dict) and (not rows or int(prev["seq"]) < int(rows[0]["seq"])):
+            rows.insert(0, prev)
         self._items: list[dict[str, Any]] = [
             {"seq": int(it["seq"]), "type": it.get("type"),
              "item_id": int(it.get("media_id") or 0),
              "duration_s": float(it.get("duration_s") or 0.0)}
-            for it in program.get("items", [])]
+            for it in rows]
         self._cum: list[float] = []
         t = 0.0
         for r in self._items:
@@ -195,7 +204,9 @@ class WebStation(PublicSurface):
         """RADIO §11 semantics over the published full-window snapshot: no
         cursor or a stale one returns the whole window with `reset`; a live
         cursor returns only rows after it, from offset 0."""
-        doc = self._doc("program")
+        # `prev` (the row that just ended) is for the rating window only, not
+        # part of the RADIO §11 response.
+        doc = {k: v for k, v in self._doc("program").items() if k != "prev"}
         stale = ((client_epoch is not None and client_epoch != doc.get("epoch"))
                  or (client_revision is not None
                      and client_revision != doc.get("revision")))
