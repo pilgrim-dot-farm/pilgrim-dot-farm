@@ -26,6 +26,33 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   });
   expect(heads.req).toEqual(heads.about);
   expect(heads.about.align).toBe("left");
+  // the ABOUT rule is inset (never the full box width) and there is no rule
+  // above a sub-heading; the head's top and bottom padding are equal
+  const rule = await page.evaluate(() => {
+    const h = document.querySelector(".about-head")!;
+    const cs = getComputedStyle(h);
+    const a = getComputedStyle(h, "::after");
+    const sub = getComputedStyle(document.querySelector(".about-sub")!);
+    const body = h.parentElement!.querySelector(".win-body")!;
+    const bcs = getComputedStyle(body);
+    const about = getComputedStyle(document.querySelector(".win-body.about")!);
+    return { left: a.left, right: a.right, width: a.borderBottomWidth,
+             above: sub.borderTopWidth,
+             headTop: cs.paddingTop, headBottom: cs.paddingBottom,
+             bodyTop: bcs.paddingTop, bodyBottom: bcs.paddingBottom,
+             aboutTop: about.paddingTop };
+  });
+  expect(rule.above).toBe("0px");          // no rule above a sub-heading
+  expect(rule.width).toBe("1px");
+  expect(rule.left).toBe("24px");          // inset, never edge to edge
+  expect(rule.right).toBe("24px");
+  // uniform rhythm: 14 px above the text (previous body's bottom padding)
+  // and 14 px below it (the head's own bottom padding)
+  expect(rule.headTop).toBe("0px");
+  expect(rule.headBottom).toBe("14px");
+  expect(rule.bodyTop).toBe("14px");
+  expect(rule.bodyBottom).toBe("14px");
+  expect(rule.aboutTop).toBe("14px");
   expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
   const subs = await page.$$eval(".about-sub", els => els.map(e => [e.getAttribute("data-sub"), e.querySelector(".about-head")!.textContent]));
   expect(subs).toEqual([
@@ -34,10 +61,9 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     ["infra", "INFRA AND DATA FLOW"],
     ["credits", "CREDITS"],
   ]);
-  // eight model rows (production, dev, Kokoro) plus the asset credit
-  expect(await page.$$eval(".credits-list li", els => els.length)).toBe(9);
-  const attr = await page.$eval(".cred-attr a", a => [a.textContent, a.getAttribute("href")]);
-  expect(attr).toEqual(["Cornucopia LQ", "https://commons.wikimedia.org/wiki/File:Cornucopia_LQ.svg"]);
+  // eight model rows; the cornucopia asset credit is gone (public domain)
+  expect(await page.$$eval(".credits-list li", els => els.length)).toBe(8);
+  expect(await page.$$(".cred-attr")).toHaveLength(0);
   // every model links to its HF model card in a new tab
   const links = await page.$$eval(".credits-list a.cred-model",
     els => els.map(a => [a.textContent, a.getAttribute("href"), a.getAttribute("target")]));

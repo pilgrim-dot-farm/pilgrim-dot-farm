@@ -519,11 +519,23 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
    their former titles. The sub-section bodies keep their own .win-body.*
    rules; the outer body carries no padding so dividers run edge to edge. */
 .window.about { width: min(94vw, 484px); }
-.win-body.about { padding: 0; gap: 0; align-items: stretch; text-align: left; }
-.about-sub + .about-sub { border-top: 1px solid var(--violet); }
+.win-body.about { padding: 14px 0 0; gap: 0; align-items: stretch; text-align: left; }
+/* Uniform vertical rhythm around every head (feedback 2026-11-08): the
+   sub-bodies keep their side padding (24 px, 6 px for the diagram) but their
+   top/bottom padding is the same 14 px, so the gap above a head equals the
+   gap below its text. */
+.about-sub { position: relative; }
+/* Heads match the request-line look: pink, 16px, left, inset purple rule
+   below and none above. Top and bottom padding are equal so the text is
+   balanced in its strip (feedback 2026-11-08). */
+.win-body.about .about-sub > .win-body { padding-top: 14px; padding-bottom: 14px; }
 .about-head {
-  margin: 0; padding: 0 24px 4px; font-size: 16px; font-weight: normal;
+  margin: 0; padding: 0 24px 14px; font-size: 16px; font-weight: normal;
   letter-spacing: 2px; text-align: left; color: var(--magenta);
+  position: relative;
+}
+.about-head::after {
+  content: ""; position: absolute; left: 24px; right: 24px; bottom: 0;
   border-bottom: 1px solid var(--violet);
 }
 /* The phone shell shows this instead of #footer (Step 3). */

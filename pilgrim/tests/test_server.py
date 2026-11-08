@@ -24,7 +24,7 @@ def test_site_served(tmp_env):
     assert "PILGRIM" in r.text
     assert "RADIO BROADCAST" in r.text
     assert "CREDITS" in r.text
-    assert "Cornucopia_LQ.svg" in r.text
+    assert "cornucopia.webp" in r.text   # the paid marker; the CC0 credit is gone
     assert "HIT COUNTER" in r.text
     assert c.get("/style.css").status_code == 200
     # static client files must revalidate so a web edit needs no restart
