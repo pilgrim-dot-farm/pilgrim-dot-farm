@@ -34,6 +34,7 @@ from pilgrim.pipelines.clocktime import (
 )
 from pilgrim.pipelines.llm import LLM, LLMTruncated
 from pilgrim.pipelines.news import NewsPipeline
+from pilgrim.pipelines.request_parts import from_row
 from pilgrim.pipelines.sfx import SFX_HOST_TYPES, SfxPipeline, beat_offset
 from pilgrim.pipelines.songs import SongPipeline
 from pilgrim.pipelines.voice import KokoroClient, VoicePipeline
@@ -1257,9 +1258,11 @@ class Producer:
                 # Prep Time on the board starts here: lyrics/brief writing, not
                 # submission (RADIO §11) — queue idle is not prep work.
                 self.store.mark_request_writing(req["id"])
+                parts = from_row(req)
                 brief = await self.songs.brief(self._genre_context(),
                                                request_text=req["text"],
-                                               short=short, paid=paid)
+                                               short=short, paid=paid,
+                                               parts=parts)
                 if job is not None:  # inside the lock: the next brief sees it
                     job.genre = brief.get("genre")
             brief["request_id"] = req["id"]
@@ -1278,13 +1281,17 @@ class Producer:
             # never air a request song bare, as stock, before its intro exists.
             intro = await self._render_intro(item, req)
             await self._wait_turn(job)
+            item_meta = {**dict(item.get("meta") or {}), "request_id": req["id"],
+                         "request_text": req["text"], "paid": paid}
+            if parts is not None:  # PROMPT_UPGRADE.md Step 3: art reads this
+                item_meta["request_parts"] = {"lyrics": parts.lyrics,
+                                              "music": parts.music,
+                                              "art": parts.art}
             song_id = self.store.add_item(
                 type_="song", media_path=item["media_path"], duration_s=item["duration_s"],
                 sample_rate=item.get("sample_rate"), channels=item.get("channels"),
                 title=item.get("title"), artist=item.get("artist"), genre=item.get("genre"),
-                evergreen=True, fresh=True,
-                meta={**dict(item.get("meta") or {}), "request_id": req["id"],
-                      "request_text": req["text"], "paid": paid})
+                evergreen=True, fresh=True, meta=item_meta)
             intro_id = self._store_intro(intro, song_id, req)
             self._finish_early_art(song_id, art_task)
             attached = True
@@ -1357,7 +1364,9 @@ class Producer:
         context = f'Next song: "{title}" by {artist} ({genre}).\n'
         if req is not None:
             paid = bool(req.get("priority"))
-            context += f"Listener request: {json.dumps(req['text'])}\n"
+            intro_parts = from_row(req)
+            intro_text = intro_parts.song_text() if intro_parts else req["text"]
+            context += f"Listener request: {json.dumps(intro_text)}\n"
             if paid:
                 context += ("This song was made for a PAID priority request. OPEN "
                             "with an excited shout-out that it's a priority request "

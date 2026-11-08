@@ -62,7 +62,8 @@ class FakeSong:
     def __init__(self) -> None:
         self.calls: list[str | None] = []
 
-    async def brief(self, genres, request_text=None, short=False, paid=False):
+    async def brief(self, genres, request_text=None, short=False, paid=False,
+                    parts=None):
         self.calls.append(request_text)
         return valid_brief("country-americana",
                            title="Tune for " + (request_text or "the night")[:18],
