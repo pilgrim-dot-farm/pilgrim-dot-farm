@@ -7,17 +7,20 @@ import { test, expect } from "@playwright/test";
 
 test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", async ({ page }) => {
   await page.goto("/");
-  const order = await page.$$eval(".window", els => els.map(e => e.getAttribute("data-win")));
-  expect(order).toEqual(["radio", "requests", "sheep", "hit", "motivation", "infra", "credits"]);
+  const order = await page.$$eval("#desktop > .window", els => els.map(e => e.getAttribute("data-win")));
+  expect(order).toEqual(["radio", "requests", "sheep", "about"]);
   expect(await page.textContent('[data-win="radio"] .win-title')).toBe("RADIO BROADCAST");
-  expect(await page.$('[data-win="credits"]')).toBeTruthy();
+  expect(await page.textContent('[data-win="about"] .win-title')).toBe("ABOUT");
   expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
-  expect(await page.$('[data-win="hit"]')).toBeTruthy();
-  expect(await page.textContent('[data-win="motivation"] .win-title')).toBe("CORPORATE MISSION STATEMENT");
-  expect(await page.textContent('[data-win="infra"] .win-title')).toBe("INFRA AND DATA FLOW");
+  const subs = await page.$$eval(".about-sub", els => els.map(e => [e.getAttribute("data-sub"), e.querySelector(".about-head")!.textContent]));
+  expect(subs).toEqual([
+    ["hit", "HIT COUNTER & SOCIAL"],
+    ["motivation", "CORPORATE MISSION STATEMENT"],
+    ["infra", "INFRA AND DATA FLOW"],
+    ["credits", "CREDITS"],
+  ]);
   // eight model rows (production, dev, Kokoro) plus the asset credit
   expect(await page.$$eval(".credits-list li", els => els.length)).toBe(9);
-  expect(await page.textContent('[data-win="credits"] .win-title')).toBe("CREDITS");
   const attr = await page.$eval(".cred-attr a", a => [a.textContent, a.getAttribute("href")]);
   expect(attr).toEqual(["Cornucopia LQ", "https://commons.wikimedia.org/wiki/File:Cornucopia_LQ.svg"]);
   // every model links to its HF model card in a new tab
@@ -86,26 +89,26 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     expect(r.headers()["content-type"]).toContain("image/svg+xml");
   }
   // the infra pane shows infra.png as content, linked to the full-size image
-  const infra = await page.$eval('[data-win="infra"] .infra-link img.infra-img',
+  const infra = await page.$eval('[data-sub="infra"] .infra-link img.infra-img',
     img => [img.getAttribute('src'), img.getAttribute('alt')]);
   expect(infra[0]).toBe("img/infra.png");
   expect(infra[1]).toMatch(/infrastructure and data flow/i);
-  const infraLink = await page.$eval('[data-win="infra"] .infra-link',
+  const infraLink = await page.$eval('[data-sub="infra"] .infra-link',
     a => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
   expect(infraLink).toEqual(["img/infra.png", "_blank", "noopener noreferrer"]);
   // and the asset actually loads (not a 404 placeholder)
   // (loading="lazy" and below the fold since MOTIVATION: scroll to it first)
-  await page.locator('[data-win="infra"] .infra-img').scrollIntoViewIfNeeded();
+  await page.locator('[data-sub="infra"] .infra-img').scrollIntoViewIfNeeded();
   await page.waitForFunction(() => {
-    const img = document.querySelector('[data-win="infra"] .infra-img') as HTMLImageElement | null;
+    const img = document.querySelector('[data-sub="infra"] .infra-img') as HTMLImageElement | null;
     return !!img && img.complete && img.naturalWidth > 0;
   }, null, { timeout: 10_000 });
-  const loaded = await page.$eval('[data-win="infra"] .infra-img', img => img.complete && img.naturalWidth > 0);
+  const loaded = await page.$eval('[data-sub="infra"] .infra-img', img => img.complete && img.naturalWidth > 0);
   expect(loaded).toBe(true);
   // COSMETIC_PATCHING §7: the diagram is scaled to the pane's INTERIOR width
   // (pane width minus borders and .win-body padding), never its intrinsic
   // 1024px (which .window{overflow:hidden} would clip).
-  const box = await page.$eval('[data-win="infra"] .infra-img', img => {
+  const box = await page.$eval('[data-sub="infra"] .infra-img', img => {
     const r = img.getBoundingClientRect();
     const body = img.closest('.win-body') as HTMLElement;
     const cs = getComputedStyle(body);
@@ -255,8 +258,8 @@ test("all panes stay reachable by scrolling on a small screen", async ({ page })
   const desktop = page.locator("#desktop");
   await desktop.evaluate(el => el.scrollTo(0, el.scrollHeight));
   await page.waitForTimeout(300);
-  const hit = page.locator('[data-win="hit"]');
+  const hit = page.locator('[data-sub="hit"]');
   await hit.scrollIntoViewIfNeeded();
   await expect(hit).toBeVisible();
-  await expect(page.locator('[data-win="credits"]')).toBeVisible();
+  await expect(page.locator('[data-sub="credits"]')).toBeVisible();
 });
