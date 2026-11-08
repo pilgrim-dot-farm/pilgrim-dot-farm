@@ -197,3 +197,26 @@ test("at 360x740 the empty panel fits in under 1,100 px", async ({ page }) => {
   expect(box).not.toBeNull();
   expect(box!.height).toBeLessThan(1100);
 });
+
+test("a stale checkout token does not lock the form on reload", async ({ page }) => {
+  await openPanel(page);
+  // a listener who opened Stripe and walked away keeps a saved token; on the
+  // next visit it must not freeze the whole panel (the "button does nothing"
+  // report, 2026-11-08)
+  await page.evaluate(() => {
+    sessionStorage.setItem("pd_pay_token", JSON.stringify({
+      token: "stale-token-123456", ts: Date.now(),
+    }));
+  });
+  await page.route("**/api/paid-requests/stale-token-123456", (r) => r.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify({ status: "awaiting_payment" }),
+  }));
+  await page.reload();
+  await expect(page.locator("#pay-lyrics")).toBeEnabled();
+  await expect(page.locator("#pay-music")).toBeEnabled();
+  await expect(page.locator("#pay-go")).toBeEnabled();
+  await expect(page.locator("#pay-msg")).toContainText(
+    "last checkout wasn't finished");
+  await expect(page.locator("#pay-msg")).toContainText("still in the line");
+});
