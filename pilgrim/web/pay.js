@@ -288,7 +288,11 @@
         backToComposing("Couldn't finish checking your request. You were not charged; try again.");
         return;
       } else if (d.status === "awaiting_payment") {
-        startConfirming(token);   // resumed after a reload mid-checkout
+        // Resumed after a checkout that was never completed (or a payment
+        // whose webhook has not landed). Do not lock the form: clear the saved
+        // token and let the listener compose again. If they did pay, the
+        // server-side webhook still puts that request in the line.
+        backToComposing("Your last checkout wasn't finished. If you paid, your request is still in the line.");
         return;
       } else if (["queued", "producing", "ready", "aired"].includes(d.status)) {
         clearTimers();
