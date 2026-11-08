@@ -1286,3 +1286,11 @@ and `img/cornucopia.webp`.
 APPLY (two attempts), enumerated (1/3)(2/3)(3/3) stages, both lyrics and music
 required, Cancel removed, stale-token lock fixed. Live test passed
 (request 587, paid, queued).
+
+**Round 2 follow-ups (2026-11-08):** commits `5dac39e` + `0d802cc`, image
+`pilgrimdotfarm/front-end:0d802cc` + `:latest`, digest
+`sha256:635ab9b06355e2d49ed0cc5b0c50e3aebbc724cbd413bacdbd2b5720b62937fb`,
+`ecs_release` 18 → 19 (`pg-app:15`, HEALTHY). Promo status line no longer
+reserves a blank row; the phone queue box keeps its 520 px height (flex
+children no longer shrink); ABOUT heads have no rule above, an inset rule
+below and a uniform 14 px rhythm; the cornucopia credit is removed.
