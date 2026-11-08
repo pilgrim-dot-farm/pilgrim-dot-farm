@@ -1271,3 +1271,10 @@ Filled in by the agent at deploy time (D15; SHEEP_PEN_PLAN.md convention).
   `shell.js?v=20261109a` and the ABOUT pane
 - Operator real-phone check (D16): pending (iPhone Safari + one Android Chrome;
   see Step 6.4)
+
+**Feedback round (2026-11-08, UI_REFACTOR_FEEDBACK.md):** commit `4073bee`,
+image `pilgrimdotfarm/front-end:4073bee` + `:latest`, digest
+`sha256:c384a8e443ddaff3ca73fcc4ec40c4a1c9bffb1135f21005f62e9036efcc8808`,
+`ecs_release` 15 → 16 (`pg-app:12`, HEALTHY), live site serves
+`style.css?v=20261109b` / `shell.js?v=20261109b` / `requests.js?v=20261109b`
+and `img/cornucopia.webp`.
