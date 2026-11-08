@@ -22,8 +22,15 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("shell: one-line header, no footer, tabs + mini player, RADIO fits", async ({ page }) => {
-  await expect(page.locator("#titlebar .tagline")).toBeHidden();
+  await expect(page.locator("#titlebar .tagline")).toBeVisible();
   await expect(page.locator("#titlebar .logo")).toBeVisible();
+  // the tagline stays, in proportion: smaller than the logo
+  const fs = await page.evaluate(() => ({
+    logo: parseFloat(getComputedStyle(document.querySelector("#titlebar .logo")!).fontSize),
+    tag: parseFloat(getComputedStyle(document.querySelector("#titlebar .tagline")!).fontSize),
+  }));
+  expect(fs.tag).toBeLessThan(fs.logo);
+  expect(fs.tag).toBeGreaterThanOrEqual(7);
   const logo = await page.locator("#titlebar .logo").evaluate(el => ({ sw: el.scrollWidth, cw: el.clientWidth, h: el.getBoundingClientRect().height }));
   expect(logo.sw).toBeLessThanOrEqual(logo.cw + 1);      // one line, not clipped
   expect(logo.h).toBeLessThan(30);
@@ -35,11 +42,15 @@ test("shell: one-line header, no footer, tabs + mini player, RADIO fits", async 
   await expect(page.locator('[data-win="radio"] .win-bar')).toBeHidden();
   const labels = await page.$$eval("#nav-mobile button", els => els.map(e => e.textContent));
   expect(labels).toEqual(["RADIO", "REQUEST", "CHAT", "ABOUT"]);
-  for (const b of await page.locator("#nav-mobile button, #mini-play").all()) {
+  for (const b of await page.locator("#nav-mobile button").all()) {
     const box = (await b.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);
   }
+  // the round mini PLAY is 40 px (feedback 2026-11-08: it collided top/bottom)
+  const mp = (await page.locator("#mini-play").boundingBox())!;
+  expect(mp.width).toBe(40);
+  expect(mp.height).toBe(40);
   await expect(page.locator('[data-win="radio"]')).toHaveClass(/active/);
   await expect(page.locator('[data-win="requests"]')).toBeHidden();
   const over = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
@@ -98,10 +109,32 @@ test("CHAT fills the pane: log scrolls inside it, composer at the bottom", async
   expect(m.bodyScrolls).toBe(false);
   expect(m.logH).toBeGreaterThan(120);
   expect(m.composeBottom).toBeLessThanOrEqual(m.miniTop + 1);
-  // the title bar is gone but the connection status strip stays (D14)
-  await expect(page.locator('[data-win="sheep"] .win-title')).toBeHidden();
-  await expect(page.locator("#chat-status")).toBeVisible();
-  await expect(page.locator("#chat-status")).not.toHaveText("");
+  // the title bar is gone, and so is the status strip (feedback 2026-11-08);
+  // #chat-status stays in the DOM but hidden so chat.js keeps working (D14)
+  await expect(page.locator('[data-win="sheep"] .win-bar')).toBeHidden();
+  await expect(page.locator("#chat-status")).toBeHidden();
+  await expect(page.locator("#chat-status")).toHaveText(/./);
+});
+
+test("entering CHAT shows the newest messages", async ({ page }) => {
+  await tab(page, "sheep");
+  await page.evaluate(() => {
+    const log = document.getElementById("chat-log")!;
+    for (let i = 0; i < 40; i++) {
+      const d = document.createElement("div");
+      d.className = "chat-msg";
+      d.textContent = "filler " + i;
+      log.appendChild(d);
+    }
+    log.scrollTop = 0;   // pretend the reader was up in the history
+  });
+  await tab(page, "about");
+  await tab(page, "sheep");
+  const left = await page.evaluate(() => {
+    const l = document.getElementById("chat-log")!;
+    return l.scrollHeight - l.scrollTop - l.clientHeight;
+  });
+  expect(left).toBeLessThanOrEqual(2);
 });
 
 test("mini player mirrors the radio pane and never restarts audio", async ({ page }) => {

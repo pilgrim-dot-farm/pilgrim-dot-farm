@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>PILGRIM DOT FARM — radio</title>
-<link rel="stylesheet" href="style.css?v=20261109a">
+<link rel="stylesheet" href="style.css?v=20261109b">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -170,6 +170,11 @@
           <tbody id="req-queue"></tbody>
         </table>
       </div>
+      <div id="req-pager" class="req-pager" hidden>
+        <button type="button" id="req-prev">◀ PREV</button>
+        <span id="req-page" class="req-page"></span>
+        <button type="button" id="req-next">NEXT ▶</button>
+      </div>
       <div class="req-list-head">AIRED REQUESTS</div>
       <div class="req-table-wrap">
         <table class="req-table req-table-aired">
@@ -211,9 +216,9 @@
         <h2 class="about-head">HIT COUNTER &amp; SOCIAL</h2>
         <div class="win-body hit">
       <div class="paid-counter">
-        <img class="paid-counter-icon" src="img/cornucopia.png" alt="" aria-hidden="true" width="48" height="40" loading="lazy" decoding="async">
+        <img class="paid-counter-icon" src="img/cornucopia.webp" alt="" aria-hidden="true" width="113" height="96" loading="lazy" decoding="async">
         <span id="paid-requests" class="paid-requests">Paid requests: 0</span>
-        <img class="paid-counter-icon" src="img/cornucopia.png" alt="" aria-hidden="true" width="48" height="40" loading="lazy" decoding="async">
+        <img class="paid-counter-icon" src="img/cornucopia.webp" alt="" aria-hidden="true" width="113" height="96" loading="lazy" decoding="async">
       </div>
       <div id="total-requests" class="total-requests">Total request: 0</div>
       <div id="visitors" class="visitors">Unique visitors: 0</div>
@@ -228,17 +233,13 @@
       <section class="about-sub" data-sub="motivation">
         <h2 class="about-head">CORPORATE MISSION STATEMENT</h2>
         <div class="win-body infra">
-      <a class="infra-link" href="img/aroooo.png" target="_blank" rel="noopener noreferrer">
-        <img class="infra-img" src="img/aroooo.png" alt="A skeleton pilgrim rides a motorcycle past a barn and radio tower, with a sunglasses-wearing pig skeleton in the sidecar: I didn't know what to do with my local hardware. I grew up in a rural county. With or without you or any other m'fers, Pilgrim Dot Farm is crankin. Arrroooo!" width="1536" height="1024" loading="lazy" decoding="async">
-      </a>
+      <img class="infra-img" src="img/aroooo.png" alt="A skeleton pilgrim rides a motorcycle past a barn and radio tower, with a sunglasses-wearing pig skeleton in the sidecar: I didn't know what to do with my local hardware. I grew up in a rural county. With or without you or any other m'fers, Pilgrim Dot Farm is crankin. Arrroooo!" width="1536" height="1024" loading="lazy" decoding="async">
     </div>
       </section>
       <section class="about-sub" data-sub="infra">
         <h2 class="about-head">INFRA AND DATA FLOW</h2>
         <div class="win-body infra">
-      <a class="infra-link" href="img/infra.png" target="_blank" rel="noopener noreferrer">
-        <img class="infra-img" src="img/infra.png" alt="Pilgrim Dot Farm infrastructure and data flow diagram" width="1024" height="1536" loading="lazy" decoding="async">
-      </a>
+      <img class="infra-img" src="img/infra.png" alt="Pilgrim Dot Farm infrastructure and data flow diagram" width="1024" height="1536" loading="lazy" decoding="async">
     </div>
       </section>
       <section class="about-sub" data-sub="credits">
@@ -286,13 +287,13 @@
 
 <script src="titlebar.js?v=20261109a"></script>
 <script src="voter.js?v=20261103a"></script>
-<script src="requests.js?v=20261103a"></script>
+<script src="requests.js?v=20261109b"></script>
 <script src="votes.js?v=20261103a"></script>
 <script src="pay.js?v=20261031d"></script>
 <script src="visitors.js?v=20261105b"></script>
 <script src="rating.js?v=20261103a"></script>
 <script src="player.js?v=20261105b"></script>
 <script src="chat.js?v=20261107a"></script>
-<script src="shell.js?v=20261109a"></script>
+<script src="shell.js?v=20261109b"></script>
 </body>
 </html>

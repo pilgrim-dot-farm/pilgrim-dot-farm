@@ -10,7 +10,13 @@
   const input = $("req-input"), send = $("req-send");
   const queueEl = $("req-queue"), errEl = $("req-err");
   const queueWrap = queueEl ? queueEl.closest(".req-table-wrap") : null;
+  const pager = $("req-pager"), pageEl = $("req-page");
+  const prevBtn = $("req-prev"), nextBtn = $("req-next");
+  // UI_REFACTOR feedback: at most 20 queue rows per page, with prev/next.
+  const PER_PAGE = 20;
+  let page = 0;
   let lastQueue = [];
+  let lastRecent = [];
 
   let hideTimer = null;
 
@@ -60,9 +66,9 @@
     if (r.paid) {
       const icon = document.createElement("img");
       icon.className = "req-paid-icon";
-      icon.src = "img/cornucopia.png";
+      icon.src = "img/cornucopia.webp";
       icon.alt = "Paid priority request";
-      icon.width = 60; icon.height = 50;  // 1.25x of 48x40, same 6:5 ratio
+      icon.width = 59; icon.height = 50;  // 1.18:1, the sparkling cornucopia
       td.appendChild(icon);
     }
     td.appendChild(document.createTextNode(r.text || ""));
@@ -71,6 +77,13 @@
 
   function render(queue, recent) {
     lastQueue = queue || [];
+    lastRecent = recent || [];
+    const total = lastQueue.length;
+    const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+    if (page > pages - 1) page = pages - 1;
+    if (page < 0) page = 0;
+    const start = page * PER_PAGE;
+    const end = start + PER_PAGE;
     queueEl.textContent = "";
     if (!lastQueue.length) {
       queueEl.appendChild(emptyRow("— no requests queued —"));
@@ -96,6 +109,9 @@
           readySeen = true;
         }
         if (r.buried) label = "buried";   // VOTING.md V7: voted below the line
+        // Only this page's rows are built; readySeen above still tracks the
+        // whole queue so "up next" is right on page 2 as well.
+        if (i < start || i >= end) return;
         // VOTING.md: the vote cell is built with createElement, never strings.
         // Cosmetic patch: votes are the left-most column of the queue table,
         // so the cell is appended before the request text.
@@ -118,6 +134,13 @@
         tr.appendChild(cell("req-status", label));
         queueEl.appendChild(tr);
       });
+    }
+    // queue pager: hidden while the whole queue fits on one page
+    if (pager) {
+      pager.hidden = total <= PER_PAGE;
+      if (pageEl) pageEl.textContent = (start + 1) + "–" + Math.min(end, total) + " of " + total;
+      if (prevBtn) prevBtn.disabled = page === 0;
+      if (nextBtn) nextBtn.disabled = page >= pages - 1;
     }
     // aired requests: prompt -> song title, and how long it took to air
     const recentEl = $("req-recent");
@@ -210,6 +233,13 @@
 
   send.addEventListener("click", submit);
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  function goPage(p) {
+    page = p;
+    render(lastQueue, lastRecent);
+    if (queueWrap) { queueWrap.scrollTop = 0; updateScrollCue(); }
+  }
+  if (prevBtn) prevBtn.addEventListener("click", () => { if (page > 0) goPage(page - 1); });
+  if (nextBtn) nextBtn.addEventListener("click", () => goPage(page + 1));
   if (queueWrap) {
     queueWrap.addEventListener("scroll", updateScrollCue);
     window.addEventListener("resize", updateScrollCue);
