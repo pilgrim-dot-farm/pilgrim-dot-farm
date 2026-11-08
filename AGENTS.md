@@ -12,7 +12,10 @@ the reference for web search: Brave Search API direct, searxng retired.
 SCALABILITY.md is the plan for the VPC move (Fargate web tier, RDS Postgres,
 ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
 SHEEP_PEN_PLAN.md (Steps 1–12) is the plan for The Sheep Pen chat; SHEEP_PEN.md
-is its brief (read the brief first, then the plan).
+is its brief (read the brief first, then the plan). PROMPT_UPGRADE.md (Steps
+1–6, shipped 2026-11-08) is the reference for the three-box paid request
+(lyrics / musical direction / cover art); it supersedes PAYMENT.md's single
+paid text box.
 
 You are building an AI-generated radio station. **`RADIO.md` is the source of
 truth.** Read the relevant section of RADIO.md before implementing anything,

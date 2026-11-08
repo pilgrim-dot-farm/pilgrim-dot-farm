@@ -628,7 +628,18 @@ Workers:
      A supplied caption routes on its own Basic Attributes line. Free requests
      always receive the station treatment, even if they contain tagged lyrics
      or a structured caption; verbatim flags are ignored for free requests.
-   - Stock/free artists may be drawn from the station bible's recurring
+   - **The three boxes** (PROMPT_UPGRADE.md Step 3, D5): a paid three-box row
+     reaches the brief as `RequestParts` (`lyrics`, `music`, `art`). The user
+     message carries two labelled lines — `Lyrical direction` (words, subject,
+     title, artist; `(none given)` when empty) and `Musical direction` (style,
+     tempo, vocals, instruments, exclusions) — and the art box is **never**
+     seen here. Style routing and the caption come from the music box (lyrics
+     as fallback); `verbatim.genre_line`/`extract_caption` scan the music box
+     first, `extract_lyrics` the lyrics box first. The composed `text` is never
+     scanned whole, because the art block's lines would read as lyrics after
+     the final tag. `paid_request.md` explains the two boxes and how to infer
+     an empty one; legacy and free rows take the single-text path unchanged.
+   - **Stock/free artists** may be drawn from the station bible's recurring
      fictional artists (§7), or invented; paid artists follow the brief.
    - Lyrics of arbitrary length. The request sends `duration_seconds` =
      `songs.max_duration_s` (360 s) as the ceiling; the model may end sooner.
@@ -1848,7 +1859,8 @@ emergency, both title and artist non-empty). The master PNG and the delivered
 JPEG live in `pilgrim/library/art/` as **new** files named after the song's
 media stem (`<stem>.png` / `<stem>.jpg`, then `-2`, `-3` on collision) — never
 an overwrite (hard rule 5). `meta_json.art` stores the scene, the final FLUX
-prompt and the seed so a render is reproducible. `art_path` is set only after
+prompt, the seed and the listener's `art_direction` (NULL when none) so a
+render is reproducible. `art_path` is set only after
 the PNG validates and the JPEG encodes; `art_s3_key` only after the PUT.
 
 The `items` table carries a `retired` flag (default 0) — a soft-delete used to
@@ -1937,7 +1949,11 @@ art:\n…`, empty boxes omitted — so every consumer that reads the whole text
 (moderation, prefilter, the producer's fallback, the intro, admin, an old
 station process) keeps working. `pilgrim/pipelines/request_parts.py` owns the
 composition (`RequestParts.composed`), the song-only view (`song_text`: lyrics
-+ music, never art) and the row reader (`from_row`, None for a legacy row).
++ music, never art) and the row reader (`from_row`, None for a legacy row). The
+producer copies the parts onto the song item's `meta_json.request_parts`
+(`{lyrics, music, art}`; absent for a legacy row), so the background art
+worker and `art_backfill` re-read the same inputs; `meta_json.art.art_direction`
+records the cover brief that was used (NULL when none).
 
 **Visitors.** A separate `visitor_ips(ip TEXT PRIMARY KEY, first_seen REAL)`
 table stores the **raw canonical client IP** (operator decision, 2026-10-01;

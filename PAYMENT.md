@@ -119,7 +119,7 @@ Key facts:
 | Disclaimer under the heading | `Help us pay Amazon Web Services and Detroit Edison.` in cyan (`.pay-note`) |
 | Placement | Inside the existing REQUEST LINE pane, same page, no redirect |
 | Queues | Two FIFO queues: priority (paid) and free. Priority always first. |
-| Paid input | Multi-line prompt for the music (free stays single-line) |
+| Paid input | Multi-line prompt for the music (free stays single-line). **Superseded by PROMPT_UPGRADE.md (three boxes), 2026-11.** |
 | Price | Existing Stripe price: preset $3.50, min $3.00, max $67.69, USD |
 | Paid board label | Generated one-line summary of the full prompt (LLM, ≤160 chars), stored in `requests.summary`. Fallback: first non-tag line (never `[intro]`/`[verse]`). |
 | Paid marker on the board | Queue number `#N` first, then the cornucopia icon (`pilgrim/web/img/cornucopia.png`) at one line high, then the request text. No `$` badge, no amount. |
@@ -134,8 +134,8 @@ Key facts:
 | Stripe integration | Embedded Checkout (`ui_mode=embedded_page`, `redirect_on_completion=never`, no `return_url`), API version `2026-10-28.endive`; not Payment Element, not Payment Links |
 | Managed Payments | **Off** per session (`managed_payments[enabled]=false`): the product tax code is ineligible and Pilgrim Dot Farm LLC stays merchant of record. Turning it on is an operator decision (needs an eligible tax code). Recommended: also switch the account default off in Dashboard → Settings → Managed Payments, so no future product silently becomes merchant-of-record. |
 | HTTP to Stripe | `httpx.AsyncClient` (form-encoded), webhook check with stdlib `hmac`. **No `stripe` Python package.** This matches AGENTS §3 (httpx, explicit timeouts) and keeps the fake simple. |
-| Paid prompt limit | 3600 characters, 72 lines |
-| Paid text path | Goes through the song **brief** LLM like a free request (style lock, validation, QC all apply), with a stronger "honour the listener's details" instruction. It is **not** sent raw to MiniMax. |
+| Paid prompt limit | 3600 characters, 72 lines. **Superseded by PROMPT_UPGRADE.md (three boxes: 8000 composed, 4000/3000/800 per box), 2026-11.** |
+| Paid text path | Goes through the song **brief** LLM like a free request (style lock, validation, QC all apply), with a stronger "honour the listener's details" instruction. It is **not** sent raw to MiniMax. **Superseded by PROMPT_UPGRADE.md (lyrics and music boxes reach the brief labelled; art goes to the scene writer), 2026-11.** |
 | Paid song length | Never shortened by the "≥ 3 queued → short song" backlog rule |
 | Production attempts | Paid: 5, free: 3 (unchanged) |
 | Failed paid request | Marked `failed`, logged as `payment.refund_due`, listed on an admin route. **No automatic refund.** The operator refunds in the Stripe Dashboard. |
