@@ -102,14 +102,62 @@
       </div>
       <button id="pay-open" class="pay-btn" type="button">PRIORITY REQUEST<br>($3 MIN)</button>
       <div id="pay-panel" class="pay-panel hidden">
-        <label for="pay-text" class="req-note">Describe your song in as much
-          detail as you'd like: style, tempo, mood, instruments, what it's about, and
-          any lyrics that aren't harmful or copyrighted. Paid requests are placed ahead of unpaid.
-          Chip in what you like, with $3.50 suggested.</label>
-        <textarea id="pay-text" rows="6" maxlength="6000"
-                  placeholder="Slow-burn bossa nova about the Thistledown night bus…"></textarea>
+        <p class="pay-intro">Tell us what to sing, how to sound, and what goes on the
+          cover. Take control of all three, or leave the details to us.<br>
+          <span class="pay-wink">Your imagination. Our questionable machinery.</span></p>
+
+        <section class="pay-field pay-field-lyrics">
+          <label for="pay-lyrics" class="pay-label"><span class="pay-num">1</span>LYRICS
+            <span class="pay-sub">The words</span></label>
+          <p class="pay-help">Set the subject, story, title, or even write the lyrics yourself.</p>
+          <textarea id="pay-lyrics" rows="4" maxlength="4000"
+                    placeholder="A love song about a sentient vending machine. Or paste your own lyrics…"></textarea>
+        </section>
+
+        <section class="pay-field pay-field-music">
+          <label for="pay-music" class="pay-label"><span class="pay-num">2</span>MUSICAL DIRECTION
+            <span class="pay-sub">The sound</span></label>
+          <p class="pay-help">Choose the genre, instruments, vocals, tempo, and mood. Get as specific as you like.</p>
+          <textarea id="pay-music" rows="3" maxlength="3000"
+                    placeholder="1980s synth-pop, dramatic female vocals, pounding drums, absurdly heroic…"></textarea>
+        </section>
+
+        <section class="pay-field pay-field-art">
+          <label for="pay-art" class="pay-label"><span class="pay-num">3</span>COVER ART
+            <span class="pay-sub">Optional</span></label>
+          <p class="pay-help">Direct the artwork's scene, style, colors, and atmosphere. Or let the farm surprise you.</p>
+          <textarea id="pay-art" rows="2" maxlength="800"
+                    placeholder="A chrome vending machine on a moonlit cliff, painted like an 80s fantasy album…"></textarea>
+        </section>
+
+        <details class="pay-advanced">
+          <summary>Want to get technical?</summary>
+          <ul>
+            <li><b>Lyrics:</b> you can paste a complete lyric sheet. Put each section
+              tag on its own line: <code>[intro]</code>, <code>[verse]</code>,
+              <code>[pre-chorus]</code>, <code>[chorus]</code>, <code>[post-chorus]</code>,
+              <code>[bridge]</code>, <code>[instrumental]</code>, <code>[solo]</code>,
+              <code>[outro]</code>. We sing exactly what you wrote. The song ends when
+              the lyrics do.</li>
+            <li><b>Musical direction:</b> casual words are plenty. If you have one, a
+              complete MiniMax Music 3 structured caption (the three headings
+              <i>Global Metadata</i>, <i>Vocal Details</i>, <i>Arrangement</i>, about
+              250–450 words) is used as written. Always say who sings: male, female,
+              or instrumental with a lead instrument.</li>
+            <li><b>Cover art:</b> describe what should be in the picture: the subject,
+              what it is doing, the setting, the medium or art style, the colors, the
+              light. Say what you want to see rather than what you don't. We add the
+              title and artist; nothing else on the cover carries writing.</li>
+            <li>Limits: 4,000 / 3,000 / 800 characters. Keep it cleanish; no
+              copyrighted lyrics.</li>
+          </ul>
+        </details>
+
+        <p class="pay-terms">Your request goes ahead of free submissions. Chip in
+          what you like: $3.50 suggested, $3 minimum.</p>
+
         <div class="pay-actions">
-          <button id="pay-go" type="button">Check it &amp; pay</button>
+          <button id="pay-go" type="button">CHECK IT &amp; PAY</button>
           <button id="pay-cancel" type="button" class="pay-cancel">Cancel</button>
         </div>
         <div id="pay-msg" class="req-err hidden"></div>
