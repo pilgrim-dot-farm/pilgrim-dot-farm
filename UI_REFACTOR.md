@@ -1294,3 +1294,11 @@ required, Cancel removed, stale-token lock fixed. Live test passed
 reserves a blank row; the phone queue box keeps its 520 px height (flex
 children no longer shrink); ABOUT heads have no rule above, an inset rule
 below and a uniform 14 px rhythm; the cornucopia credit is removed.
+
+**Round 3 (2026-11-08):** commit `bfe58ba`, image
+`pilgrimdotfarm/front-end:bfe58ba` + `:latest`, digest
+`sha256:0051d210a405dc3f4ff5150f843ff4cd8e4d94ca3e1c96b93362790a286993e1`,
+`ecs_release` 19 → 20 (`pg-app:16`, HEALTHY). ABOUT heads share the request
+line's left indent (24 px, 16 px at ≤520), the mission image matches the rule
+width, free-request controls use the site font, and phone form controls are
+16 px so iOS does not zoom on focus.

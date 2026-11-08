@@ -157,3 +157,24 @@ In our "Want to get technical" drop-down, I'm glad we are highlighting the tags 
   diagram).
 - **Credits:** the Cornucopia LQ attribution is removed (public domain); the
   list is now the eight model rows.
+
+## Round 3 (2026-11-08)
+
+- **One left indent.** ABOUT heads now start at exactly the same x as the
+  request-line heads: 24 px on desktop/tablet, 16 px at ≤520 px (where the
+  request body's padding drops to 16). The rule under a head spans the same
+  content width in both panes.
+- **Corporate mission image** is now exactly as wide as the purple rule above
+  it (the request content width). The INFRA AND DATA FLOW diagram keeps its
+  6 px inset and stays visually aligned as before.
+- **Free requests.** The free input and Send button were rendering at the
+  browser's default control font (13.33 px) because they set only
+  `font-family: inherit`; they now use `font: inherit` (16 px, the site's
+  body size), matching the rest of the form.
+- **Keyboard zoom.** iOS zooms the page when a focused control is under 16 px.
+  On phones (≤899) the paid textareas, promo input, APPLY button and their
+  helper lines are all 16 px (still the same size as each other, as requested);
+  desktop keeps the 13 px look. The free request, chat name and chat compose
+  inputs were already 16 px. With no sub-16 px control left, focusing a field
+  no longer scales the page, and the shell simply follows `--vvh` above the
+  keyboard.
