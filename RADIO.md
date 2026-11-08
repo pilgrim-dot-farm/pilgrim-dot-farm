@@ -1138,7 +1138,7 @@ refill target.
 | GET | `/api/requests` | Request board: `{queue: [{id, text, status, paid, stage, song_title, score, votable, buried}], recent: [{text, song_title, song_artist, paid, wait_s}], cap, voting_enabled}` — queue = queued+producing+ready in queue order (≤ `queue_cap`), `song_title` set from `ready` on; `stage` is set only on `producing` rows: `waiting` until its turn at the brief LLM (briefs run one at a time), `writing` while the lyrics/brief are written, `generating` once the song model runs, `rendered` once the song exists but its intro is being made or it waits for the requests ahead of it (ready order is air order) (the board shows "in line" / "being written" / "being generated" / "generated, in line"; `queued` also shows "in line"); `score` is the vote sum, `votable` false for paid rows or when `voting.enabled` is false, `buried` true for a free queued row at/below `voting.bury_threshold` (VOTING.md §1); recent = **last 5** aired, never scored (no retrospective voting). The page renders the queue as Votes / Request / Status (scrolls, header pinned) and recent as Prompt / Title / Prep Time. `wait_s` (Prep Time) is whole seconds from `prep_started_at` — the moment lyrics/brief writing began — to the **earlier of `aired_at` and `due_at`**. `due_at` is the wall time the song was scheduled to air when it was teed up (committed or spliced into the programme, §5.2); with listeners present it agrees with `aired_at` to within seconds, but with nobody listening the playhead is frozen (§3, IDLE.md D3) and `aired_at` only lands on the next PLAY, hours later: that wait is capped at when the song would have aired. Time spent in line or waiting for the station to come back is not prep, and a row with no recorded writing start (aired before that column existed) sends `null`, which the page renders as an em dash (`—`) — measured-or-nothing, never queue idle dressed up as prep. Rows that aired before `due_at` existed are recovered from the station log by `make due-backfill` (tee-up line + frozen spans; dry run unless `DUE_ARGS="--apply"`). `POST` answers `line_full: true` when the free line is at `free_queue_max` |
 | POST | `/api/requests/{id}/vote` | VOTING.md: `{voter_id, value}` where `voter_id` is the browser's 32-hex id and `value` ∈ {−1, 0, +1} (0 retracts). Upsert per `(request_id, voter_id)`; only free rows in `queued/producing/ready` are votable. `200 {ok, score, mine, open}`; `404 not_found`; `409 {code: voting_closed\|not_votable, score}`; `422` bad body/id; `429` rate limit or `too_many_voters` (max distinct ids per IP per request); `404` when `voting.enabled` is false. `no-store` |
 | POST | `/api/station/rating` | VOTING.md: `{voter_id, epoch, seq, stars 1-5}` for the on-air song. The window is server-authoritative (epoch must match, `seq` must be the on-air song or the song that just ended within `ratings.grace_s`; a frozen station is closed). `200 {ok, item_id, count, avg, mine}`; `409 {code: rating_closed}`; `422`; `429`; `404` when `ratings.enabled` is false. `no-store` |
-| POST | `/api/paid-requests` | Paid priority request `{text}` (PAYMENT.md Step 12b): rate limit -> normalise -> operator-comp check (first line == `PAID_OVERRIDE_TOKEN`, stripped) -> prefilter. Prefilter reject: `{ok:false, rejected:true, reason}`. Otherwise the row is stored as `checking` and `{ok:true, token, stage:"moderation"}` returns at once; moderation, the copied-lyrics screen and the board summary run in the background. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
+| POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art}` or legacy `{text}` (PAYMENT.md Step 12b; PROMPT_UPGRADE.md Step 2): rate limit -> normalise -> operator-comp check (first line of the lyrics box, or of `text`, == `PAID_OVERRIDE_TOKEN`, stripped) -> prefilter. Three-box body: at least one of lyrics/music; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only is `422`. Prefilter reject: `{ok:false, rejected:true, reason}`. Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
 | GET | `/api/paid-requests/{token}` | `{status, position, stage, comped, reason?}` (`no-store`): `stage` is `moderation\|copyright\|ready` while `status=checking`; `reason` only when `rejected`. Reconciles an `awaiting_payment` row with Stripe when payments are active |
 | POST | `/api/paid-requests/{token}/checkout` | Only for a non-comped row at `checking/ready`: claims it once (`-> awaiting_payment`) and creates the Checkout Session → `{ok, client_secret, publishable_key, expires_at}`; `client_secret` is returned once and never stored. `409` not ready / already claimed, `424` Stripe failure (row `abandoned`), `503` payments inactive |
 | POST | `/api/stripe/webhook` | Signature-verified Stripe events (PAYMENT.md Step 5) |
@@ -1457,8 +1457,12 @@ payments:
   reconcile_after_s: 10
   reconcile_min_interval_s: 5
   abandon_after_s: 259200      # 72 h
-  paid_max_length: 6000
+  paid_max_length: 8000        # the composed three-part text (PROMPT_UPGRADE.md Step 2)
   paid_max_lines: 200
+  parts:                       # per-box limits; the client mirrors them as maxlength
+    lyrics_max: 4000
+    music_max: 3000
+    art_max: 800
   per_client_per_10min: 6
   max_attempts: 5
   managed_payments: false      # managed_payments[enabled]=false (tax code ineligible)
@@ -1902,6 +1906,16 @@ pre-payment status `checking` (stages `moderation -> copyright -> ready`):`check
 operator comp, `checking -> queued` with `comped=1`, `amount_cents=0` and no
 Stripe session. `checking` rows are never on the board and are `abandoned` on
 station start (their background task died with the process).
+
+**The three boxes (PROMPT_UPGRADE.md).** `lyrics_text`, `music_text` and
+`art_text` are additive, idempotently-migrated columns holding the listener's
+three parts (NULL on a legacy/free row, `""` for a box left empty). `text`
+keeps a **labelled, composed** copy — `Lyrics:\n…\n\nMusic:\n…\n\nAlbum
+art:\n…`, empty boxes omitted — so every consumer that reads the whole text
+(moderation, prefilter, the producer's fallback, the intro, admin, an old
+station process) keeps working. `pilgrim/pipelines/request_parts.py` owns the
+composition (`RequestParts.composed`), the song-only view (`song_text`: lyrics
++ music, never art) and the row reader (`from_row`, None for a legacy row).
 
 **Visitors.** A separate `visitor_ips(ip TEXT PRIMARY KEY, first_seen REAL)`
 table stores the **raw canonical client IP** (operator decision, 2026-10-01;

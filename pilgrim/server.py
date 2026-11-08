@@ -28,7 +28,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Req
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from starlette.requests import HTTPConnection
 from starlette.responses import Response
 from starlette.types import Scope
@@ -75,6 +75,8 @@ from pilgrim.pipelines.moderation import Moderation
 from pilgrim.pipelines.news import NewsPipeline
 from pilgrim.pipelines.operator_phrase import PhraseManager
 from pilgrim.pipelines.request_filter import prefilter
+from pilgrim.pipelines.request_parts import RequestParts, is_label_line
+from pilgrim.pipelines.request_parts import from_row as parts_from_row
 from pilgrim.pipelines.request_parts import normalise as normalise_paid
 from pilgrim.pipelines.sfx import SfxClient, SfxPipeline
 from pilgrim.pipelines.songs import SongPipeline, song_backend_health
@@ -823,7 +825,20 @@ class RequestIn(BaseModel):
 
 
 class PaidRequestIn(BaseModel):
-    text: str = Field(..., min_length=1)
+    """`{lyrics, music, art}` (PROMPT_UPGRADE.md) or the legacy `{text}`."""
+    text: str | None = None
+    lyrics: str | None = None
+    music: str | None = None
+    art: str | None = None
+
+    @model_validator(mode="after")
+    def _one_form(self) -> PaidRequestIn:
+        three = any(v is not None for v in (self.lyrics, self.music, self.art))
+        if three and self.text:
+            raise ValueError("send lyrics/music/art or text, not both")
+        if not three and not (self.text or "").strip():
+            raise ValueError("text required")
+        return self
 
 
 PAID_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
@@ -832,10 +847,11 @@ _SECTION_TAG = re.compile(r"^\[[^\]]{1,40}\]$")
 
 
 def _fallback_summary(text: str, max_length: int) -> str:
-    """First non-tag line, collapsed; never a bare [verse]/[intro] marker."""
+    """First non-tag line, collapsed; never a bare [verse]/[intro] marker or
+    a composed-parts label (`Lyrics:` etc.)."""
     for line in text.split("\n"):
         clean = " ".join(line.split())
-        if not clean or _SECTION_TAG.match(clean):
+        if not clean or _SECTION_TAG.match(clean) or is_label_line(clean):
             continue
         if len(clean) > max_length:
             clean = clean[: max_length - 1] + "…"
@@ -844,10 +860,15 @@ def _fallback_summary(text: str, max_length: int) -> str:
     return clean[: max_length - 1] + "…" if len(clean) > max_length else clean
 
 
-async def _summarise_paid(station: PublicSurface, text: str, max_length: int) -> str:
+async def _summarise_paid(station: PublicSurface, text: str, max_length: int,
+                          fallback_text: str | None = None) -> str:
     """One-line board label for a paid request (PAYMENT.md §3.4). LLM first,
-    deterministic fallback when the model fails; never blocks the request."""
-    fallback = _fallback_summary(text, max_length)
+    deterministic fallback when the model fails; never blocks the request.
+
+    PROMPT_UPGRADE.md Step 2: the LLM sees lyrics + music only (never art), and
+    the fallback label comes from the subject text."""
+    fallback = _fallback_summary(fallback_text if fallback_text is not None
+                                 else text, max_length)
     template = station.prompts.get("paid_summary")
     if not template:
         return fallback
@@ -881,9 +902,14 @@ async def _backfill_paid_summaries(station: Station) -> None:
     max_length = station.cfg.requests.max_length
     for row in station.db.paid_rows_needing_summary():
         text = str(row.get("text") or "")
-        if row.get("summary") and row["summary"] != _fallback_summary(text, max_length):
+        parts = parts_from_row(row)
+        song_text = parts.song_text() if parts else text
+        subject = parts.subject_text() if parts else text
+        fallback = _fallback_summary(subject, max_length)
+        if row.get("summary") and row["summary"] != fallback:
             continue
-        summary = await _summarise_paid(station, text, max_length)
+        summary = await _summarise_paid(station, song_text, max_length,
+                                        fallback_text=subject)
         if summary != row.get("summary"):
             station.db.set_request_summary(int(row["id"]), summary)
             log.info("payment.summary_backfilled", extra={"request_id": row["id"]})
@@ -926,12 +952,17 @@ _CHECK_FAILED = ("Couldn't finish checking your request. You were not charged; "
 
 
 async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
-                           comped: bool) -> None:
+                           comped: bool, parts: RequestParts | None = None) -> None:
     """Moderation -> copyright screen -> summary -> ready (or comped into the
     queue). Runs after the POST has answered; the client polls the stage
-    (PAYMENT.md Step 12b). Any crash rejects the row: nobody is charged."""
+    (PAYMENT.md Step 12b). Any crash rejects the row: nobody is charged.
+
+    PROMPT_UPGRADE.md Step 2 (D4): the moderator sees the composed text; the
+    copied-lyrics screen and the board summary never see the art part."""
     db = station.db
     cfg = station.cfg
+    song_text = parts.song_text() if parts else text
+    subject = parts.subject_text() if parts else text
     try:
         t0 = time.monotonic()
         allowed, reason = await station.moderator.moderate(text)
@@ -944,11 +975,13 @@ async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
             return
         if not db.set_request_stage(request_id, "copyright"):
             return
-        verdict = await station.copyright.check(text, request_id)
+        verdict = await station.copyright.check(song_text, request_id)
         if not verdict.allowed:
             db.reject_checking_request(request_id, verdict.reason)
             return
-        summary = await _summarise_paid(station, text, cfg.requests.max_length)
+        summary = await _summarise_paid(station, song_text,
+                                        cfg.requests.max_length,
+                                        fallback_text=subject)
         if comped:
             db.set_request_stage(request_id, "ready", summary=summary)
             if db.mark_request_comped(request_id):
@@ -1249,17 +1282,54 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                                   background: BackgroundTasks):
         """PAYMENT.md Step 12b: prefilter now, then moderation + copyright in
         the background; the client polls the stage and asks for Checkout
-        only once the row is `ready`."""
+        only once the row is `ready`.
+
+        PROMPT_UPGRADE.md Step 2: `{lyrics, music, art}` (at least one of
+        lyrics/music) or the legacy `{text}`.
+        """
         if _paid_rate_limited(request):
             raise HTTPException(
                 429, "Easy there — a few paid requests every ten minutes, please.")
         secret = _override_secret(station)
-        comped, text = _split_override(_normalise_paid(payload.text), secret)
+        three = any(v is not None for v in (payload.lyrics, payload.music,
+                                            payload.art))
+        parts: RequestParts | None
+        if three:
+            parts = RequestParts(
+                normalise_paid(payload.lyrics or ""),
+                normalise_paid(payload.music or ""),
+                normalise_paid(payload.art or ""))
+            text = parts.composed()
+        else:
+            parts = None
+            text = _normalise_paid(payload.text or "")
+        # Operator comp (D7): the first line of the lyrics box, or of the
+        # legacy text. A comp consumes that line only.
+        comp_source = parts.lyrics if parts else text
+        comped, stripped = _split_override(comp_source, secret)
+        if comped and parts is not None:
+            parts = RequestParts(stripped, parts.music, parts.art)
+            text = parts.composed()
+        elif comped:
+            text = stripped
         if not comped and (not station.payments_active
                            or station.payment_service is None):
             return JSONResponse(status_code=503, content={
                 "detail": "Paid requests are closed right now.",
                 "paid_closed": True})
+        limits = cfg.payments.parts
+        if parts is not None:
+            if not parts.has_song:
+                raise HTTPException(
+                    422, "tell us what the song is about or how it should sound")
+            for name, value, cap in (("Lyrics", parts.lyrics, limits.lyrics_max),
+                                     ("Musical direction", parts.music,
+                                      limits.music_max),
+                                     ("Cover art", parts.art, limits.art_max)):
+                if len(value) > cap:
+                    raise HTTPException(
+                        422, f"{name} is too long ({cap} characters max)")
+            text = parts.composed()
         lines = text.count("\n") + 1
         if (not text or len(text) > cfg.payments.paid_max_length
                 or lines > cfg.payments.paid_max_lines):
@@ -1274,12 +1344,16 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                 "request_id": req["id"], "allowed": False, "reason": pref,
                 "prefilter": True, "paid": True, "duration_ms": 0})
             return {"ok": False, "rejected": True, "reason": pref}
-        row = station.db.add_checking_request(text, comped=comped)
+        row = station.db.add_checking_request(text, comped=comped, parts=parts)
         log.info("payment.requested",
                  extra={"request_id": row["id"], "len": len(text), "lines": lines,
-                        "comped": comped,
+                        "comped": comped, "parts": parts is not None,
+                        "len_lyrics": len(parts.lyrics) if parts else 0,
+                        "len_music": len(parts.music) if parts else 0,
+                        "len_art": len(parts.art) if parts else 0,
                         "client_ip": station._client_ip(request) if comped else None})
-        background.add_task(_run_paid_checks, station, int(row["id"]), text, comped)
+        background.add_task(_run_paid_checks, station, int(row["id"]), text,
+                            comped, parts)
         return {"ok": True, "token": row["public_token"], "stage": "moderation"}
 
     @app.post("/api/paid-requests/{token}/checkout")

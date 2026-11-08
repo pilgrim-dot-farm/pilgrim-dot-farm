@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from pilgrim.db import Conn, PostgresConn, SqliteConn, StoreLock
+from pilgrim.pipelines.request_parts import RequestParts
 
 
 # Queue order everywhere (RADIO §14; supersedes PAYMENT.md §3.2).
@@ -47,6 +48,14 @@ def queue_order(alias: str = "") -> str:
 QUEUE_ORDER = queue_order()
 # The same order for queries that alias requests as `r` (joined with items).
 QUEUE_ORDER_R = queue_order("r")
+
+
+def _part_values(parts: RequestParts | None) -> tuple[str | None, ...]:
+    """The three paid-request columns: NULL for a legacy row, `""` for a box
+    the listener left empty (PROMPT_UPGRADE.md Step 2)."""
+    if parts is None:
+        return (None, None, None)
+    return (parts.lyrics, parts.music, parts.art)
 
 
 def _queued_where(bury_threshold: int | None) -> tuple[str, tuple[Any, ...]]:
@@ -434,7 +443,12 @@ class Store:
                              ("comped", "INTEGER DEFAULT 0"),
                              # VOTING.md V6: first time the producer claims the
                              # row, so in-flight order is the claim order
-                             ("claimed_at", "TEXT")):
+                             ("claimed_at", "TEXT"),
+                             # PROMPT_UPGRADE.md Step 2: the three-box paid
+                             # request, kept alongside the composed `text`
+                             ("lyrics_text", "TEXT"),
+                             ("music_text", "TEXT"),
+                             ("art_text", "TEXT")):
                 if col not in req_cols:
                     self._conn.execute(f"ALTER TABLE requests ADD COLUMN {col} {ddl}")
             self._conn.execute(
@@ -1391,17 +1405,23 @@ class Store:
         return [dict(r) for r in rows]
 
     # ------------------------------------------------- paid priority (PAYMENT §3)
-    def add_paid_request(self, text: str, summary: str | None = None) -> dict[str, Any]:
+    def add_paid_request(self, text: str, summary: str | None = None,
+                         parts: RequestParts | None = None) -> dict[str, Any]:
         """Insert a moderated paid request: awaiting payment, priority 1,
         unguessable public token, plus the board summary. Not in any queue
-        until Stripe confirms."""
+        until Stripe confirms.
+
+        PROMPT_UPGRADE.md Step 2: the three box columns are NULL for a legacy
+        row, and `""` for a box the listener left empty."""
         token = secrets.token_urlsafe(24)
+        lyrics, music, art = _part_values(parts)
         with self._lock:
             cur = self._conn.execute(
                 "INSERT INTO requests (text, status, created_at, updated_at, "
-                "priority, public_token, summary) VALUES (?,?,?,?,?,?,?) RETURNING id",
+                "priority, public_token, summary, lyrics_text, music_text, "
+                "art_text) VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING id",
                 (text, "awaiting_payment", _now_iso(), _now_iso(), 1, token,
-                 summary))
+                 summary, lyrics, music, art))
             rid = int(cur.fetchone()[0])
             self._conn.commit()
         row = self.get_request(rid)
@@ -1434,17 +1454,25 @@ class Store:
                                (summary, _now_iso(), request_id))
             self._conn.commit()
 
-    def add_checking_request(self, text: str, *, comped: bool = False) -> dict[str, Any]:
+    def add_checking_request(self, text: str, *, comped: bool = False,
+                             parts: RequestParts | None = None
+                             ) -> dict[str, Any]:
         """Insert a prefiltered paid request whose checks run in the background
         (PAYMENT.md Step 12b): status `checking`, stage `moderation`, priority 1,
-        unguessable public token. Not in any queue, not on the board."""
+        unguessable public token. Not in any queue, not on the board.
+
+        PROMPT_UPGRADE.md Step 2: the three parts are stored as `""` when the
+        listener left a box empty, so `from_row` can tell a three-box request
+        from a legacy one."""
         token = secrets.token_urlsafe(24)
+        lyrics, music, art = _part_values(parts)
         with self._lock:
             cur = self._conn.execute(
                 "INSERT INTO requests (text, status, stage, created_at, updated_at, "
-                "priority, public_token, comped) VALUES (?,?,?,?,?,?,?,?) RETURNING id",
+                "priority, public_token, comped, lyrics_text, music_text, "
+                "art_text) VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
                 (text, "checking", "moderation", _now_iso(), _now_iso(), 1, token,
-                 1 if comped else 0))
+                 1 if comped else 0, lyrics, music, art))
             rid = int(cur.fetchone()[0])
             self._conn.commit()
         row = self.get_request(rid)

@@ -721,3 +721,20 @@ def test_moderation_prompt_policy_wording():
         assert word in allow and word not in reject
     assert "Lemon Stealing Hoors" in allow
     assert "An insult is not hate" in text
+
+
+def test_request_parts_round_trip_and_legacy_row():
+    """PROMPT_UPGRADE.md Step 2: the three columns survive a store round trip;
+    a legacy row (no parts) reads as None."""
+    from pilgrim.pipelines.request_parts import RequestParts, from_row
+
+    store = _store()
+    parts = RequestParts(lyrics="words", music="sound", art="")
+    row = store.add_checking_request(parts.composed(), comped=True, parts=parts)
+    stored = store.get_request(int(row["id"]))
+    assert from_row(stored) == parts
+    assert stored["lyrics_text"] == "words" and stored["art_text"] == ""
+
+    legacy = store.add_checking_request("just the old text")
+    assert from_row(store.get_request(int(legacy["id"]))) is None
+    assert store.get_request(int(legacy["id"]))["lyrics_text"] is None
