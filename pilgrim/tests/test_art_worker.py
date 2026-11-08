@@ -324,3 +324,61 @@ def test_program_and_state_carry_art_url(tmp_env):
     body = c.get("/api/station/program").json()
     assert body["items"][0]["art_url"].endswith(".jpg")
     assert c.get("/api/station/state").json()["current_art_url"].endswith(".jpg")
+
+
+# ---------------------------------------------------- art direction (Step 4)
+@pytest.mark.asyncio
+async def test_render_brief_parts_drive_the_cover(tmp_env):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    cfg, store, tmp = tmp_env
+    _cfg(cfg)
+    w = _worker(cfg, store)
+    brief = {
+        "title": "Lunar Raccoon", "artist": "The Ballot Box",
+        "genre": "metal-heavy-rock", "seed": 9, "request_id": 1001,
+        "lyrics": "[verse]\nvote raccoon",
+        "style_prompt": "Global Emotional Progression: triumphant",
+    }
+    parts = RequestParts(lyrics="a raccoon for president", music="death metal",
+                         art="a chrome raccoon on a lunar podium")
+    res = await w.render_brief(brief, "req1001", parts=parts)
+    assert res is not None
+    _, meta = res
+    assert meta["request_text"] == "a raccoon for president"
+    assert meta["art_direction"] == "a chrome raccoon on a lunar podium"
+
+
+@pytest.mark.asyncio
+async def test_process_reads_parts_from_item_meta(tmp_env):
+    cfg, store, tmp = tmp_env
+    _cfg(cfg)
+    iid = store.add_item(
+        type_="song", media_path=str(tmp / "parts.mp3"), duration_s=1,
+        title="Paid Barn", artist="The Haybalers", genre="country-americana",
+        meta={"lyrics": "[verse]\nneigh", "request_text": "a neon city",
+              "paid": True,
+              "request_parts": {"lyrics": "a neon city", "music": "synth",
+                                "art": "a rain-soaked arcade"}})
+    w = _worker(cfg, store)
+    assert await w.process(store.get_item(iid)) is True
+    meta = json.loads(store.get_item(iid)["meta_json"])
+    assert meta["art"]["request_text"] == "a neon city"
+    assert meta["art"]["art_direction"] == "a rain-soaked arcade"
+    assert meta["art"]["paid"] is True
+
+
+@pytest.mark.asyncio
+async def test_legacy_item_has_no_art_direction(tmp_env):
+    cfg, store, tmp = tmp_env
+    _cfg(cfg)
+    iid = store.add_item(
+        type_="song", media_path=str(tmp / "legacy.mp3"), duration_s=1,
+        title="Old Barn", artist="The Haybalers", genre="country-americana",
+        meta={"lyrics": "[verse]\nneigh", "request_text": "an old request",
+              "paid": True})
+    w = _worker(cfg, store)
+    assert await w.process(store.get_item(iid)) is True
+    meta = json.loads(store.get_item(iid)["meta_json"])
+    assert meta["art"]["request_text"] == "an old request"
+    assert meta["art"]["art_direction"] is None
