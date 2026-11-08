@@ -151,6 +151,22 @@ test("REQUEST: the queue box keeps its height and its rows on a phone", async ({
   expect(m.rowH).toBeGreaterThan(10);
 });
 
+test("phone form controls are 16 px so iOS does not zoom on focus", async ({ page }) => {
+  await tab(page, "requests");
+  const f = await page.evaluate(() => {
+    const fs = (sel: string) => parseFloat(
+      getComputedStyle(document.querySelector(sel)!).fontSize);
+    return { free: fs("#req-input"), freeBtn: fs("#req-send"),
+             pay: fs("#pay-lyrics"), help: fs("#pay-panel .pay-help"),
+             promo: fs("#pay-promo") };
+  });
+  expect(f.free).toBe(16);
+  expect(f.freeBtn).toBe(16);
+  expect(f.pay).toBe(16);
+  expect(f.help).toBe(16);   // boxes and their descriptions stay equal
+  expect(f.promo).toBe(16);
+});
+
 test("mini player mirrors the radio pane and never restarts audio", async ({ page }) => {
   await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM");
   await expect(page.locator("#mini-play")).toHaveAttribute("aria-label", "Play");
