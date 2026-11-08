@@ -183,6 +183,9 @@ country while its stored caption correctly read `Reggae / Roots Reggae`:
 - Record wall-clock generation time per request for the rate metric.
 - Unknown: whether request is truly synchronous-blocking for long songs or
   streams; measure with a real 150–210 s brief in `make smoke`.
+- Paid three-box rows: the caption comes from the **music box**, the lyrics
+  from the **lyrics box** (`pilgrim/pipelines/request_parts.py`); the cover
+  brief goes only to the scene writer.
 
 ---
 
