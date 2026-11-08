@@ -1,22 +1,30 @@
-/* Pilgrim Dot Farm — PAID REQUE$T (PAYMENT.md §8.3, Step 12b).
-   Submit -> the station checks the prompt in stages (DJ prefilter, content
-   moderation, copied-lyrics screen) while this polls the stage -> Embedded
-   Stripe Checkout once the request is ready. Stripe.js is loaded lazily; the
-   card fields live in Stripe's iframe, so card data never touches this code
-   or the station. No build step.
+/* Pilgrim Dot Farm — PAID REQUE$T (PAYMENT.md §8.3, Step 12b;
+   PROMPT_UPGRADE.md Step 5, RADIO §9.1).
+   Three creative departments (lyrics, musical direction, cover art) posted as
+   {lyrics, music, art}. Submit -> the station checks the composed request in
+   stages (DJ prefilter, content moderation, copied-lyrics screen) while this
+   polls the stage -> Embedded Stripe Checkout once the request is ready.
+   Stripe.js is loaded lazily; the card fields live in Stripe's iframe, so card
+   data never touches this code or the station. Drafts survive a reload in
+   sessionStorage. No build step.
 */
 (() => {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const btn = $("pay-open"), panel = $("pay-panel"), ta = $("pay-text");
+  const btn = $("pay-open"), panel = $("pay-panel");
+  const taLyrics = $("pay-lyrics"), taMusic = $("pay-music"), taArt = $("pay-art");
+  const advanced = panel ? panel.querySelector(".pay-advanced") : null;
+  const boxes = [taLyrics, taMusic, taArt].filter(Boolean);
   const go = $("pay-go"), cancel = $("pay-cancel"), msg = $("pay-msg");
   const mount = $("pay-checkout");
-  if (!btn || !panel || !mount) return;
+  if (!btn || !panel || !mount || boxes.length !== 3) return;
 
   const LABEL = "PRIORITY REQUEST\n($3 MIN)";
   const STORE_KEY = "pd_pay_token";
   const STORE_TTL_MS = 10 * 60 * 1000;
+  const DRAFT_KEY = "pd_pay_draft";
+  const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
   let state = "idle";
   let checkout = null;
@@ -43,12 +51,13 @@
     panel.classList.toggle("hidden", state === "idle");
     btn.classList.toggle("hidden", state !== "idle");
     btn.disabled = state !== "idle";
-    ta.disabled = state === "checking" || state === "paying" || state === "confirming";
-    go.disabled = state === "checking" || state === "paying" || state === "confirming";
+    const locked = state === "checking" || state === "paying" || state === "confirming";
+    for (const ta of boxes) ta.disabled = locked;
+    if (advanced) advanced.open = false;
+    go.disabled = locked;
     cancel.disabled = state === "checking" || state === "confirming";
     if (state === "idle") {
       mount.textContent = "";
-      ta.value = "";
       showMsg("");
     }
   }
@@ -64,6 +73,32 @@
       checkout = null;
     }
     mount.textContent = "";
+  }
+
+  function saveDraft() {
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+        lyrics: taLyrics.value, music: taMusic.value, art: taArt.value,
+        ts: Date.now(),
+      }));
+    } catch (e) { /* private mode */ }
+  }
+
+  function clearDraft() {
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+    for (const ta of boxes) ta.value = "";
+  }
+
+  function loadDraft() {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || Date.now() - saved.ts > DRAFT_TTL_MS) return;
+      taLyrics.value = saved.lyrics || "";
+      taMusic.value = saved.music || "";
+      taArt.value = saved.art || "";
+    } catch (e) { /* private mode / bad JSON */ }
   }
 
   function saveToken(tok) {
@@ -115,6 +150,7 @@
         clearToken();
         const pos = d.position ? " (#" + d.position + ")" : "";
         showMsg("✓ You're in the priority line" + pos + ".", true);
+        clearDraft();
         setState("done");
         doneTimer = setTimeout(() => setState("idle"), 8000);
         return;
@@ -185,6 +221,7 @@
         clearToken();
         const pos = d.position ? " (#" + d.position + ")" : "";
         showMsg("✓ You're in the priority line" + pos + ".", true);
+        clearDraft();
         setState("done");
         doneTimer = setTimeout(() => setState("idle"), 8000);
         return;
@@ -253,15 +290,20 @@
   }
 
   async function submitPaid() {
-    const text = ta.value.trim();
-    if (!text) { showMsg("Describe the song first.", false); return; }
+    const lyrics = taLyrics.value.trim(), music = taMusic.value.trim(),
+          art = taArt.value.trim();
+    if (!lyrics && !music) {
+      showMsg("Give us a subject or a sound and we'll take it from there.", false);
+      (lyrics || !music ? taLyrics : taMusic).focus();
+      return;
+    }
     showMsg("Checking with the DJ…", true);
     setState("checking");
     try {
       const r = await fetch("/api/paid-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ lyrics, music, art }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.status === 503) {
@@ -301,25 +343,21 @@
   btn.addEventListener("click", () => {
     if (state !== "idle") return;
     showMsg("");
+    loadDraft();
     setState("composing");
-    ta.focus();
+    taLyrics.focus();
   });
+
+  for (const ta of boxes) ta.addEventListener("input", saveDraft);
   go.addEventListener("click", submitPaid);
   cancel.addEventListener("click", () => {
-    if (state === "paying") {
-      destroyCheckout();
-      clearTimers();
-      token = null;
-      clientSecret = null;
-      clearToken();
-      setState("idle");
-    } else {
-      clearTimers();
-      clearToken();
-      token = null;
-      clientSecret = null;
-      setState("idle");
-    }
+    if (state === "paying") destroyCheckout();
+    clearTimers();
+    clearToken();
+    token = null;
+    clientSecret = null;
+    clearDraft();
+    setState("idle");
   });
 
   window.PD_PAY = { setEnabled };

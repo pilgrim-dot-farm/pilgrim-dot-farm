@@ -918,6 +918,28 @@ the station name.
   thin visible scrollbar and a bottom gradient while there is more below
   (`has-more`). On phones the Status column folds under the request text (two
   visual columns) and nothing scrolls horizontally down to 320 px.
+- **PAID REQUE$T** (PROMPT_UPGRADE.md Step 5, PAYMENT.md): the *SKIP THE
+  BARNYARD! YOUR SONG, YOUR RULES!* note stays above the **PRIORITY REQUEST**
+  button (`($3 MIN)`, the real Stripe minimum). The panel opens on three
+  numbered creative departments, each a labelled box with a two-or-three-word
+  subtitle and one helper line: **1 LYRICS** (*The words*; subject, story,
+  title or a full lyric sheet), **2 MUSICAL DIRECTION** (*The sound*; genre,
+  instruments, vocals, tempo, mood), **3 COVER ART** (*Optional*; scene, style,
+  colours, atmosphere, framed as a choice — *Or let the farm surprise you*).
+  Lyrics or musical direction is required; cover art alone is not a song
+  request. The one-line intro above the boxes reads *Your imagination. Our
+  questionable machinery.* The technical help (section tags, a full MiniMax
+  structured caption, how to describe imagery, the 4,000 / 3,000 / 800 limits)
+  lives in one collapsed *Want to get technical?* block, so the main form
+  never says LLM, prompt, caption, MiniMax, FLUX, token or metadata. The
+  client posts `{lyrics, music, art}` (§11); the `maxlength` values mirror
+  `payments.parts`, and the server is the authority. Drafts persist across a
+  reload in `sessionStorage` under `pd_pay_draft` (`{lyrics, music, art, ts}`,
+  24 h), restored when the panel opens and cleared when the request reaches
+  the line, on Cancel, or on an explicit clear — never merely because the page
+  loaded. The button reads **CHECK IT & PAY**; the terms line says *Your
+  request goes ahead of free submissions. Chip in what you like: $3.50
+  suggested, $3 minimum.*
 - **RATE THIS SONG** (VOTING.md, FIX_RATINGS.md): a row above the cover art
   with five turkey buttons (44 px targets, outlined → filled) and the on-air
   song's lifetime aggregate (`avg · n`, or `NO RATINGS YET`). The aggregate is

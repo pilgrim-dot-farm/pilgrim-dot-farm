@@ -357,7 +357,7 @@ def build_app() -> FastAPI:
             voting_enabled=cfg.voting.enabled,
             bury_threshold=cfg.voting.bury_threshold)
         return JSONResponse({**board, "cap": cfg.requests.queue_cap,
-                             "paid_enabled": False,
+                             "paid_enabled": True,
                              "voting_enabled": cfg.voting.enabled},
                             headers={"Cache-Control": "public, max-age=2"})
 
@@ -369,9 +369,31 @@ def build_app() -> FastAPI:
             voting_enabled=cfg.voting.enabled,
             bury_threshold=cfg.voting.bury_threshold)
         return JSONResponse({"ok": True, "rejected": False, **board,
-                "cap": cfg.requests.queue_cap, "paid_enabled": False,
+                "cap": cfg.requests.queue_cap, "paid_enabled": True,
                 "voting_enabled": cfg.voting.enabled},
                 headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/paid-requests")
+    async def submit_paid_request(payload: dict):
+        """PROMPT_UPGRADE.md Step 5: the three-box shape the real route takes,
+        validated the same way, but nothing is stored and payment is a fake."""
+        lyrics = str(payload.get("lyrics") or "").strip()
+        music = str(payload.get("music") or "").strip()
+        art = str(payload.get("art") or "").strip()
+        parts = cfg.payments.parts
+        if not lyrics and not music:
+            return JSONResponse(status_code=422, content={
+                "detail": "tell us what the song is about or how it should sound"})
+        for name, value, cap in (("Lyrics", lyrics, parts.lyrics_max),
+                                 ("Musical direction", music, parts.music_max),
+                                 ("Cover art", art, parts.art_max)):
+            if len(value) > cap:
+                return JSONResponse(status_code=422, content={
+                    "detail": f"{name} is too long ({cap} characters max)"})
+        return JSONResponse(content={
+            "ok": False, "rejected": True,
+            "reason": "e2e: payments are a fake here"},
+            headers={"Cache-Control": "no-store"})
 
     @app.post("/api/requests/{request_id}/vote")
     async def vote(request_id: int, payload: voting.VoteIn):
