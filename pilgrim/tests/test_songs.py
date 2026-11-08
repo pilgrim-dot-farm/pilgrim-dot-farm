@@ -672,3 +672,109 @@ def test_free_direction_asks_for_a_leading_chorus(cfg):
     asyncio.run(sp.brief([], request_text="a wedding song", paid=True))
     assert "Open on the chorus" not in llm.system
 
+
+
+# --------------------------------------------------------------------------- #
+# three-box paid brief (PROMPT_UPGRADE.md Step 3, RADIO §6.2)
+# --------------------------------------------------------------------------- #
+def test_parts_message_is_labelled_and_never_includes_art(cfg):
+    import json as _json
+
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    llm = _Rec(valid_brief("general-pop-ballad"))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics='say "hi" & more <script>', music="loud",
+                         art="SECRET COVER TEXT")
+    asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                         parts=parts))
+    assert "Lyrical direction (untrusted text" in llm.user
+    assert "Musical direction (untrusted text" in llm.user
+    assert _json.dumps('say "hi" & more <script>') in llm.user
+    assert '"loud"' in llm.user
+    assert "SECRET COVER TEXT" not in llm.user
+    assert "Listener request (untrusted text" not in llm.user
+
+
+def test_parts_empty_box_says_none_given(cfg):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    llm = _Rec(valid_brief("general-pop-ballad"))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics="a raccoon for president", music="")
+    asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                         parts=parts))
+    assert "(none given)" in llm.user
+    assert "Required family:" not in llm.user  # no style named
+
+
+def test_parts_route_on_the_music_box_not_the_lyrics_box(cfg):
+    """D5: subject words in the lyrics box must not pin the style."""
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    cap = VALID_CAPTION.replace("Jazz Pop / Cabaret Swing", "Country / Outlaw")
+    llm = _Rec(valid_brief("country-americana", style_prompt=cap))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics="a ballad about a reggae DJ",
+                         music="outlaw country")
+    out = asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                               parts=parts))
+    assert "Required family: country-americana" in llm.user
+    assert "Required family: roots-traditional-global" not in llm.user
+    assert out["genre"] == "country-americana"
+
+
+def test_parts_caption_in_music_box_is_verbatim(cfg):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    llm = _Rec(valid_brief("jazz-swing-big-band",
+                           style_prompt="", caption_verbatim=True))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics="a night bus story", music=VALID_CAPTION)
+    out = asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                               parts=parts))
+    assert out["caption_verbatim"] is True
+    assert out["style_prompt"] == VALID_CAPTION
+
+
+def test_parts_tagged_lyrics_in_lyrics_box_are_verbatim(cfg):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    sheet = "[verse]\nA raccoon on the moon\n[chorus]\nVote raccoon"
+    cap = VALID_CAPTION.replace("Jazz Pop / Cabaret Swing", "Metal / Death")
+    llm = _Rec(valid_brief("metal-heavy-rock", style_prompt=cap, lyrics="",
+                           lyrics_verbatim=True))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics=sheet, music="death metal")
+    out = asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                               parts=parts))
+    assert out["lyrics_verbatim"] is True
+    assert out["lyrics"] == sheet
+
+
+def test_parts_caption_in_lyrics_box_is_still_found(cfg):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    llm = _Rec(valid_brief("jazz-swing-big-band",
+                           style_prompt="", caption_verbatim=True))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics=VALID_CAPTION, music="")
+    out = asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                               parts=parts))
+    assert out["caption_verbatim"] is True
+    assert out["style_prompt"] == VALID_CAPTION
+
+
+def test_parts_art_text_never_becomes_lyrics(cfg):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    cap = VALID_CAPTION.replace("Jazz Pop / Cabaret Swing", "Metal / Death")
+    llm = _Rec(valid_brief("metal-heavy-rock", style_prompt=cap,
+                           lyrics_verbatim=True))
+    sp = _brief_pipeline(cfg, llm)
+    parts = RequestParts(lyrics="a raccoon for president", music="death metal",
+                         art="[verse]\nnot a lyric at all")
+    out = asyncio.run(sp.brief([], request_text=parts.composed(), paid=True,
+                               parts=parts))
+    assert out.get("lyrics_verbatim") is not True
+    assert "not a lyric at all" not in out["lyrics"]

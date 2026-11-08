@@ -202,8 +202,10 @@ class FakeSong:
         self.calls = []
         self.fail = fail
 
-    async def brief(self, genres, request_text=None, short=False, paid=False):
+    async def brief(self, genres, request_text=None, short=False, paid=False,
+                    parts=None):
         self.calls.append(("brief", request_text))
+        self.parts = parts
         self.short = short
         return valid_brief("country-americana", title="Mittens the Night",
                            artist="The Barn Cats", lyrics="[verse]\nmeow")
@@ -284,8 +286,10 @@ class FakeArtWorker:
         self.calls = []
         self.attached = []
 
-    async def render_brief(self, brief, token, request_text=None, paid=False):
+    async def render_brief(self, brief, token, request_text=None, paid=False,
+                           parts=None):
         self.calls.append((brief["title"], token, request_text, paid))
+        self.parts = parts
         return "/tmp/early.jpg", {"scene": "early", "seed": brief.get("seed")}
 
     def attach(self, item_id, jpg_path, meta):
@@ -341,9 +345,10 @@ def test_request_production_starts_prep_clock_at_writing(cfg, tmp_env):
             super().__init__()
             self.prep_at_brief = None
 
-        async def brief(self, genres, request_text=None, short=False, paid=False):
+        async def brief(self, genres, request_text=None, short=False, paid=False,
+                        parts=None):
             self.prep_at_brief = store.get_request(req["id"])["prep_started_at"]
-            return await super().brief(genres, request_text, short, paid)
+            return await super().brief(genres, request_text, short, paid, parts)
 
     songs = _BriefSpy()
     prod = make_song_producer(cfg, store, FakeVoice(), songs)
@@ -946,3 +951,59 @@ def test_bury_threshold_none_disables(cfg, tmp_env):
     store.cast_request_vote(req["id"], VOTER, "1.1.1.1", -1, max_voters_per_ip=3)
     prod = _idle_producer(cfg, store, FakeVoice(), FakeSong(), idle=False)
     assert prod._next_job().kind == "request"
+
+
+# --------------------------------------------------------------------------- #
+# three-box paid rows (PROMPT_UPGRADE.md Steps 3-4)
+# --------------------------------------------------------------------------- #
+def _queue_parts_row(store, parts, summary="a lunar raccoon anthem"):
+    from pilgrim.pipelines.request_parts import RequestParts  # noqa: F401
+    row = store.add_paid_request(parts.composed(), summary=summary, parts=parts)
+    rid = int(row["id"])
+    store.attach_checkout(rid, f"cs_{rid}")
+    store.mark_request_paid(rid, session_id=f"cs_{rid}", payment_intent_id=None,
+                            amount_cents=350, currency="usd", livemode=False)
+    return store.get_request(rid)
+
+
+def test_parts_row_reaches_brief_and_item_meta(cfg, tmp_env):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    _, store, _ = tmp_env
+    parts = RequestParts(lyrics="a raccoon for president", music="death metal",
+                         art="a chrome raccoon on a podium")
+    req = _queue_parts_row(store, parts)
+    songs = FakeSong()
+    prod = make_song_producer(cfg, store, FakeVoice(), songs)
+    assert asyncio.run(prod.song_step()) is True
+    assert songs.parts == parts
+    song_id = store.get_request(req["id"])["song_item_id"]
+    meta = _meta(store, song_id)
+    assert meta["request_parts"] == {"lyrics": "a raccoon for president",
+                                     "music": "death metal",
+                                     "art": "a chrome raccoon on a podium"}
+
+
+def test_legacy_row_passes_parts_none(cfg, tmp_env):
+    _, store, _ = tmp_env
+    store.add_request("an old style request", cap=10, priority=1)
+    songs = FakeSong()
+    prod = make_song_producer(cfg, store, FakeVoice(), songs)
+    assert asyncio.run(prod.song_step()) is True
+    assert songs.parts is None
+
+
+def test_request_intro_context_excludes_art_direction(cfg, tmp_env):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    _, store, _ = tmp_env
+    parts = RequestParts(lyrics="a raccoon for president", music="death metal",
+                         art="SECRET COVER TEXT")
+    _queue_parts_row(store, parts)
+    voice = _RecordingVoice()
+    prod = make_song_producer(cfg, store, voice, FakeSong())
+    asyncio.run(prod.song_step())
+    intro_calls = [ctx for role, ctx in voice.role_contexts if role == "intro"]
+    assert intro_calls
+    assert "SECRET COVER TEXT" not in intro_calls[0]
+    assert "a raccoon for president" in intro_calls[0]

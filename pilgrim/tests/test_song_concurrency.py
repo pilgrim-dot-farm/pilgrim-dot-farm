@@ -220,7 +220,9 @@ class GateSong:
     def capacity(self) -> int:
         return self.cap
 
-    async def brief(self, genres, request_text=None, short=False, paid=False):
+    async def brief(self, genres, request_text=None, short=False, paid=False,
+                    parts=None):
+        self.parts = parts
         self.briefs.append((request_text, list(genres)))
         if self.brief_gate is not None:
             await self.brief_gate.wait()
@@ -626,7 +628,8 @@ class _CutSong:
     def __init__(self):
         self.calls = 0
 
-    async def brief(self, genres, request_text=None, short=False, paid=False):
+    async def brief(self, genres, request_text=None, short=False, paid=False,
+                    parts=None):
         from pilgrim.pipelines.llm import LLMTruncated
         self.calls += 1
         raise LLMTruncated("llm empty content")
