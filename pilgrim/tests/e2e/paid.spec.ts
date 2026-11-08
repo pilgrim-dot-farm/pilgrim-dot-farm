@@ -12,6 +12,8 @@ const MUSIC = "Death metal.";
 
 async function openPanel(page: Page) {
   await page.goto("/");
+  const tab = page.locator('#nav-mobile [data-go="requests"]');
+  if (await tab.isVisible()) await tab.click();
   await expect(page.locator("#pay-panel")).toBeVisible();
 }
 

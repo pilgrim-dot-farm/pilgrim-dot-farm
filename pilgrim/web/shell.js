@@ -57,11 +57,27 @@
 
   /* ---------------- phone: one visible pane ---------------- */
   // STEP 3 INSERT A
+  const navM = document.getElementById("nav-mobile");
+  const TAB_KEY = "pd_tab";
+  let active = "radio";
+  try {
+    const s = sessionStorage.getItem(TAB_KEY);
+    if (s && byName[s]) active = s;
+  } catch (e) { /* private mode */ }
+
+  function show(name) {
+    if (!byName[name]) return;
+    active = name;
+    wins.forEach(w => w.classList.toggle("active", w.dataset.win === name));
+    mark(navM, name);
+    try { sessionStorage.setItem(TAB_KEY, name); } catch (e) { /* ignore */ }
+  }
 
   /* ---------------- mode + clicks ---------------- */
   function apply() {
     if (MQ.matches) {
       // STEP 3 INSERT B
+      show(active);
     } else {
       wins.forEach(w => w.classList.remove("active"));
       highlight();
@@ -74,11 +90,46 @@
     const t = ev.target;
     const b = t && t.closest ? t.closest("[data-go]") : null;
     if (!b) return;
-    if (MQ.matches) { /* STEP 3 INSERT C */ }
+    if (MQ.matches) { show(b.dataset.go); }
     else goTo(b.dataset.go);
   });
 
   // STEP 3 INSERT D (mini player)
+  /* ---------------- mini player: a mirror of the radio pane ---------------- */
+  const mini = document.getElementById("mini");
+  const miniPlay = document.getElementById("mini-play");
+  const miniText = document.getElementById("mini-text");
+  const btn = document.getElementById("btn-play");
+  const ind = document.getElementById("indicator");
+  let song = null;   // the audible named song from pd:nowplaying, or null
+
+  function syncMini() {
+    if (!mini || !miniPlay || !miniText || !btn || !ind) return;
+    const playing = btn.classList.contains("stop");
+    miniPlay.textContent = playing ? "■" : "▶";
+    miniPlay.classList.toggle("stop", playing);
+    miniPlay.setAttribute("aria-label", playing ? "Stop" : "Play");
+    miniPlay.disabled = btn.disabled;
+    const st = ind.classList.contains("onair") ? "onair"
+             : ind.classList.contains("buffering") ? "buffering" : "idle";
+    mini.classList.remove("onair", "buffering", "idle");
+    mini.classList.add(st);
+    if (song) miniText.textContent = song.title + " — " + song.artist;
+    else if (st === "buffering") miniText.textContent = "BUFFERING…";
+    else if (st === "onair") miniText.textContent = "ON AIR";
+    else miniText.textContent = btn.disabled ? "OFF THE AIR" : "PILGRIM DOT FARM";
+  }
+  document.addEventListener("pd:nowplaying", (ev) => {
+    const d = ev.detail;
+    song = (d && d.title && d.artist) ? d : null;
+    syncMini();
+  });
+  if (btn && ind && window.MutationObserver) {
+    new MutationObserver(syncMini).observe(btn, { attributes: true, attributeFilter: ["class", "disabled"] });
+    new MutationObserver(syncMini).observe(ind, { attributes: true, attributeFilter: ["class"] });
+  }
+  if (miniPlay && btn) miniPlay.addEventListener("click", () => btn.click());
+  syncMini();
   // STEP 4 INSERT E (visual viewport / keyboard)
 
   apply();

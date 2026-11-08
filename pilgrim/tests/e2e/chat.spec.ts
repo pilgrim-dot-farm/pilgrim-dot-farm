@@ -33,6 +33,7 @@ test("read-only before naming: input disabled, log empty", async ({ page }) => {
 test("mobile layout keeps the pen usable at 320 px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto("/");
+  await page.click('#nav-mobile [data-go="sheep"]');
   await expect(page.locator("[data-win='sheep']")).toBeVisible();
   await expect(page.locator("#chat-name-input")).toBeVisible();
   await expect(page.locator("#chat-input")).toBeVisible();

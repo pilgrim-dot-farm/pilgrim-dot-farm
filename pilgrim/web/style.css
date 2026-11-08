@@ -500,6 +500,57 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   background: rgba(36,224,255,.08);
 }
 
+/* Phone chrome (UI_REFACTOR.md Step 3, RADIO §9.1): the mini player and tab
+   row are flex children of body (never position:fixed, so they behave when
+   iOS opens the keyboard). Hidden on desktop; the phone media block at the
+   end of this file shows them. */
+.mini, .nav-mobile { display: none; }
+.mini {
+  position: relative; z-index: 5; flex: none;
+  align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 12px;
+  background: linear-gradient(90deg, rgba(255,47,214,.15), rgba(36,224,255,.08));
+  border-top: 1px solid var(--violet);
+}
+.mini-title {
+  flex: 1 1 auto; min-width: 0; height: 44px; padding: 0;
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  font: inherit; font-size: 14px; letter-spacing: 1px; color: var(--text);
+  background: transparent; border: 0; cursor: pointer;
+}
+.mini-text { flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.mini-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--dim); }
+.mini.onair .mini-dot { background: var(--ok); animation: pulse 1s infinite; }
+.mini.buffering .mini-dot { background: var(--cyan); animation: pulse-cyan .5s infinite; }
+.mini.onair .mini-text { color: var(--ok); }
+.mini-play {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: inherit; font-size: 18px; cursor: pointer;
+  color: #0a0118; background: var(--magenta); border: 1px solid var(--magenta);
+  box-shadow: 0 0 12px rgba(255,47,214,.55);
+}
+.mini-play.stop { color: var(--magenta); background: rgba(10,1,24,.6);
+  box-shadow: 0 0 8px rgba(255,47,214,.25); }
+.mini-play:disabled { filter: grayscale(.7); cursor: not-allowed; }
+.mini-play:focus-visible, .mini-title:focus-visible {
+  outline: 2px solid var(--cyan); outline-offset: -2px; }
+
+.nav-mobile {
+  position: relative; z-index: 5; flex: none;
+  padding: 0 0 env(safe-area-inset-bottom, 0);
+  border-top: 1px solid var(--magenta); background: rgba(10,1,24,.96);
+}
+.nav-mobile button {
+  flex: 1 1 0; min-width: 0; min-height: 52px; padding: 0 4px;
+  font: inherit; font-weight: bold; font-size: 12px; letter-spacing: 1px;
+  color: var(--dim); background: transparent; border: 0;
+  border-top: 2px solid transparent; cursor: pointer;
+}
+.nav-mobile button[aria-current="page"] {
+  color: var(--cyan); border-top-color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+.nav-mobile button:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+
 /* Footer copyright (COSMETIC_PATCHING): same centered column as the panes,
    plain cyan type, no glow so it reads as a footer rather than a label. */
 #footer { position: relative; z-index: 5; flex: none;
@@ -622,4 +673,61 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   .chat-compose input { flex-basis: 100%; }
   .chat-compose button { flex: 1 1 auto; }
   .chat-log { max-height: 38vh; }
+}
+
+/* ============================================================
+   Phone shell (UI_REFACTOR.md Step 3, RADIO §9.1). One breakpoint, 899 px:
+   header (one line, no tagline) / the active pane / mini player / tabs. The
+   footer is hidden; ABOUT ends with its copyright line. All four panes stay
+   laid out (visibility, not display), so scroll positions, the chat log's
+   follow-the-bottom logic and typed text survive tab changes. --vvh is the
+   visual viewport height, kept by shell.js (Step 4); 100dvh is the fallback.
+   ============================================================ */
+@media (max-width: 899px) {
+  html, body { height: var(--vvh, 100dvh); }
+  body { overscroll-behavior: none; }
+
+  #titlebar { padding: 8px 12px; column-gap: 10px; align-items: center; --logo-fs: clamp(12px, 4.2vw, 19px); }
+  #titlebar .tagline { display: none; }
+  #titlebar .logo { white-space: nowrap; overflow: hidden; letter-spacing: 1px; }
+
+  #footer { display: none; }
+  .about-copyright {
+    display: block; padding: 14px; text-align: center;
+    color: var(--cyan); font-size: 12px; font-weight: bold; letter-spacing: 1px;
+    border-top: 1px solid var(--violet);
+  }
+
+  #desktop { display: block; position: relative; padding: 0; overflow: hidden; }
+  #desktop > .window {
+    position: absolute; inset: 0; width: auto; visibility: hidden;
+    display: flex; flex-direction: column;
+    border: 0; border-radius: 0; box-shadow: none;
+  }
+  #desktop > .window.active { visibility: visible; }
+  /* No title bars on phones (D14): the tabs name the pane. SHEEP PEN keeps a
+     thin status strip because chat.js writes the connection state into
+     #chat-status, which lives in that bar. */
+  .win-bar { display: none; }
+  [data-win="sheep"] .win-bar { display: flex; flex: none; justify-content: flex-end;
+    padding: 3px 12px; background: transparent; border-bottom: 1px solid rgba(166, 61, 255, .35); }
+  [data-win="sheep"] .win-bar .win-title { display: none; }
+  #desktop > .window > .win-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  }
+
+  /* RADIO fits the screen: only the art shrinks (D8, budget in §0.5). The
+     rate row, play row and meter keep --art-w. Short viewports scroll. */
+  .win-body.radio { padding: 10px 14px; gap: 8px; justify-content: flex-start; }
+  .win-body.radio .art-frame {
+    width: min(var(--art-w, min(100%, 300px)), max(140px, calc(var(--vvh, 100dvh) - 440px)));
+  }
+
+  /* CHAT fills the pane: the log takes the remaining height, composer pinned. */
+  .win-body.sheep { gap: 8px; }
+  .win-body.sheep .chat-log { flex: 1 1 auto; min-height: 120px; max-height: none; }
+
+  .mini, .nav-mobile { display: flex; }
+  body.kbd-open .mini, body.kbd-open .nav-mobile { display: none; }
 }
