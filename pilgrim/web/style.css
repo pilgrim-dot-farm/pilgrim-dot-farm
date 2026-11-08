@@ -243,7 +243,9 @@ body {
   filter: brightness(1.2); outline: 2px solid var(--field-color); outline-offset: 1px;
 }
 .pay-promo-row button:disabled { opacity: .4; cursor: default; }
-.pay-promo-msg { min-height: 1.2em; font-size: 13px; letter-spacing: 1px; }
+.pay-promo-msg { font-size: 13px; letter-spacing: 1px; }
+/* No reserved blank line under the promo input (feedback 2026-11-08). */
+.pay-promo-msg:empty { display: none; }
 .pay-promo-msg.ok { color: var(--ok); }
 .pay-promo-msg.err { color: var(--bad); }
 .pay-label { display: flex; align-items: baseline; gap: 8px; color: var(--field-color);
@@ -775,6 +777,10 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
     flex: 1 1 auto; min-height: 0; overflow-y: auto;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
   }
+  /* The pane body scrolls; it must never squeeze its children. Without this
+     the flex column shrank the 520 px queue box to 0 px on phones (feedback
+     2026-11-08). The CHAT log opts back into filling the pane below. */
+  #desktop > .window > .win-body > * { flex: 0 0 auto; }
 
   /* RADIO fits the screen: only the art shrinks (D8, budget in §0.5). The
      rate row, play row and meter keep --art-w. Short viewports scroll. */
@@ -785,7 +791,9 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 
   /* CHAT fills the pane: the log takes the remaining height, composer pinned. */
   .win-body.sheep { gap: 8px; }
-  .win-body.sheep .chat-log { flex: 1 1 auto; min-height: 120px; max-height: none; }
+  /* ID-scoped so it outranks the "children never shrink" rule above. */
+  #desktop > .window[data-win="sheep"] > .win-body > .chat-log {
+    flex: 1 1 auto; min-height: 120px; max-height: none; }
 
   .mini, .nav-mobile { display: flex; }
   body.kbd-open .mini, body.kbd-open .nav-mobile { display: none; }
