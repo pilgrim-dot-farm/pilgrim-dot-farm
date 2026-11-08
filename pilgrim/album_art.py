@@ -36,6 +36,7 @@ from pilgrim.pipelines.art import (
     style_hint,
     validate_scene,
 )
+from pilgrim.pipelines.request_parts import RequestParts
 
 log = logging.getLogger("radio.art")
 
@@ -190,7 +191,8 @@ class ArtWorker:
                           item_id: int | None = None,
                           request_text: str | None = None,
                           paid: bool = False,
-                          scene: str | None = None
+                          scene: str | None = None,
+                          art_direction: str | None = None
                           ) -> tuple[Path, Path, dict[str, Any]] | None:
         """Scene -> FLUX -> files. Returns None when the memory gate says no.
         Raises on any real failure; the caller decides whether to back off."""
@@ -211,7 +213,8 @@ class ArtWorker:
             scene = await self.scene.write(
                 title=title, artist=artist, genre=item.get("genre"),
                 hint=style_hint(_meta(item)), lyrics=lyric_excerpt(_meta(item)),
-                item_id=iid, request_text=request_text, paid=paid)
+                item_id=iid, request_text=request_text, paid=paid,
+                art_direction=art_direction)
         else:
             # Operator-supplied scene (art_backfill --scene): same validation
             # as LLM output (length, banned words, adult-only), no LLM call.
@@ -246,6 +249,7 @@ class ArtWorker:
             "title_text": title, "artist_text": artist,
             "typography": typography_style,
             "request_text": request_text, "paid": bool(paid),
+            "art_direction": art_direction,
             "png_path": str(png_path), "model": self.cfg.art.size,
             "rendered_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
@@ -265,11 +269,20 @@ class ArtWorker:
         meta = _meta(item)
         request_text = str(meta.get("request_text") or "") or None
         paid = bool(meta.get("paid"))
+        art_direction = str(meta.get("art_direction") or "") or None
+        parts = meta.get("request_parts")
+        if isinstance(parts, dict):
+            # PROMPT_UPGRADE.md Step 4: the item's own three parts win over
+            # the (possibly composed) request_text for background/backfill.
+            request_text = (str(parts.get("lyrics") or "")
+                            or str(parts.get("music") or "")) or None
+            art_direction = str(parts.get("art") or "") or None
         async with self._render_lock:
             try:
                 result = await self._render_one(item, seed,
                                                 request_text=request_text,
-                                                paid=paid, scene=scene)
+                                                paid=paid, scene=scene,
+                                                art_direction=art_direction)
             except FluxBusy as e:
                 self.backend = "busy"
                 self._failed(iid, "render", e)
@@ -294,7 +307,8 @@ class ArtWorker:
 
     async def render_brief(self, brief: dict[str, Any], token: str,
                            request_text: str | None = None,
-                           paid: bool = False
+                           paid: bool = False,
+                           parts: RequestParts | None = None
                            ) -> tuple[str, dict[str, Any]] | None:
         """Render a cover from a song brief before the song item exists.
 
@@ -308,22 +322,36 @@ class ArtWorker:
         if not title or not artist:
             return None
         iid = int(brief.get("request_id") or 0)
+        art_direction = None
+        pending_meta: dict[str, Any] = {
+            "brief": brief, "lyrics": brief.get("lyrics", ""),
+            "style_prompt": brief.get("style_prompt", ""),
+            "request_text": request_text, "paid": bool(paid)}
+        if parts is not None:
+            # PROMPT_UPGRADE.md Step 4: the cover follows the art box; the
+            # lyrics box is subject context. Stored so the background worker
+            # and art_backfill see the same inputs.
+            request_text = parts.subject_text()
+            art_direction = parts.art or None
+            pending_meta.update({
+                "request_text": request_text, "art_direction": art_direction,
+                "request_parts": {"lyrics": parts.lyrics, "music": parts.music,
+                                  "art": parts.art}})
         item = {
             "id": iid,
             "media_path": f"_pending_{token}.mp3",
             "title": brief.get("title"),
             "artist": brief.get("artist"),
             "genre": brief.get("genre"),
-            "meta_json": {"brief": brief, "lyrics": brief.get("lyrics", ""),
-                          "style_prompt": brief.get("style_prompt", ""),
-                          "request_text": request_text, "paid": bool(paid)},
+            "meta_json": pending_meta,
         }
         seed = int(brief.get("seed") or art_seed(iid))
         async with self._render_lock:
             try:
                 result = await self._render_one(item, seed,
                                                 request_text=request_text,
-                                                paid=paid)
+                                                paid=paid,
+                                                art_direction=art_direction)
             except Exception as e:  # noqa: BLE001 - early art never blocks a song
                 log.warning("art.early_failed", extra={
                     "request_id": iid or None, "stage": "render",

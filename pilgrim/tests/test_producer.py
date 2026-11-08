@@ -1007,3 +1007,18 @@ def test_request_intro_context_excludes_art_direction(cfg, tmp_env):
     assert intro_calls
     assert "SECRET COVER TEXT" not in intro_calls[0]
     assert "a raccoon for president" in intro_calls[0]
+
+
+def test_parts_row_passes_parts_to_early_art(cfg, tmp_env):
+    from pilgrim.pipelines.request_parts import RequestParts
+
+    _, store, _ = tmp_env
+    cfg.art.enabled = True
+    parts = RequestParts(lyrics="a raccoon for president", music="death metal",
+                         art="a chrome raccoon on a podium")
+    _queue_parts_row(store, parts)
+    prod = make_song_producer(cfg, store, FakeVoice(), FakeSong())
+    art = FakeArtWorker()
+    prod.art_worker = art
+    assert asyncio.run(prod.song_step()) is True
+    assert art.parts == parts

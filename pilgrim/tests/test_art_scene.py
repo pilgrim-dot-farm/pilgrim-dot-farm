@@ -282,3 +282,48 @@ def test_scene_prompt_forbids_the_banned_words_and_writing_props():
         assert w in low        # named explicitly so the model avoids them
     assert "no additional text" in low and "carries writing" in low
     assert "labels" in low and "screens" in low
+
+# ---------------------------------------------------- art direction (Step 4)
+@pytest.mark.asyncio
+async def test_art_direction_is_json_escaped_and_before_the_request(cfg):
+    class Recorder:
+        def __init__(self):
+            self.user = ""
+
+        async def chat_json(self, model, system, user, max_tokens=800):
+            self.user = user
+            return {"scene": GOOD_SCENE}
+
+    llm = Recorder()
+    w = SceneWriter(cfg, llm, SCENE_PROMPT)
+    direction = 'a quiet "earnest" portrait, no neon'
+    await w.write(title="T", artist="A", genre=None, hint="", lyrics="",
+                  request_text="the subject", paid=True,
+                  art_direction=direction)
+    assert '"a quiet \\"earnest\\" portrait, no neon"' in llm.user
+    assert llm.user.index("Album art direction") < llm.user.index("Listener request")
+
+
+@pytest.mark.asyncio
+async def test_no_art_direction_line_without_one(cfg):
+    class Recorder:
+        def __init__(self):
+            self.user = ""
+
+        async def chat_json(self, model, system, user, max_tokens=800):
+            self.user = user
+            return {"scene": GOOD_SCENE}
+
+    llm = Recorder()
+    w = SceneWriter(cfg, llm, SCENE_PROMPT)
+    await w.write(title="T", artist="A", genre=None, hint="", lyrics="",
+                  request_text="the subject", paid=True)
+    assert "Album art direction" not in llm.user
+
+
+def test_scene_prompt_carries_the_art_direction_section():
+    """A future edit must not silently drop the listener-brief rules."""
+    assert "WHEN THE LISTENER GAVE ALBUM ART DIRECTION" in SCENE_PROMPT
+    assert "negative prompt" in SCENE_PROMPT
+    assert "earnest" in SCENE_PROMPT
+    assert "above it any album art direction" in SCENE_PROMPT

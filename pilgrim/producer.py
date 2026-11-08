@@ -1151,7 +1151,8 @@ class Producer:
 
     def _start_early_art(self, brief: dict[str, Any], token: str,
                          request_text: str | None = None,
-                         paid: bool = False):
+                         paid: bool = False,
+                         parts=None):
         """Start the cover render now that the brief (title/artist/lyrics/
         style) exists, in parallel with the song generator. Optional."""
         aw = self.art_worker
@@ -1162,7 +1163,7 @@ class Producer:
         # share the song seed so the art meta records a reproducible seed
         brief.setdefault("seed", secrets.randbits(32))
         return asyncio.create_task(aw.render_brief(
-            brief, token, request_text=request_text, paid=paid))
+            brief, token, request_text=request_text, paid=paid, parts=parts))
 
     def _finish_early_art(self, song_id: int, task) -> None:
         """Attach an early cover to the item, or let the background worker
@@ -1269,7 +1270,8 @@ class Producer:
             # start the cover now, in parallel with the song render: the brief
             # already has everything FLUX needs (title/artist/genre/lyrics/style)
             art_task = self._start_early_art(
-                brief, f"req{req['id']}", request_text=req["text"], paid=paid)
+                brief, f"req{req['id']}", request_text=req["text"], paid=paid,
+                parts=parts)
             # requests take the fastest idle generator (RADIO §6.2)
             self.request_stage[req["id"]] = "generating"
             item = await self.songs.produce_song(brief, prefer="fast")
