@@ -21,6 +21,7 @@
       hat.style.height = h + "px";
       hat.style.width = Math.round(h * RATIO) + "px";
     }
+    document.documentElement.style.setProperty("--header-h", bar.offsetHeight + "px");
   }
 
   fit();

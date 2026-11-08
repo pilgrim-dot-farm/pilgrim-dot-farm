@@ -471,6 +471,35 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 /* The phone shell shows this instead of #footer (Step 3). */
 .about-copyright { display: none; }
 
+/* Desktop left nav (UI_REFACTOR.md Step 2, RADIO §9.1): fixed in the left
+   margin so the 484 px column never moves. Right edge sits 24 px left of the
+   column (column left = 50% - 242px); below 900 px the phone shell takes
+   over (Step 3) and this is display:none. */
+.nav-desktop { display: none; }
+@media (min-width: 900px) {
+  .nav-desktop {
+    display: flex; flex-direction: column; gap: 6px;
+    position: fixed; z-index: 6;
+    top: calc(var(--header-h, 64px) + 16px);
+    left: max(16px, calc(50% - 242px - 24px - 170px));
+    width: 170px; padding: 10px;
+    background: var(--panel); border: 1px solid var(--violet); border-radius: 8px;
+    box-shadow: 0 0 24px rgba(166,61,255,.45), 0 0 6px var(--magenta);
+  }
+}
+.nav-desktop button {
+  font: inherit; font-weight: bold; font-size: 14px; letter-spacing: 1px;
+  text-align: left; color: var(--dim); background: transparent;
+  border: 1px solid transparent; border-radius: 6px; padding: 10px 12px;
+  cursor: pointer;
+}
+.nav-desktop button:hover { color: var(--text); border-color: var(--violet); }
+.nav-desktop button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.nav-desktop button[aria-current="page"] {
+  color: var(--cyan); border-color: var(--cyan); text-shadow: 0 0 8px var(--cyan);
+  background: rgba(36,224,255,.08);
+}
+
 /* Footer copyright (COSMETIC_PATCHING): same centered column as the panes,
    plain cyan type, no glow so it reads as a footer rather than a label. */
 #footer { position: relative; z-index: 5; flex: none;
