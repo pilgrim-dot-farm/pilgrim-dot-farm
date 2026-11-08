@@ -53,6 +53,34 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   expect(rule.bodyTop).toBe("14px");
   expect(rule.bodyBottom).toBe("14px");
   expect(rule.aboutTop).toBe("14px");
+  // ABOUT heads sit at the same left offset as the request-line heads, and the
+  // mission image is exactly as wide as the rule above it (the infra diagram
+  // keeps its own 6 px inset)
+  const widths = await page.evaluate(() => {
+    const off = (sel: string) => {
+      const el = document.querySelector(sel)!;
+      const body = el.closest(".win-body")!;
+      // the head's text starts after its own padding (the request head's
+      // padding lives on the body, the ABOUT head's on the head itself)
+      return Math.round(el.getBoundingClientRect().left
+        + parseFloat(getComputedStyle(el).paddingLeft)
+        - body.getBoundingClientRect().left);
+    };
+    const head = document.querySelector(".about-head")!;
+    const a = getComputedStyle(head, "::after");
+    const ruleW = head.getBoundingClientRect().width
+      - parseFloat(a.left) - parseFloat(a.right);
+    const bodyW = document.querySelector(".win-body.about")!.getBoundingClientRect().width;
+    return {
+      req: off(".req-list-head"), about: off(".about-head"),
+      ruleW, bodyW,
+      mission: document.querySelector('[data-sub="motivation"] .infra-img')!.getBoundingClientRect().width,
+      infra: document.querySelector('[data-sub="infra"] .infra-img')!.getBoundingClientRect().width,
+    };
+  });
+  expect(widths.about).toBe(widths.req);
+  expect(Math.abs(widths.mission - widths.ruleW)).toBeLessThan(1);
+  expect(Math.abs(widths.infra - (widths.bodyW - 12))).toBeLessThan(1);
   expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
   const subs = await page.$$eval(".about-sub", els => els.map(e => [e.getAttribute("data-sub"), e.querySelector(".about-head")!.textContent]));
   expect(subs).toEqual([
