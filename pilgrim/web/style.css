@@ -11,6 +11,11 @@
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+/* The root carries the flat end-colour of the gradient: on phones the shell
+   is sized by --vvh (visual viewport), and the layout-viewport area below it
+   must stay dark, not the browser's white (UI_REFACTOR feedback: iOS Chrome
+   keyboard gap). Body keeps the gradient, so the seam is invisible. */
+html { background: var(--bg); }
 body {
   margin: 0;
   font-family: "Courier New", ui-monospace, monospace;
@@ -77,8 +82,11 @@ body {
 .req-form button:hover { filter: brightness(1.15); }
 .req-form button:disabled { filter: grayscale(.7); cursor: not-allowed; }
 .req-err { font-size: 15px; min-height: 14px; letter-spacing: 0.5px; transition: opacity .6s; }
-.req-list-head { font-size: 16px; letter-spacing: 2px; color: var(--magenta);
-  border-bottom: 1px solid var(--violet); padding-bottom: 4px; }
+.req-list-head { margin: 0; padding: 10px 14px; font-size: 14px; font-weight: bold;
+  letter-spacing: 1px; text-align: center;
+  color: var(--text); text-shadow: 0 0 6px var(--magenta);
+  background: linear-gradient(90deg, rgba(255,47,214,.12), rgba(36,224,255,.06));
+  border-bottom: 1px solid rgba(166, 61, 255, .5); }
 /* Request board tables: the queue is Votes | Request | Status (no Title; the
    aired table is Prompt | Title | Prep Time). The queue scrolls inside its own
    520 px box (up to 50 rows) with the header row pinned. */
@@ -158,6 +166,22 @@ body {
   background: linear-gradient(to bottom,
     transparent calc(100% - 24px), var(--panel) 100%);
 }
+/* Queue pagination (UI_REFACTOR feedback): 20 rows per page. The box still
+   scrolls inside a page; the pager only appears when there is a second page. */
+.req-pager { display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; }
+.req-pager[hidden] { display: none; }
+.req-pager button {
+  font: inherit; font-size: 12px; font-weight: bold; letter-spacing: 1px;
+  padding: 8px 12px; border-radius: 6px; cursor: pointer;
+  color: var(--cyan); background: rgba(10,1,24,.6); border: 1px solid var(--cyan);
+}
+.req-pager button:hover:not(:disabled), .req-pager button:focus-visible {
+  filter: brightness(1.2); background: rgba(36,224,255,.12);
+}
+.req-pager button:disabled { color: var(--dim); border-color: var(--violet);
+  cursor: default; }
+.req-page { font-size: 12px; letter-spacing: 1px; color: var(--dim); }
 /* Status under the title on phones (see the 520 px block); hidden above. */
 .req-status-inline { display: none; }
 .sr-only {
@@ -464,7 +488,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .about-sub + .about-sub { border-top: 1px solid var(--violet); }
 .about-head {
   margin: 0; padding: 10px 14px; font-size: 14px; font-weight: bold;
-  letter-spacing: 1px; color: var(--text); text-shadow: 0 0 6px var(--magenta);
+  letter-spacing: 1px; text-align: center; color: var(--text); text-shadow: 0 0 6px var(--magenta);
   background: linear-gradient(90deg, rgba(255,47,214,.12), rgba(36,224,255,.06));
   border-bottom: 1px solid rgba(166, 61, 255, .5);
 }
@@ -524,7 +548,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .mini.buffering .mini-dot { background: var(--cyan); animation: pulse-cyan .5s infinite; }
 .mini.onair .mini-text { color: var(--ok); }
 .mini-play {
-  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  flex: none; width: 40px; height: 40px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   font: inherit; font-size: 18px; cursor: pointer;
   color: #0a0118; background: var(--magenta); border: 1px solid var(--magenta);
@@ -545,10 +569,15 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   flex: 1 1 0; min-width: 0; min-height: 52px; padding: 0 4px;
   font: inherit; font-weight: bold; font-size: 12px; letter-spacing: 1px;
   color: var(--dim); background: transparent; border: 0;
-  border-top: 2px solid transparent; cursor: pointer;
+  border-top: 2px solid transparent;
+  border-left: 2px solid transparent; border-right: 2px solid transparent;
+  cursor: pointer;
 }
 .nav-mobile button[aria-current="page"] {
-  color: var(--cyan); border-top-color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+  color: var(--cyan); font-size: 13px;
+  border-top-color: var(--cyan);
+  border-left-color: var(--cyan); border-right-color: var(--cyan);
+  text-shadow: 0 0 8px var(--cyan); }
 .nav-mobile button:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 
 /* Footer copyright (COSMETIC_PATCHING): same centered column as the panes,
@@ -688,7 +717,8 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   body { overscroll-behavior: none; }
 
   #titlebar { padding: 8px 12px; column-gap: 10px; align-items: center; --logo-fs: clamp(12px, 4.2vw, 19px); }
-  #titlebar .tagline { display: none; }
+  /* The tagline stays, in proportion to the one-line logo (feedback 2026-11-08). */
+  #titlebar .tagline { font-size: clamp(7px, 2.2vw, 11px); letter-spacing: 1px; }
   #titlebar .logo { white-space: nowrap; overflow: hidden; letter-spacing: 1px; }
 
   #footer { display: none; }
@@ -705,13 +735,10 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
     border: 0; border-radius: 0; box-shadow: none;
   }
   #desktop > .window.active { visibility: visible; }
-  /* No title bars on phones (D14): the tabs name the pane. SHEEP PEN keeps a
-     thin status strip because chat.js writes the connection state into
-     #chat-status, which lives in that bar. */
+  /* No title bars on phones (D14): the tabs name the pane. SHEEP PEN's status
+     strip is gone too (feedback 2026-11-08): #chat-status stays in the DOM,
+     hidden, so chat.js keeps working. */
   .win-bar { display: none; }
-  [data-win="sheep"] .win-bar { display: flex; flex: none; justify-content: flex-end;
-    padding: 3px 12px; background: transparent; border-bottom: 1px solid rgba(166, 61, 255, .35); }
-  [data-win="sheep"] .win-bar .win-title { display: none; }
   #desktop > .window > .win-body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto;
     overscroll-behavior: contain; -webkit-overflow-scrolling: touch;

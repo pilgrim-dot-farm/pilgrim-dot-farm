@@ -42,7 +42,11 @@
     raf = 0;
     if (MQ.matches) return;
     let name = wins[0].dataset.win;
-    if (desk.scrollTop + desk.clientHeight >= desk.scrollHeight - 4) {
+    if (desk.scrollTop <= 1) {
+      // A fresh page always reads RADIO, even on a very tall viewport where
+      // the 35% line would otherwise land in a later pane (feedback 2026-11-08).
+      name = wins[0].dataset.win;
+    } else if (desk.scrollTop + desk.clientHeight >= desk.scrollHeight - 4) {
       name = wins[wins.length - 1].dataset.win;
     } else {
       const line = desk.scrollTop + desk.clientHeight * 0.35;
@@ -71,6 +75,19 @@
     wins.forEach(w => w.classList.toggle("active", w.dataset.win === name));
     mark(navM, name);
     try { sessionStorage.setItem(TAB_KEY, name); } catch (e) { /* ignore */ }
+    // Entering CHAT shows the newest messages, not wherever the log was left.
+    // (.chat-log has scroll-behavior:smooth; snap this jump so it is done
+    // before the next paint.)
+    if (name === "sheep") {
+      requestAnimationFrame(() => {
+        const log = document.getElementById("chat-log");
+        if (!log) return;
+        const prev = log.style.scrollBehavior;
+        log.style.scrollBehavior = "auto";
+        log.scrollTop = log.scrollHeight;
+        log.style.scrollBehavior = prev;
+      });
+    }
   }
 
   /* ---------------- mode + clicks ---------------- */

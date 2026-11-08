@@ -11,6 +11,21 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   expect(order).toEqual(["radio", "requests", "sheep", "about"]);
   expect(await page.textContent('[data-win="radio"] .win-title')).toBe("RADIO BROADCAST");
   expect(await page.textContent('[data-win="about"] .win-title')).toBe("ABOUT");
+  // Sub-headings are one style everywhere (feedback 2026-11-08): the ABOUT
+  // treatment (shaded box, white, centred) on the request line too.
+  const heads = await page.evaluate(() => {
+    const pick = (el: Element) => {
+      const cs = getComputedStyle(el);
+      return { bg: cs.backgroundImage, align: cs.textAlign, size: cs.fontSize,
+               color: cs.color, weight: cs.fontWeight };
+    };
+    return {
+      about: pick(document.querySelector(".about-head")!),
+      req: pick(document.querySelector(".req-list-head")!),
+    };
+  });
+  expect(heads.req).toEqual(heads.about);
+  expect(heads.about.align).toBe("center");
   expect(await page.textContent('[data-win="sheep"] .win-title')).toBe("SHEEP PEN");
   const subs = await page.$$eval(".about-sub", els => els.map(e => [e.getAttribute("data-sub"), e.querySelector(".about-head")!.textContent]));
   expect(subs).toEqual([
@@ -43,7 +58,7 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     await expect.poll(
       () => icon.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0),
       { timeout: 10_000 }).toBe(true);
-    expect(await icon.getAttribute("src")).toBe("img/cornucopia.png");
+    expect(await icon.getAttribute("src")).toBe("img/cornucopia.webp");
     // decorative: the text already says "Paid requests"
     expect(await icon.getAttribute("alt")).toBe("");
   }
@@ -88,14 +103,15 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     expect(r.ok()).toBeTruthy();
     expect(r.headers()["content-type"]).toContain("image/svg+xml");
   }
-  // the infra pane shows infra.png as content, linked to the full-size image
-  const infra = await page.$eval('[data-sub="infra"] .infra-link img.infra-img',
-    img => [img.getAttribute('src'), img.getAttribute('alt')]);
+  // the infra pane shows infra.png as content, and the image is not a link
+  // (feedback 2026-11-08: tapping an image must not open it)
+  const infra = await page.$eval('[data-sub="infra"] .infra-img',
+    img => [img.getAttribute('src'), img.getAttribute('alt'),
+            img.closest("a") ? "link" : "plain"]);
   expect(infra[0]).toBe("img/infra.png");
   expect(infra[1]).toMatch(/infrastructure and data flow/i);
-  const infraLink = await page.$eval('[data-sub="infra"] .infra-link',
-    a => [a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
-  expect(infraLink).toEqual(["img/infra.png", "_blank", "noopener noreferrer"]);
+  expect(infra[2]).toBe("plain");
+  expect(await page.$$('[data-sub="infra"] a, [data-sub="motivation"] a')).toHaveLength(0);
   // and the asset actually loads (not a 404 placeholder)
   // (loading="lazy" and below the fold since MOTIVATION: scroll to it first)
   await page.locator('[data-sub="infra"] .infra-img').scrollIntoViewIfNeeded();

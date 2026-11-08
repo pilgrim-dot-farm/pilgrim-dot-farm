@@ -892,7 +892,8 @@ in the scrollable `#desktop` with a fixed left **section nav** (RADIO /
 REQUEST LINE / SHEEP PEN / ABOUT) in the margin that scrolls to a pane and
 highlights the one in view; the 484 px column, header and footer are
 unchanged by the nav. On phones (≤ 899 px) the page is an app
-(UI_REFACTOR.md): a one-line header (hat + station name, no tagline), **one
+(UI_REFACTOR.md): a one-line header (hat + station name, with the tagline in
+proportion beneath it), **one
 pane at a time** filling the screen, a **mini player** (state dot, audible
 song as *Title — Artist*, round PLAY/STOP) and four bottom tabs **RADIO /
 REQUEST / CHAT / ABOUT**; the footer is hidden and its copyright line ends
@@ -907,9 +908,8 @@ the keys. The mini player is a mirror of `#btn-play`, `#indicator` and
 only the cover art shrinks (floor 140 px) so RADIO fits without scrolling;
 the rate row, play row and meter keep their width, so the indicator/art
 edge alignment below is a desktop rule. Pane title bars are hidden on
-phones (the tabs name the pane); SHEEP PEN's bar survives as a thin status
-strip carrying only the connection state. Landscape phones stay in the
-phone shell. The panes:
+phones (the tabs name the pane), including SHEEP PEN's connection status
+strip. Landscape phones stay in the phone shell. The panes:
 
 - **RADIO BROADCAST** (title exactly `RADIO BROADCAST`): a square **cover
 art frame** above the play row (`min(100%, 300px)`, 1:1, retro-pane border,
@@ -949,7 +949,9 @@ the station name.
   free row has ↑ score ↓ (40 px boxes with a 44 px hit area; pressed = filled
   in the arrow's own colour, un-pressed = outlined; the score is display-only
   once the row is in flight), paid rows show no buttons, and a buried row
-  reads `buried`. The queue scrolls in a 520 px box with a pinned header, a
+  reads `buried`. The queue shows at most **20 rows per page** with a
+  prev/next pager (`1–20 of N`; hidden while the whole queue fits on one
+  page); each page still scrolls in a 520 px box with a pinned header, a
   thin visible scrollbar and a bottom gradient while there is more below
   (`has-more`). On phones the Status column folds under the request text (two
   visual columns) and nothing scrolls horizontally down to 320 px.
@@ -997,9 +999,14 @@ the station name.
   rates the airing (nothing when the song has no ratings); **cyan** = this
   browser's own rating of this airing, which replaces the magenta and is
   restored per airing from `pd_rating:<epoch>:<seq>`. Hover/focus previews
-  the level in cyan; arrow keys move between turkeys.
+  the level in cyan; arrow keys move between turkeys. **Known issue
+  (2026-11-08, deferred):** the row can grey out while a song is still
+  audible when the state poll's `current_seq` is ahead of the client's audio
+  clock; the fix would keep it open until `pd:nowplaying` moves off the song
+  and let a late click take the server's 409.
 - **THE SHEEP PEN** (SHEEP_PEN.md; one shared anonymous room between the
-  request line and the hit counter): a connection status line, a display-name
+  request line and the hit counter): a connection status line (hidden on
+  phones, where the status strip is not shown), a display-name
   claim row (3–24 characters, unique; a claimed name is locked to that user —
   the admin rename route is the only way to change it — and the message input
   stays disabled until a name is claimed), a scrolling log rendered with
@@ -1030,8 +1037,9 @@ the station name.
   actually became paid — Stripe confirmed or an operator comp, both of which
   set `paid_at` — so `checking`/`awaiting_payment`/`abandoned`/`rejected`
   rows never count; Y is every request row ever stored, free or paid. The
-  cornucopia icon (`img/cornucopia.png`, the paid-request marker) bookends
-  the paid line at either end, vertically centred on that line. Both fall
+  cornucopia icon (`img/cornucopia.webp`, the animated paid-request marker)
+  bookends the paid line at either end, vertically centred on that line; the
+  same sparkling marker precedes paid rows in the queue. Both fall
   back to `0` on a failed call, like the visitor count. Below them, labeled
   **Unique visitors**, a persistent count of distinct
   canonical client IPs (RADIO §14), starting at 0. Falls back to `0` if the

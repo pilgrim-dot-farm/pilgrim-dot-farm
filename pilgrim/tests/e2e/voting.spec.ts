@@ -245,3 +245,38 @@ test("mobile: no horizontal scroll, 40px vote targets, status under the title", 
     }
   }
 });
+
+test("queue paginates at 20 rows with prev/next and the sparkling cornucopia", async ({ page }) => {
+  // 21 rows: a paid one first (its icon must be the animated WebP), then 20
+  // free ones. Mocked because the request-line rate limit is 3 per 10 min.
+  const queue = Array.from({ length: 21 }, (_, i) => ({
+    id: 900 + i,
+    text: i === 0 ? "pager paid request" : "pager free request " + i,
+    status: "queued",
+    stage: null,
+    paid: i === 0,
+    buried: false,
+    votable: i !== 0,
+    score: 0,
+  }));
+  await page.route("**/api/requests", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    await route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ queue, recent: [], paid_enabled: true }) });
+  });
+  await page.goto("/");
+  await expect(page.locator("#req-pager")).toBeVisible();
+  await expect(page.locator("#req-queue tr.req-item")).toHaveCount(20);
+  expect(await page.textContent("#req-page")).toBe("1\u201320 of 21");
+  await expect(page.locator("#req-prev")).toBeDisabled();
+  // the paid row is on page 1 and its cornucopia is the animated WebP
+  const icon = page.locator(".req-item .req-paid-icon").first();
+  await expect(icon).toHaveAttribute("src", "img/cornucopia.webp");
+  await page.click("#req-next");
+  await expect(page.locator("#req-queue tr.req-item")).toHaveCount(1);
+  expect(await page.textContent("#req-page")).toBe("21\u201321 of 21");
+  await expect(page.locator("#req-next")).toBeDisabled();
+  await page.click("#req-prev");
+  await expect(page.locator("#req-queue tr.req-item")).toHaveCount(20);
+  expect(await page.textContent("#req-page")).toBe("1\u201320 of 21");
+});

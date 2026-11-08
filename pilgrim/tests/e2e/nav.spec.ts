@@ -41,7 +41,16 @@ test("clicking an entry scrolls to that pane and highlights it", async ({ page }
   }
 });
 
+test("a fresh page always reads RADIO, even on a very tall viewport", async ({ page }) => {
+  // the bug: at scrollTop 0 the 35% line can land past REQUEST LINE on a tall
+  // window (feedback 2026-11-08)
+  await page.setViewportSize({ width: 1280, height: 2200 });
+  await page.goto("/");
+  await expect(page.locator("#nav-desktop [data-go='radio']")).toHaveAttribute("aria-current", "page");
+});
+
 test("highlight follows manual scrolling, both directions", async ({ page }) => {
+  await expect(page.locator("#nav-desktop [data-go='radio']")).toHaveAttribute("aria-current", "page");
   const desk = page.locator("#desktop");
   await desk.evaluate(el => el.scrollTo(0, el.scrollHeight));
   await expect(page.locator("#nav-desktop [data-go='about']")).toHaveAttribute("aria-current", "page");
