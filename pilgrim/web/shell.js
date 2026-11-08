@@ -131,6 +131,53 @@
   if (miniPlay && btn) miniPlay.addEventListener("click", () => btn.click());
   syncMini();
   // STEP 4 INSERT E (visual viewport / keyboard)
+  /* ---------------- visual viewport / keyboard (D6) ----------------
+     The shell is as tall as the VISUAL viewport (iOS keeps the layout
+     viewport under the keyboard; Android resizes it with
+     interactive-widget=resizes-content). While a text field has focus and the
+     keyboard has taken >= 120 px, body.kbd-open hides the tabs + mini player
+     so the composer sits right above the keys. iOS also scrolls the window to
+     reveal the field; we pin it back so the shell never drifts off-screen. */
+  const vv = window.visualViewport;
+  let baseH = 0, baseW = 0;
+  function typing() {
+    const el = document.activeElement;
+    return !!el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
+  }
+  function viewport() {
+    const root = document.documentElement;
+    if (!MQ.matches) {
+      root.style.removeProperty("--vvh");
+      document.body.classList.remove("kbd-open");
+      return;
+    }
+    const h = vv ? vv.height : innerHeight;
+    if (innerWidth !== baseW) { baseW = innerWidth; baseH = 0; }   // rotation
+    if (!typing()) baseH = Math.max(baseH, h);
+    root.style.setProperty("--vvh", Math.round(h) + "px");
+    document.body.classList.toggle("kbd-open", typing() && baseH - h >= 120);
+    if ((vv && vv.offsetTop > 0) || window.scrollY > 0) window.scrollTo(0, 0);
+  }
+  if (vv) {
+    vv.addEventListener("resize", viewport);
+    vv.addEventListener("scroll", viewport);
+  }
+  addEventListener("resize", viewport);
+  addEventListener("orientationchange", () => setTimeout(viewport, 300));
+  document.addEventListener("focusin", (ev) => {
+    const el = ev.target;
+    if (!MQ.matches || !el || !/^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
+    // after the keyboard animation: resize the shell, then bring the field
+    // inside its scrolling pane body (REQUEST textareas, the name row)
+    setTimeout(() => {
+      viewport();
+      try { el.scrollIntoView({ block: "nearest" }); } catch (e) { /* old browsers */ }
+    }, 350);
+  });
+  document.addEventListener("focusout", () => setTimeout(viewport, 100));
+  if (MQ.addEventListener) MQ.addEventListener("change", viewport);
+  else MQ.addListener(viewport);
+  viewport();
 
   apply();
 })();
