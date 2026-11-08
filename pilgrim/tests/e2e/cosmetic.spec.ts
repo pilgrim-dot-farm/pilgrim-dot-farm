@@ -88,6 +88,7 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
     ["motivation", "CORPORATE MISSION STATEMENT"],
     ["infra", "INFRA AND DATA FLOW"],
     ["credits", "CREDITS"],
+    ["popculture", "IN POP CULTURE 🌭"],
   ]);
   // eight model rows; the cornucopia asset credit is gone (public domain)
   expect(await page.$$eval(".credits-list li", els => els.length)).toBe(8);
@@ -99,6 +100,15 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   expect(links[0]).toEqual(["Qwen 3.8 27B", "https://huggingface.co/Qwen/Qwen3.8-27B", "_blank"]);
   expect(links[5]).toEqual(["Kokoro-82M", "https://huggingface.co/hexgrad/Kokoro-82M", "_blank"]);
   for (const [, href] of links) expect(href).toMatch(/^https:\/\/(huggingface\.co|www\.anthropic\.com)\//);
+  // IN POP CULTURE: one YouTube embed under CREDITS, scaled to the pane
+  const embed = page.locator('[data-sub="popculture"] iframe');
+  await expect(embed).toHaveCount(1);
+  expect(await embed.getAttribute("src"))
+    .toBe("https://www.youtube.com/embed/U49MXakb7f4?si=baZ7zxIQ7y1KWKoP");
+  expect(await embed.getAttribute("allowfullscreen")).toBe("");
+  const embedBox = await embed.boundingBox();
+  const aboutBox = await page.locator('[data-win="about"]').boundingBox();
+  expect(embedBox!.width, "the embed fits the 484 px pane").toBeLessThanOrEqual(aboutBox!.width);
   expect(await page.textContent(".visitors")).toMatch(/^Unique visitors:/);
   // HIT COUNTER above it: DB-backed request counts (RADIO §9.1). The e2e
   // server seeds 5 aired + 12 free + 1 paid = 18 rows, one paid.

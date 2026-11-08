@@ -534,6 +534,15 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .win-body.about [data-sub="motivation"] > .win-body {
   padding-left: var(--about-pad); padding-right: var(--about-pad);
 }
+/* IN POP CULTURE (feedback 2026-11-08): one embedded YouTube player under
+   CREDITS. The supplied 560x315 frame is scaled to the pane's content width
+   with a 16:9 box so it never overflows the 484 px column. */
+.win-body.about [data-sub="popculture"] > .win-body {
+  padding-left: var(--about-pad); padding-right: var(--about-pad);
+}
+.popculture-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+.popculture-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%;
+  border: 0; display: block; border-radius: 4px; background: #000; }
 .about-head {
   margin: 0; padding: 0 var(--about-pad) 14px; font-size: 16px; font-weight: normal;
   letter-spacing: 2px; text-align: left; color: var(--magenta);
