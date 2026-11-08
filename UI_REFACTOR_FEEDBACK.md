@@ -140,3 +140,20 @@ In our "Want to get technical" drop-down, I'm glad we are highlighting the tags 
   3. With the `.env` promo code: *Success! This one's on us* (green), then
      CHECK IT & PAY → *✓ You're in the priority line (#1)* with no checkout
      mount. The queue shows request 587, paid, queued.
+
+## Round 2 follow-ups (2026-11-08)
+
+- **Promo box:** the reserved `min-height` under the input is gone; the status
+  line only takes space when it has text (`.pay-promo-msg:empty{display:none}`).
+- **NOW QUEUED on phones:** the phone pane body is a flex column, so its
+  children were being shrunk to fit; the 520 px queue box collapsed to **0 px**
+  (rows were in the DOM but clipped). Direct children of a phone pane body no
+  longer shrink (`flex:0 0 auto`); the CHAT log opts back into filling the pane
+  with an ID-scoped rule. The queue now renders and updates at full height.
+- **ABOUT sub-headings:** no purple rule above them, the rule below is inset
+  (`left/right: 24px`, never edge to edge), and the rhythm is uniform — 14 px
+  from the previous body's content to the heading text and 14 px from the text
+  to the rule (the sub-bodies keep their side padding: 24 px, 6 px for the
+  diagram).
+- **Credits:** the Cornucopia LQ attribution is removed (public domain); the
+  list is now the eight model rows.
