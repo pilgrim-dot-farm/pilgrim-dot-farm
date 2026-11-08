@@ -75,6 +75,7 @@ from pilgrim.pipelines.moderation import Moderation
 from pilgrim.pipelines.news import NewsPipeline
 from pilgrim.pipelines.operator_phrase import PhraseManager
 from pilgrim.pipelines.request_filter import prefilter
+from pilgrim.pipelines.request_parts import normalise as normalise_paid
 from pilgrim.pipelines.sfx import SfxClient, SfxPipeline
 from pilgrim.pipelines.songs import SongPipeline, song_backend_health
 from pilgrim.pipelines.voice import KokoroClient, VoicePipeline
@@ -889,10 +890,9 @@ async def _backfill_paid_summaries(station: Station) -> None:
 
 
 def _normalise_paid(text: str) -> str:
-    """PAYMENT.md Step 4.2: CRLF -> LF, rstrip lines, strip, 3+ blank -> 2."""
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    text = "\n".join(line.rstrip() for line in text.split("\n")).strip()
-    return re.sub(r"\n{3,}", "\n\n", text)
+    """PAYMENT.md Step 4.2: CRLF -> LF, rstrip lines, strip, 3+ blank -> 2.
+    The one implementation lives in pipelines/request_parts.py."""
+    return normalise_paid(text)
 
 
 # Minimum length for the comp secret: a short value could be guessed through

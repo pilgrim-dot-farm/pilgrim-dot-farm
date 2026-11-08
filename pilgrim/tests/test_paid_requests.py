@@ -614,12 +614,14 @@ def test_status_route_works_without_payments(tmp_env, monkeypatch):
 
 
 def test_paid_limit_fits_a_full_minimax_input(tmp_env, monkeypatch):
-    """Step 12c: a full caption + lyric sheet (~4,800 chars, 65 lines) fits."""
+    """Step 12c: a full caption + lyric sheet (~4,800 chars, 65 lines) fits;
+    PROMPT_UPGRADE.md Step 1 raises the composed limit to 8000 for three
+    boxes."""
     cfg, app, _, _ = _build(tmp_env, monkeypatch)
-    assert cfg.payments.paid_max_length == 6000
+    assert cfg.payments.paid_max_length == 8000
     assert cfg.payments.paid_max_lines == 200
     text = "\n".join(["[verse]"] + ["a tractor hums beneath the moon"] * 150)
-    assert len(text) < 6000
+    assert len(text) < 8000
     assert _post_paid(TestClient(app), text).status_code == 200
 
 

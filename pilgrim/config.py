@@ -561,6 +561,19 @@ class CopyrightCheck(BaseModel):
         return self
 
 
+class PaidParts(BaseModel):
+    """Per-box character limits for the three-box paid form (PROMPT_UPGRADE.md)."""
+    lyrics_max: int = 4000
+    music_max: int = 3000
+    art_max: int = 800
+
+    @model_validator(mode="after")
+    def _positive(self) -> PaidParts:
+        if min(self.lyrics_max, self.music_max, self.art_max) <= 0:
+            raise ValueError("payments.parts limits must be positive")
+        return self
+
+
 class Payments(BaseModel):
     """Stripe paid priority requests (PAYMENT.md §2.1). Off by default so every
     existing test and deployment behaves exactly as before."""
@@ -579,8 +592,9 @@ class Payments(BaseModel):
     reconcile_after_s: int = 10
     reconcile_min_interval_s: int = 5
     abandon_after_s: int = 86400
-    paid_max_length: int = 3600
-    paid_max_lines: int = 24
+    paid_max_length: int = 8000  # the composed three-part text (PROMPT_UPGRADE.md)
+    paid_max_lines: int = 200
+    parts: PaidParts = Field(default_factory=PaidParts)
     per_client_per_10min: int = 6
     max_attempts: int = 5
     # Managed Payments is on by default for the account; the product tax code
@@ -602,6 +616,10 @@ class Payments(BaseModel):
             raise ValueError("payments.retries must be >= 0")
         if self.paid_max_length <= 0 or self.paid_max_lines <= 0:
             raise ValueError("payments paid limits must be positive")
+        parts = self.parts
+        if self.paid_max_length < (parts.lyrics_max + parts.music_max
+                                   + parts.art_max + 40):
+            raise ValueError("payments.paid_max_length must fit the three parts")
         if self.per_client_per_10min <= 0 or self.max_attempts <= 0:
             raise ValueError("payments rate limit and attempts must be positive")
         return self
