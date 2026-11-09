@@ -1,5 +1,5 @@
 """pilgrim.db: the SQLite-to-Postgres statement translation and the Row type
-(SCALABILITY.md Step 2). Pure functions; no database."""
+(docs/plans/scalability.md Step 2). Pure functions; no database."""
 from __future__ import annotations
 
 import pytest

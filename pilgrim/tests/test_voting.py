@@ -1,4 +1,4 @@
-"""Rating window + voting services (VOTING.md §3, RADIO §5.3, §9.1).
+"""Rating window + voting services (docs/plans/voting.md §3, RADIO §5.3, §9.1).
 
 Pure over the scheduler's in-memory state; SimClock drives the playhead.
 """
@@ -58,7 +58,7 @@ def test_future_and_older_seqs_are_closed(cfg, tmp_env):
     clock.advance(10)
     assert voting.rating_window(sched, sched.epoch, seq3, 5.0) == (False, None)
     # the liner is on air at 30..35: the song is closed once past its grace
-    # (the boundary itself is open, VOTING.md V8)
+    # (the boundary itself is open, docs/plans/voting.md V8)
     clock.advance(20)
     seq1, _, item1 = _seqs(sched)[0]
     assert voting.rating_window(sched, sched.epoch, seq1, 0.0) == (True, item1)
@@ -90,7 +90,7 @@ def test_non_song_on_air_is_closed(cfg, tmp_env):
 
 
 def test_frozen_station_is_closed(cfg, tmp_env):
-    """IDLE.md: no listeners while frozen, so a stale tab must not rate an
+    """docs/plans/idle.md: no listeners while frozen, so a stale tab must not rate an
     airing that ended hours ago."""
     _, store, _ = tmp_env
     sched, clock = _sched(cfg, store, [("song", 30.0)])
@@ -184,7 +184,7 @@ def test_vote_payload_validation(bad):
 
 
 # --------------------------------------------------------------------------- #
-# VOTING.md Step 8 (ships off): ratings weight the recycled-song draw.
+# docs/plans/voting.md Step 8 (ships off): ratings weight the recycled-song draw.
 # --------------------------------------------------------------------------- #
 
 def test_rotation_weight_off_by_default_is_unchanged(cfg, tmp_env):
@@ -235,7 +235,7 @@ def test_rotation_weight_favours_high_ratings_when_enabled(cfg, tmp_env):
 
 
 def test_song_ratings_for_batches_lifetime_aggregates(cfg, tmp_env):
-    """FIX_RATINGS.md Step 2: one query, keyed by item, over every airing."""
+    """docs/plans/ratings.md Step 2: one query, keyed by item, over every airing."""
     _, store, _ = tmp_env
     a = store.add_item(type_="song", media_path="/tmp/a.flac", duration_s=60.0, fresh=True)
     b = store.add_item(type_="song", media_path="/tmp/b.flac", duration_s=60.0, fresh=True)

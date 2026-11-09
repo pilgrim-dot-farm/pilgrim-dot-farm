@@ -1,4 +1,4 @@
-/* Pilgrim Dot Farm — five-turkey song ratings (VOTING.md Step 5; FIX_RATINGS.md Step 3).
+/* Pilgrim Dot Farm — five-turkey song ratings (docs/plans/voting.md Step 5; docs/plans/ratings.md Step 3).
    The control is open only while the song it belongs to is audible. The server
    decides the window (`rating_window`); this file only enables/disables the
    control and renders what the server says. It never touches audio (§9.2).
@@ -7,7 +7,7 @@
    turkey, shown until this browser rates the airing; cyan = the rating this
    browser gave THIS airing. The exact aggregate (`avg · n`) is always shown
    for the audible song: first from the programme row, then from the state
-   poll (FIX_RATINGS.md D1/D2). */
+   poll (docs/plans/ratings.md D1/D2). */
 (() => {
   "use strict";
   const VOTER = window.PD_VOTER;

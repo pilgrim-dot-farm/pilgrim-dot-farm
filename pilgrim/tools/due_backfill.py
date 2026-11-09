@@ -6,7 +6,7 @@
 `due_at` is the wall time a request's song was scheduled to air when it was
 teed up (committed or spliced). Going forward the scheduler stamps it; this
 tool recovers it for rows that aired before the column existed, so their
-board Prep Time is capped the same way (a frozen station — IDLE.md D3 — is
+board Prep Time is capped the same way (a frozen station — docs/plans/idle.md D3 — is
 not prep).
 
 For every `aired` row with `aired_at` and no `due_at`:

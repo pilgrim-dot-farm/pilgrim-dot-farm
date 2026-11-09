@@ -249,7 +249,7 @@ def test_request_board_queue_and_recent(cfg):
     s.mark_request_aired(c["id"])
     board = s.request_board(cap=10)
     q = board["queue"]
-    # projected rows only (PAYMENT.md §3.4); VOTING.md §1 adds the voting
+    # projected rows only (docs/shipped/payments.md §3.4); docs/plans/voting.md §1 adds the voting
     # fields: id, score, votable, buried.
     assert [x["text"] for x in q] == ["play mittens a song", "alien abductions"]
     assert q[0]["status"] == "producing" and q[1]["status"] == "ready"
@@ -274,7 +274,7 @@ def _store_add_song(s):
 
 
 def test_request_board_recent_shows_latest_five(cfg):
-    """PAYMENT.md §0.4: 'recently played' shows the latest 5 by id order."""
+    """docs/shipped/payments.md §0.4: 'recently played' shows the latest 5 by id order."""
     s = _store()
     for i in range(7):
         rid = s.add_request(f"played {i}", cap=10)["id"]
@@ -373,7 +373,7 @@ def _make_paid(s, text, paid_at):
 
 
 def test_paid_requests_are_fifo_by_payment_time(cfg):
-    """PAYMENT.md §3.2: paid first, FIFO by payment time, free FIFO by creation."""
+    """docs/shipped/payments.md §3.2: paid first, FIFO by payment time, free FIFO by creation."""
     s = _store()
     a = s.add_request("free A", cap=None)
     b = s.add_request("free B", cap=None)
@@ -468,7 +468,7 @@ def test_board_prefers_paid_summary(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# VOTING.md §1: request votes, ratings, the new queue order, bury, migration.
+# docs/plans/voting.md §1: request votes, ratings, the new queue order, bury, migration.
 # --------------------------------------------------------------------------- #
 
 def _voter(i: int) -> str:
@@ -523,7 +523,7 @@ def test_vote_ip_cap_is_per_request_and_excludes_own_vote(cfg):
 
 
 def test_queue_order_votes_then_in_flight_then_fifo(cfg):
-    """VOTING.md V6: paid first; in-flight by claim time; free queued by score
+    """docs/plans/voting.md V6: paid first; in-flight by claim time; free queued by score
     DESC, then FIFO. With no votes the order is today's."""
     s = _store()
     a = s.add_request("free A", cap=None)
@@ -634,14 +634,14 @@ def test_rating_ip_cap_and_stars_check(cfg):
 
 def test_vote_migration_is_idempotent_on_old_schema(cfg, tmp_path):
     """An old station.db gains claimed_at and both tables on open; reopening
-    is a no-op (VOTING.md §1)."""
+    is a no-op (docs/plans/voting.md §1)."""
     import sqlite3
 
     from pilgrim.store import Store
     db = tmp_path / "old.db"
     s0 = Store(db)          # current schema
     s0._conn.close()
-    con = sqlite3.connect(db)   # strip the VOTING.md additions
+    con = sqlite3.connect(db)   # strip the docs/plans/voting.md additions
     con.executescript(
         "DROP TABLE request_votes; DROP TABLE song_ratings;"
         "ALTER TABLE requests DROP COLUMN claimed_at;")
@@ -661,7 +661,7 @@ def test_vote_migration_is_idempotent_on_old_schema(cfg, tmp_path):
 
 # --------------------------------------------------------------------------- #
 # Prep Time cap (RADIO §11): the clock stops at the earlier of aired_at and
-# due_at, so a station frozen with nobody listening (IDLE.md D3) does not
+# due_at, so a station frozen with nobody listening (docs/plans/idle.md D3) does not
 # inflate the metric with hours nobody waited on.
 # --------------------------------------------------------------------------- #
 
@@ -686,7 +686,7 @@ def test_prep_time_is_capped_at_the_scheduled_air_time(cfg):
 
 
 def test_prep_time_uses_aired_when_it_aired_before_due(cfg):
-    """A thaw can drop stale rows ahead of the song (IDLE.md D4) or an
+    """A thaw can drop stale rows ahead of the song (docs/plans/idle.md D4) or an
     operator can skip to it: it airs earlier than its due time."""
     s = _store()
     rid = s.add_request("early", cap=10)["id"]
@@ -724,7 +724,7 @@ def test_moderation_prompt_policy_wording():
 
 
 def test_request_parts_round_trip_and_legacy_row():
-    """PROMPT_UPGRADE.md Step 2: the three columns survive a store round trip;
+    """docs/shipped/prompt-upgrade.md Step 2: the three columns survive a store round trip;
     a legacy row (no parts) reads as None."""
     from pilgrim.pipelines.request_parts import RequestParts, from_row
 

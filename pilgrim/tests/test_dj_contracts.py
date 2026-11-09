@@ -1,4 +1,4 @@
-"""Milestone 1 (TUI.md §8 step 1): typed DJ contracts + operator auth.
+"""Milestone 1 (docs/systems/console.md §8 step 1): typed DJ contracts + operator auth.
 
 Pure model round-trips and the authorization helper — no routes or scheduler
 behavior yet (those land with the read-only console, milestone 2).

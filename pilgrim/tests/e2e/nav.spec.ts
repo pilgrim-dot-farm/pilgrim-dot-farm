@@ -1,4 +1,4 @@
-/** Desktop nav (UI_REFACTOR.md Step 2, RADIO §9.1): fixed in the left margin,
+/** Desktop nav (docs/plans/ui-refactor.md Step 2, RADIO §9.1): fixed in the left margin,
  *  never moves the column, scrolls to a pane, follows manual scrolling. */
 import { test, expect } from "@playwright/test";
 

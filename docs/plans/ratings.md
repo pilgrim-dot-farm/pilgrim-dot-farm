@@ -1,4 +1,6 @@
-# FIX_RATINGS.md — Song ratings: community average as pink turkeys (fractional) under your cyan vote, `avg · n` always, two bug fixes
+# Ratings fix — community average as pink turkeys (fractional) under your cyan vote
+
+> *Formerly `FIX_RATINGS.md`.*
 
 Work plan for a coding agent. Five steps, done **in order**, one commit per
 step. Every code block in this file is the exact code to write unless the
@@ -6,7 +8,7 @@ step says "adapt". Do not improvise beyond what a step says; if a step
 cannot be done as written, stop and report (AGENTS.md §9).
 
 Read this whole file first. Then read, in order: `AGENTS.md`, `RADIO.md`
-§9.1, §9.2, §11, §14; `VOTING.md` §1 (table V1–V13), §2, §3, §5. `RADIO.md`
+§9.1, §9.2, §11, §14; `docs/plans/voting.md` §1 (table V1–V13), §2, §3, §5. `RADIO.md`
 is the source of truth; if this file and RADIO.md disagree, stop and report.
 
 Each step ends with the AGENTS.md §7 checks (`make lint`, `make test`,
@@ -26,7 +28,7 @@ the operator to deploy.
   rows: 99 migrated from the old `station.db` (per-day counts match exactly)
   and 32 cast on 2026-11-06 through the Fargate web tier. The lifetime
   aggregate (`Store.song_rating`) is keyed by `item_id` and is correct.
-- **The UI forgets on purpose.** VOTING.md V2/V8 make a rating belong to one
+- **The UI forgets on purpose.** docs/plans/voting.md V2/V8 make a rating belong to one
   *airing* `(epoch, seq)`. `rating.js` remembers a rating under
   `pd_rating:<epoch>:<seq>`, so the next airing of the same song shows empty
   turkeys. The only trace of earlier ratings is the dim `avg · n` text, and
@@ -54,7 +56,7 @@ the operator to deploy.
 |---|----------|-----|
 | D1 | **Always show the aggregate.** Every song item in `GET /api/station/program` carries `rating_count` (int) and `rating_avg` (float or null). The client paints `avg · n` the instant the song becomes audible, keeps it while the song is audible even after the server's window closes, and refreshes it from the 5 s state poll while open. With zero ratings it shows `NO RATINGS YET` | The aggregate must not depend on a poll racing the playhead |
 | D2 | **Pink = the community average, always; cyan = your vote, on top.** The turkeys are filled in magenta ("pink") to the community average with **fractional fill**: turkey *i* (1-based) shows the fraction `clamp(avg - (i-1), 0, 1)` of its glyph, clipped left to right (3.4 = three full pink turkeys and 40 % of the fourth). Nothing is pink when `count` is 0. The pink is never hidden by the listener's own input. Once this browser rates the airing (or while hovering/focusing a turkey), its own level is drawn in cyan as whole turkeys **over** the pink; pink stays visible wherever the cyan does not reach. The exact `avg · n` text sits beside the turkeys. Cyan is restored per airing from `pd_rating:<epoch>:<seq>` as today | "Eyes on the community outlook"; "when the user votes, their cyan overshadows the pink" (operator, 2026-11-06). Voter-independent data, so no new API: `/api/station/state` stays a shared `max-age=1` cache (RADIO §11) |
-| D3 | **The per-airing rule stays.** `UNIQUE(epoch, seq, voter_id)`, one rating per airing, window = the on-air song + `ratings.grace_s` (VOTING.md V2, V8). No schema change | Already shipped and correct |
+| D3 | **The per-airing rule stays.** `UNIQUE(epoch, seq, voter_id)`, one rating per airing, window = the on-air song + `ratings.grace_s` (docs/plans/voting.md V2, V8). No schema change | Already shipped and correct |
 | D4 | **Bug A fix**: `CachedScheduler` gets `_cum` and `position()` with the same meaning as `Scheduler`'s | Make `rating_window` correct over the snapshot instead of special-casing it |
 | D5 | **Bug B fix**: the poll closes the row only when the server has moved **past** the song (`current_seq > seq`), the epoch changed, or ratings are off. A snapshot **behind** the playhead is ignored. A closed row keeps its paint and aggregate until the next `pd:nowplaying` | A one-second-old snapshot must never kill the control |
 | D7 | **No per-song browser memory.** Nothing new goes into localStorage; the only key stays `pd_rating:<epoch>:<seq>` | The community average is the "existing rating"; a rating from an earlier airing is already inside it |
@@ -72,7 +74,7 @@ the operator to deploy.
 | `pilgrim/tests/test_voting.py`, `pilgrim/tests/test_server.py` | 2 |
 | `pilgrim/web/player.js`, `pilgrim/web/rating.js`, `pilgrim/web/style.css`, `pilgrim/web/index.html` (the five turkey buttons only) | 3 |
 | `pilgrim/tests/e2e/voting.spec.ts` | 3 |
-| `RADIO.md`, `VOTING.md`, `AGENTS.md` | 4 |
+| `RADIO.md`, `docs/plans/voting.md`, `AGENTS.md` | 4 |
 
 Nothing else. In particular: no change to `pilgrim/scheduler.py`,
 `pilgrim/voting.py`, `pilgrim/config.yaml`, `pilgrim/web/img/turkey.svg`, the
@@ -82,7 +84,7 @@ Nothing else. In particular: no change to `pilgrim/scheduler.py`,
 
 ## 1. Bug A — the web tier's rating window on the grace path
 
-**RADIO §11 (`POST /api/station/rating` over the web tier), §14; VOTING.md V8.**
+**RADIO §11 (`POST /api/station/rating` over the web tier), §14; docs/plans/voting.md V8.**
 
 ### 1.1 Reproduce first
 
@@ -114,10 +116,10 @@ class CachedScheduler:
     """The slice of `Scheduler` that `voting.rating_window` reads, rebuilt from
     the published `state` and `program` documents. `on_air()` is the station's
     snapshot (up to one publish tick old), which the rating grace already
-    tolerates (VOTING.md V8). `_cum` and `position()` mean what they mean on
+    tolerates (docs/plans/voting.md V8). `_cum` and `position()` mean what they mean on
     `Scheduler`, in program-seconds counted from the first published row, so
     the grace branch (`position() - _cum[idx] <= grace_s`) is the published
-    offset into the on-air row (FIX_RATINGS.md Step 1)."""
+    offset into the on-air row (docs/plans/ratings.md Step 1)."""
 
     def __init__(self, state: dict[str, Any], program: dict[str, Any]) -> None:
         self.epoch: str = str(state.get("epoch") or "")
@@ -157,7 +159,7 @@ Append at the end of the file (it needs no fixtures):
 
 ```python
 def test_cached_scheduler_rating_window_grace_and_song_start():
-    """FIX_RATINGS.md Step 1 (VOTING.md V8 over the published snapshot): the
+    """docs/plans/ratings.md Step 1 (docs/plans/voting.md V8 over the published snapshot): the
     grace branch reads `_cum` and `position()`, which the cached scheduler
     must provide; a rating for a song the snapshot has not reached is closed."""
     from pilgrim.voting import rating_window
@@ -183,7 +185,7 @@ def test_cached_scheduler_rating_window_grace_and_song_start():
                              "current_offset_s": 2.0}, program)
     assert sched._cum == [0.0, 180.0, 188.0]
     assert sched.position() == 182.0
-    # a frozen station is closed (IDLE.md), whatever the row
+    # a frozen station is closed (docs/plans/idle.md), whatever the row
     st = {"epoch": "e1", "current_seq": 10, "current_offset_s": 1.0, "idle": True}
     assert rating_window(CachedScheduler(st, program), "e1", 10, 5.0) == (False, None)
 ```
@@ -193,13 +195,13 @@ def test_cached_scheduler_rating_window_grace_and_song_start():
 Run `make lint`, `make test`, `make sim`, `make e2e`. All must pass. Then
 rerun §1.1 and confirm `grace path: (True, 2928)`.
 
-Commit: `Web tier: rating grace window over the published snapshot (FIX_RATINGS.md Step 1; RADIO §11, §14; VOTING.md V8)`.
+Commit: `Web tier: rating grace window over the published snapshot (docs/plans/ratings.md Step 1; RADIO §11, §14; docs/plans/voting.md V8)`.
 
 ---
 
 ## 2. Program items carry the song's lifetime aggregate
 
-**RADIO §11 (`GET /api/station/program` fields), §14; VOTING.md V10.** This is
+**RADIO §11 (`GET /api/station/program` fields), §14; docs/plans/voting.md V10.** This is
 an HTTP API addition, so RADIO.md is updated in **this** commit (AGENTS.md
 §1.8) — do §4.3 of this file as part of this step.
 
@@ -210,8 +212,8 @@ Add this method directly after `song_rating` (the method that returns
 
 ```python
     def song_ratings_for(self, item_ids: list[int]) -> dict[int, dict[str, Any]]:
-        """Lifetime aggregates for several songs in one query (FIX_RATINGS.md
-        Step 2; VOTING.md V10): {item_id: {"count": n, "avg": float|None}}.
+        """Lifetime aggregates for several songs in one query (docs/plans/ratings.md
+        Step 2; docs/plans/voting.md V10): {item_id: {"count": n, "avg": float|None}}.
         Ids with no ratings are absent; callers default to count 0 / avg None.
         One round trip per programme response, not one per song (the store
         may be Postgres across the tailnet)."""
@@ -257,7 +259,7 @@ In `Station.program_response`, the loop that builds `out` currently reads:
 Replace it with:
 
 ```python
-        # FIX_RATINGS.md Step 2 (VOTING.md V10): every song row carries its
+        # docs/plans/ratings.md Step 2 (docs/plans/voting.md V10): every song row carries its
         # lifetime aggregate so the client can show it the instant the song
         # is audible. One batch query; non-songs and disabled ratings send 0/null.
         song_ids = [it["item_id"] for it in items if it["type"] == "song"]
@@ -321,7 +323,7 @@ Keep everything above it in that route (the `stale` / `items` /
 
 ```python
 def test_song_ratings_for_batches_lifetime_aggregates(cfg, tmp_env):
-    """FIX_RATINGS.md Step 2: one query, keyed by item, over every airing."""
+    """docs/plans/ratings.md Step 2: one query, keyed by item, over every airing."""
     _, store, _ = tmp_env
     a = store.add_item(type_="song", media_path="/tmp/a.flac", duration_s=60.0, fresh=True)
     b = store.add_item(type_="song", media_path="/tmp/b.flac", duration_s=60.0, fresh=True)
@@ -350,7 +352,7 @@ directly after the line
 insert:
 
 ```python
-    # FIX_RATINGS.md Step 2: the programme carries the song's aggregate
+    # docs/plans/ratings.md Step 2: the programme carries the song's aggregate
     prog = c.get("/api/station/program").json()["items"]
     by_seq = {it["seq"]: it for it in prog}
     assert by_seq[seq]["rating_count"] == 1 and by_seq[seq]["rating_avg"] == 4.0
@@ -397,13 +399,13 @@ make pg-test PG_TEST_ARGS="pilgrim/tests/test_voting.py pilgrim/tests/test_serve
 the tool shell's PATH use `DOCKER=/Applications/Docker.app/Contents/Resources/bin/docker`.)
 If `pg-test` cannot run at all, say so in the report; do not skip it silently.
 
-Commit: `Program items carry the song's rating aggregate (FIX_RATINGS.md Step 2; RADIO §11, §14; VOTING.md V10)`.
+Commit: `Program items carry the song's rating aggregate (docs/plans/ratings.md Step 2; RADIO §11, §14; docs/plans/voting.md V10)`.
 
 ---
 
 ## 3. Client: aggregate always, fractional pink average under a cyan vote, no stale-poll close
 
-**RADIO §9.1 (RATE THIS SONG), §9.2 (`pd:nowplaying`); VOTING.md §4, §5.**
+**RADIO §9.1 (RATE THIS SONG), §9.2 (`pd:nowplaying`); docs/plans/voting.md §4, §5.**
 Hard rule AGENTS.md §1.9: `rating.js` never touches audio; `player.js`
 changes are one event detail only.
 
@@ -424,7 +426,7 @@ Replace with:
     document.dispatchEvent(new CustomEvent("pd:nowplaying", {
       detail: named ? { epoch, seq: it.seq, media_id: it.media_id,
                         title: it.title, artist: it.artist,
-                        // FIX_RATINGS.md Step 3: the lifetime aggregate rides
+                        // docs/plans/ratings.md Step 3: the lifetime aggregate rides
                         // on the programme row (RADIO §11), so the rating row
                         // can show it the instant the song is audible.
                         rating_count: it.rating_count || 0,
@@ -466,7 +468,7 @@ the comment, `.turkey {...}`, `.turkey svg {...}`, the `<use>` comment,
 `.turkey.filled {...}`, `.turkey.filled svg {...}`, and the hover rule) with:
 
 ```css
-/* Three stacked layers per turkey (FIX_RATINGS.md Step 3, D2). `.t-outline`:
+/* Three stacked layers per turkey (docs/plans/ratings.md Step 3, D2). `.t-outline`:
    the dim lavender outline, always. `.t-avg`: a magenta ("pink") fill for the
    COMMUNITY average, clipped left-to-right to the fraction this turkey holds
    (rating.js sets `clip-path` per turkey; 100 % clipped = nothing). `.t-mine`:
@@ -505,7 +507,7 @@ file references it.
 ### 3.4 `pilgrim/web/rating.js`: replace the whole file
 
 ```js
-/* Pilgrim Dot Farm — five-turkey song ratings (VOTING.md Step 5; FIX_RATINGS.md Step 3).
+/* Pilgrim Dot Farm — five-turkey song ratings (docs/plans/voting.md Step 5; docs/plans/ratings.md Step 3).
    The control is open only while the song it belongs to is audible. The server
    decides the window (`rating_window`); this file only enables/disables the
    control and renders what the server says. It never touches audio (§9.2).
@@ -514,7 +516,7 @@ file references it.
    turkey partly filled left-to-right; cyan = the rating this browser gave
    THIS airing (or the hover/focus preview), drawn over the pink. The exact
    aggregate (`avg · n`) is always shown for the audible song: first from the
-   programme row, then from the state poll (FIX_RATINGS.md D1/D2). */
+   programme row, then from the state poll (docs/plans/ratings.md D1/D2). */
 (() => {
   "use strict";
   const VOTER = window.PD_VOTER;
@@ -746,7 +748,7 @@ In the test `"a turkey click posts, fills the row, and shows the aggregate"`,
 directly after `await announce(page, airing);` insert:
 
 ```ts
-  // FIX_RATINGS.md Step 3: the aggregate is never blank while a song is audible
+  // docs/plans/ratings.md Step 3: the aggregate is never blank while a song is audible
   await expect(page.locator("#rate-agg")).not.toHaveText("");
 ```
 
@@ -772,7 +774,7 @@ function hiddenPct(el: Element | null): number {
 }
 
 test("the community average is pink with a fractional turkey; a vote paints cyan over it", async ({ page }) => {
-  // FIX_RATINGS.md Step 3 (D2): rating_avg 3.4 = three full pink turkeys, 40 %
+  // docs/plans/ratings.md Step 3 (D2): rating_avg 3.4 = three full pink turkeys, 40 %
   // of the fourth, none of the fifth, exact text beside them, no cyan yet.
   await page.goto("/");
   const airing = await waitForSong(page);
@@ -837,7 +839,7 @@ assertion still holds (`reset()`).
 missing browser, run `cd pilgrim/tests/e2e && npx playwright install chromium`
 once and rerun. All must pass.
 
-Commit: `Rating row: fractional pink average under a cyan vote, aggregate always, no stale-poll close (FIX_RATINGS.md Step 3; RADIO §9.1, §9.2; VOTING.md §4, §5)`.
+Commit: `Rating row: fractional pink average under a cyan vote, aggregate always, no stale-poll close (docs/plans/ratings.md Step 3; RADIO §9.1, §9.2; docs/plans/voting.md §4, §5)`.
 
 ---
 
@@ -852,7 +854,7 @@ fine, but RADIO.md must describe what the code does by the end of Step 4.
 Replace the bullet with:
 
 ```
-- **RATE THIS SONG** (VOTING.md, FIX_RATINGS.md): a row above the cover art
+- **RATE THIS SONG** (docs/plans/voting.md, docs/plans/ratings.md): a row above the cover art
   with five turkey buttons (44 px targets, outlined → filled) and the on-air
   song's lifetime aggregate (`avg · n`, or `NO RATINGS YET`). The aggregate is
   shown the whole time a song is audible: first from the programme row's
@@ -886,19 +888,19 @@ programme row (§11) so the rating row can show the aggregate without a poll.`
 In the field list `{seq, media_id, url, art_url, type, duration_s, sfx, title, artist}`
 append `, rating_count, rating_avg`, and append this sentence to the cell:
 `rating_count`/`rating_avg` are the song's lifetime rating aggregate
-(VOTING.md V10, over every airing of that `media_id`; `avg` rounded to 2
+(docs/plans/voting.md V10, over every airing of that `media_id`; `avg` rounded to 2
 decimals); `0`/`null` for non-song rows and whenever `ratings.enabled` is
 false. One batch query per response (`Store.song_ratings_for`).
 
-### 4.4 VOTING.md and AGENTS.md
+### 4.4 docs/plans/voting.md and AGENTS.md
 
-- `VOTING.md`: directly under the title line add:
-  `> Amended by FIX_RATINGS.md (2026-11-06): programme rows carry the aggregate, the client shows it for the whole song, the community average is always drawn as magenta turkeys with fractional fill under the listener's cyan vote, and the web tier's grace window is fixed. Where this file and FIX_RATINGS.md differ, FIX_RATINGS.md wins.`
+- `docs/plans/voting.md`: directly under the title line add:
+  `> Amended by docs/plans/ratings.md (2026-11-06): programme rows carry the aggregate, the client shows it for the whole song, the community average is always drawn as magenta turkeys with fractional fill under the listener's cyan vote, and the web tier's grace window is fixed. Where this file and docs/plans/ratings.md differ, docs/plans/ratings.md wins.`
 - `AGENTS.md`: in the first paragraph ("Active work plans: ..."), after the
-  VOTING.md sentence add: `FIX_RATINGS.md (Steps 1–5) amends VOTING.md's
+  docs/plans/voting.md sentence add: `docs/plans/ratings.md (Steps 1–5) amends docs/plans/voting.md's
   rating UI and the web tier's rating window.`
 
-Commit (if separate): `Docs: rating aggregate on programme rows, fractional pink average under the cyan vote (FIX_RATINGS.md Step 4; RADIO §9.1, §9.2, §11)`.
+Commit (if separate): `Docs: rating aggregate on programme rows, fractional pink average under the cyan vote (docs/plans/ratings.md Step 4; RADIO §9.1, §9.2, §11)`.
 
 ---
 
@@ -932,7 +934,7 @@ the report and wait:
 
 1. **Your own earlier rating.** After rating a song, its next airing shows
    only the community pink (your vote is inside the average), not your
-   earlier cyan (one rating per airing, VOTING.md V2). Showing *your* past
+   earlier cyan (one rating per airing, docs/plans/voting.md V2). Showing *your* past
    rating across airings or devices would need a per-voter route and is not
    in this plan. Want it?
 2. **Pink glow.** The magenta layer has the same soft drop-shadow glow as the

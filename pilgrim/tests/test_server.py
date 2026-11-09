@@ -383,7 +383,7 @@ def test_listeners_capped_and_long_ids_ignored(tmp_env):
 
 
 # --------------------------------------------------------------------------- #
-# IDLE.md Step 4: idle policy in Station (freeze after idle.after_s with no
+# docs/plans/idle.md Step 4: idle policy in Station (freeze after idle.after_s with no
 # listeners, wake on program/heartbeat/admin; polls never wake). SimClock-driven.
 # --------------------------------------------------------------------------- #
 
@@ -433,7 +433,7 @@ def test_no_listener_freezes_after_after_s(tmp_env):
 
 
 def test_polls_do_not_wake_a_frozen_station(tmp_env):
-    """IDLE.md D2/rule 2: only the program route, heartbeats and admin DJ
+    """docs/plans/idle.md D2/rule 2: only the program route, heartbeats and admin DJ
     mutations wake. Idle pages and bots poll the rest."""
     app, c, clock = _idle_app(tmp_env)
     st = app.state.station
@@ -507,7 +507,7 @@ def test_stale_time_check_dropped_by_a_frozen_wake(tmp_env):
 
 def test_public_health_has_no_idle_field(tmp_env):
     """`_public_health` is the browser's OFF AIR source; idle must not leak into
-    it (IDLE.md D10)."""
+    it (docs/plans/idle.md D10)."""
     from pilgrim.server import create_public_app
     app, _, clock = _idle_app(tmp_env)
     st = app.state.station
@@ -518,7 +518,7 @@ def test_public_health_has_no_idle_field(tmp_env):
 
 
 # --------------------------------------------------------------------------- #
-# VOTING.md Step 2: vote + rating routes (both apps), state.rating, admin audit.
+# docs/plans/voting.md Step 2: vote + rating routes (both apps), state.rating, admin audit.
 # --------------------------------------------------------------------------- #
 
 VOTER = "a" * 32
@@ -602,7 +602,7 @@ def test_rating_route_window_and_state(tmp_env):
     assert r.headers["cache-control"] == "no-store"
     state = c.get("/api/station/state").json()
     assert state["rating"] == {"open": True, "count": 1, "avg": 4.0}
-    # FIX_RATINGS.md Step 2: the programme carries the song's aggregate
+    # docs/plans/ratings.md Step 2: the programme carries the song's aggregate
     prog = c.get("/api/station/program").json()["items"]
     by_seq = {it["seq"]: it for it in prog}
     assert by_seq[seq]["rating_count"] == 1 and by_seq[seq]["rating_avg"] == 4.0

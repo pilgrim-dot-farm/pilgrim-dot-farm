@@ -45,7 +45,7 @@ test("PLAY continues past three clips with sample-contiguous joins", async ({ pa
     expect(Math.abs(starts[i].when - starts[i - 1].end), "join within one sample")
       .toBeLessThanOrEqual(1 / starts[i].sampleRate);
   }
-  // every overlay starts inside a host and is stopped by that host's end (SFX.md §7.4)
+  // every overlay starts inside a host and is stopped by that host's end (docs/systems/sfx.md §7.4)
   const overlays = all.filter((s: any) => s.sfx);
   expect(overlays.length, "talk clips carried SFX overlays").toBeGreaterThan(0);
   for (const o of overlays) {
@@ -93,7 +93,7 @@ test("a listener request is spliced ahead of committed stock songs", async ({ pa
 
   // Server-side splice: a ready request's intro + song jump into the next slot
   // and the revision bumps. The client must cancel its obsolete future sources
-  // and reschedule from the new snapshot (TUI.md §5, §9.2).
+  // and reschedule from the new snapshot (docs/systems/console.md §5, §9.2).
   const splice = await page.request.post("/api/test/splice").then(r => r.json());
   expect(splice.ok).toBe(true);
   expect(splice.song_seq).toBeGreaterThan(0);

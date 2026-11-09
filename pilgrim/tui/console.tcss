@@ -1,4 +1,4 @@
-/* Pilgrim DJ console theme (TUI.md §2) — dark, retro-glow. */
+/* Pilgrim DJ console theme (docs/systems/console.md §2) — dark, retro-glow. */
 
 Screen {
     background: #12081b;
@@ -73,7 +73,7 @@ DataTable > .datatable--header {
     margin-left: 1;
 }
 
-/* Administrator phrase bar (TUI.md §2, §6). */
+/* Administrator phrase bar (docs/systems/console.md §2, §6). */
 #phrase {
     border: round #6b3fa0;
     background: #191028;

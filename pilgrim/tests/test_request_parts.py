@@ -1,4 +1,4 @@
-"""The three-box paid request parts (PROMPT_UPGRADE.md Step 1).
+"""The three-box paid request parts (docs/shipped/prompt-upgrade.md Step 1).
 
 Pure functions only: composition, the song-only view, and the row round trip.
 """

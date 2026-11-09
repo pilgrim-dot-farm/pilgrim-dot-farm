@@ -1,4 +1,4 @@
-"""Cover-art smoke test (ALBUM_ART.md Step 10; RADIO §8.4).
+"""Cover-art smoke test (docs/shipped/album-art.md Step 10; RADIO §8.4).
 
 One real FLUX render of a fixed test title -> PNG dimension check -> JPEG ->
 PUT to `art/smoke/` -> GET it back through CloudFront (status + content-type).

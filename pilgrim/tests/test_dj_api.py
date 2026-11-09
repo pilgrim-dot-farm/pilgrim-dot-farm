@@ -1,4 +1,4 @@
-"""Read-only DJ console API (TUI.md §2, §4; RADIO §11). Milestone 2 backend.
+"""Read-only DJ console API (docs/systems/console.md §2, §4; RADIO §11). Milestone 2 backend.
 
 STATUS: milestone 2 <read-only console backend — frontend shell next>.
 Fakes/TestClient WITHOUT the `with` block, so no lifespan/tasks run and no real

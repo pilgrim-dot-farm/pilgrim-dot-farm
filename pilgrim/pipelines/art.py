@@ -1,4 +1,4 @@
-"""FLUX 3 Image Klein client (ALBUM_ART.md Step 2; docs/backends.md §10).
+"""FLUX 3 Image Klein client (docs/shipped/album-art.md Step 2; docs/backends.md §10).
 
 The server is the M5's own FLUX server on `hosts.flux` (loopback). Two facts
 shape this client:
@@ -148,7 +148,7 @@ class FluxClient:
         """One 1024x1024 render. Returns validated PNG bytes or raises ArtError.
 
         The caller guarantees one in-flight request station-wide
-        (ALBUM_ART.md §0.2 rule 2); this client adds no retries of its own so a
+        (docs/shipped/album-art.md §0.2 rule 2); this client adds no retries of its own so a
         503 back-off stays the caller's decision.
         """
         payload = {
@@ -202,7 +202,7 @@ def _busy_detail(r: httpx.Response) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Scene writing + the fixed FLUX prompt (ALBUM_ART.md §0.3, Step 3)
+# Scene writing + the fixed FLUX prompt (docs/shipped/album-art.md §0.3, Step 3)
 # --------------------------------------------------------------------------- #
 # These words make FLUX draw a vinyl disc instead of square artwork (§0.3).
 BANNED_WORDS = ("album", "cover", "record", "vinyl", "lp", "disc", "cd",
@@ -415,7 +415,7 @@ class SceneWriter:
         user = (f"Title: {title}\nArtist: {artist}\n"
                 f"Genre: {genre or 'unknown'}\nStyle hint: {hint or 'none'}\n")
         if art_direction:
-            # PROMPT_UPGRADE.md Step 4: the listener's own cover brief, before
+            # docs/shipped/prompt-upgrade.md Step 4: the listener's own cover brief, before
             # the (subject-only) request line, JSON-escaped like all input.
             # Capped here too, as defence in depth for backfills.
             art_direction = art_direction[:self.cfg.payments.parts.art_max]

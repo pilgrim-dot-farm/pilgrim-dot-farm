@@ -1,4 +1,4 @@
-# Container — the Fargate web image (SCALABILITY.md Step 1)
+# Container — the Fargate web image (docs/plans/scalability.md Step 1)
 
 ```
 docker build --target web -t pilgrim:web .   # the one deployable image
@@ -9,7 +9,7 @@ make image-smoke                             # test-only `smoke` stage (+ffmpeg)
 The station (scheduler, producer, pipelines, S3 publisher) is **not**
 containerised: it stays a native launchd process on the Mac Studio (RADIO §2,
 `pilgrim/deploy/mac/origin.sh`). Only the public web tier ships as an image:
-`python -m pilgrim.web_app` (SCALABILITY.md Step 5, RADIO §11 "Web tier"),
+`python -m pilgrim.web_app` (docs/plans/scalability.md Step 5, RADIO §11 "Web tier"),
 which serves the site and the public API from Valkey (`REDIS_URL`, required)
 and Postgres (`DATABASE_URL`) and never reaches the Mac. Without the station's
 `alive` key it answers off-air bodies; `/api/health` stays 200.
@@ -76,7 +76,7 @@ or as ECS `secrets`. Tasks reach LiteLLM, Brave and Stripe through the NAT.
 `task-definition.json` is the Fargate shape with `@@NAME@@` placeholders for
 IaC to fill (the same convention as the nginx templates), pinned to ARM64.
 Container port 8080 matches the ALB target group. The health path is
-`/api/health` (operator decision, SCALABILITY.md §6): the target group's
+`/api/health` (operator decision, docs/plans/scalability.md §6): the target group's
 `health_check.path` moves from `/edge-health` to `/api/health` in
 terraform-aws-pilgrim at cutover, not before, because the live EC2 edge only
 answers `/edge-health`.

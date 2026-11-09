@@ -1,4 +1,4 @@
-"""The three-box paid request (PROMPT_UPGRADE.md Step 1).
+"""The three-box paid request (docs/shipped/prompt-upgrade.md Step 1).
 
 A paid request arrives as up to three parts. They are stored separately and
 also composed into one labelled document kept in `requests.text`, so every

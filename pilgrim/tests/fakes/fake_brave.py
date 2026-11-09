@@ -1,4 +1,4 @@
-"""Fake Brave Search API (BRAVE.md Step 7): an httpx MockTransport that answers
+"""Fake Brave Search API (docs/systems/search.md Step 7): an httpx MockTransport that answers
 `/res/v1/news/search` and `/res/v1/web/search` with the observed shapes
 (docs/backends.md §11), plus failure injection. Tests never reach the network
 (AGENTS §1.2)."""

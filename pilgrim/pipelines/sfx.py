@@ -1,4 +1,4 @@
-"""Sound-effect pipeline (SFX.md §1, §7.3): prompt -> MOSS-SoundEffect -> QC ->
+"""Sound-effect pipeline (docs/systems/sfx.md §1, §7.3): prompt -> MOSS-SoundEffect -> QC ->
 normalize -> MP3 `sfx` item.
 
 SFX items are never airable on their own: they ride on a host clip as a
@@ -28,7 +28,7 @@ from pilgrim.logging_setup import err_text
 log = logging.getLogger("radio.sfx")
 
 # Host clip types that may carry SFX. News is deliberately absent and must stay
-# so: no news clip ever reaches the SFX path (SFX.md §0).
+# so: no news clip ever reaches the SFX path (docs/systems/sfx.md §0).
 SFX_HOST_TYPES = frozenset({"dj_talk", "field_report", "commercial", "liner"})
 
 
@@ -166,7 +166,7 @@ def beat_offset(text: str, after_sentence: int, duration_s: float,
                 lead_s: float) -> float:
     """Coarse beat time (s into the clip) right after sentence `after_sentence`,
     by word share of the speech. Deliberately approximate: an intentional beat
-    with a little drift is the target, not syllable accuracy (SFX.md §5)."""
+    with a little drift is the target, not syllable accuracy (docs/systems/sfx.md §5)."""
     sents = sentences(text)
     total = sum(len(s.split()) for s in sents) or 1
     upto = sum(len(s.split()) for s in sents[:after_sentence])

@@ -104,7 +104,7 @@ class RandomSelector:
             weights.pop("news", None)
 
         # adjacency: dj_talk never next to dj_talk or news. An operator phrase
-        # counts as a voice bridge with the same news adjacency (§11, TUI.md §6).
+        # counts as a voice bridge with the same news adjacency (§11, docs/systems/console.md §6).
         last = state.recent_types[-1] if state.recent_types else None
         if last in ("dj_talk", "operator_phrase", "news"):
             available.discard("dj_talk")
@@ -114,7 +114,7 @@ class RandomSelector:
             weights.pop("news", None)
 
         # the field reporter is a comic bit: never right after news (in either
-        # order) and never two reports back to back (SFX.md §4.2)
+        # order) and never two reports back to back (docs/systems/sfx.md §4.2)
         if last in ("field_report", "news"):
             available.discard("field_report")
             weights.pop("field_report", None)

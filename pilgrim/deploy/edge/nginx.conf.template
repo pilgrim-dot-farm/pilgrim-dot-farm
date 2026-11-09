@@ -175,7 +175,7 @@ http {
             error_page 504 = @request_timeout;
         }
 
-        # COMMUNITY VOTING (VOTING.md Step 2): exactly two POST-only paths.
+        # COMMUNITY VOTING (docs/plans/voting.md Step 2): exactly two POST-only paths.
         # A vote/rating response is no-store at the origin; never cached here.
         location ~ "^/api/requests/[0-9]+/vote$" {
             proxy_pass @@ORIGIN_SCHEME@@://pilgrim_origin;
@@ -213,7 +213,7 @@ http {
             error_page 502 504 = @offair;
         }
 
-        # PAID REQUE$T (PAYMENT.md Step 10.1, Step 12b): exactly four paths.
+        # PAID REQUE$T (docs/shipped/payments.md Step 10.1, Step 12b): exactly four paths.
         location = /api/paid-requests {
             proxy_pass @@ORIGIN_SCHEME@@://pilgrim_origin;
             proxy_http_version 1.1;

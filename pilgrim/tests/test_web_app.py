@@ -1,4 +1,4 @@
-"""The Fargate web tier (SCALABILITY.md Step 5; RADIO §11 "Web tier", §14).
+"""The Fargate web tier (docs/plans/scalability.md Step 5; RADIO §11 "Web tier", §14).
 
 A real Station publishes into a FakeRedis; a WebStation serves the public
 routes from that same fake and the same store. Fakes only (AGENTS §1.2):
@@ -179,7 +179,7 @@ def test_client_ip_prefers_cf_connecting_ip_from_a_trusted_peer(tmp_env, monkeyp
 
 
 def test_cached_scheduler_rating_window_grace_and_song_start():
-    """FIX_RATINGS.md Step 1 (VOTING.md V8 over the published snapshot): the
+    """docs/plans/ratings.md Step 1 (docs/plans/voting.md V8 over the published snapshot): the
     grace branch reads `_cum` and `position()`, which the cached scheduler
     must provide; a rating for a song the snapshot has not reached is closed.
 
@@ -220,7 +220,7 @@ def test_cached_scheduler_rating_window_grace_and_song_start():
     assert [r["seq"] for r in sched._items] == [10, 11, 12]
     assert sched._cum == [0.0, 180.0, 188.0]
     assert sched.position() == 182.0
-    # a frozen station is closed (IDLE.md), whatever the row
+    # a frozen station is closed (docs/plans/idle.md), whatever the row
     st = {"epoch": "e1", "current_seq": 10, "current_offset_s": 1.0, "idle": True}
     assert rating_window(CachedScheduler(st, published(10)), "e1", 10, 5.0) == (False, None)
 

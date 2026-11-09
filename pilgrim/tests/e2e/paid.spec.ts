@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-/* PROMPT_UPGRADE.md Step 5 (RADIO §9.1): the paid request panel is three
+/* docs/shipped/prompt-upgrade.md Step 5 (RADIO §9.1): the paid request panel is three
    creative departments — LYRICS / MUSICAL DIRECTION / COVER ART — with the
    technical help collapsed, no model jargon in the main form, drafts that
    survive a reload, and a `{lyrics, music, art}` POST. The e2e server accepts

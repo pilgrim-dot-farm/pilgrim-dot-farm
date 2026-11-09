@@ -1,4 +1,4 @@
-"""FLUX client + fake (ALBUM_ART.md Step 2; AGENTS §1.2 — fakes only)."""
+"""FLUX client + fake (docs/shipped/album-art.md Step 2; AGENTS §1.2 — fakes only)."""
 from __future__ import annotations
 
 import pytest

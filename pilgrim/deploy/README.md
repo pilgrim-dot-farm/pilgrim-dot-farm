@@ -1,6 +1,6 @@
 # Deploy — origin (M5) and edges (EC2)
 
-This directory is the deployment contract for the split in `SPLIT_PLAN.md`.
+This directory is the deployment contract for the split in `docs/shipped/split.md`.
 The origin is the single station process; an edge is nginx plus
 `pilgrim/web/`. The gateway runs on the origin and is the only network path an
 edge may use. The origin's admin listener is never exposed.
@@ -171,7 +171,7 @@ The serve config format was verified against `tailscale/tailscale:v1.104.4`
 format against that release's docs:
 <https://tailscale.com/kb/1589/tailscale-services-configuration-file>.
 
-## Bastion subnet router (SCALABILITY.md Step 8)
+## Bastion subnet router (docs/plans/scalability.md Step 8)
 
 The Fargate web tier reads Valkey and RDS Postgres inside the VPC; the Mac
 must write to them. The bastion EC2 (`ssh pf2`, `172.31.35.80`, security
@@ -217,7 +217,7 @@ reads the three variables yet (Steps 2–3); when it does, they go in the
 repo-root `.env` like the other station settings, and the password is fetched
 from the secret at start, never written to disk.
 
-## Station cutover: Postgres + Valkey (SCALABILITY.md Steps 2–3)
+## Station cutover: Postgres + Valkey (docs/plans/scalability.md Steps 2–3)
 
 The station keeps `station.db` and publishes nothing until this is run, and
 it must not run before the web tier (Step 5) reads heartbeats and the

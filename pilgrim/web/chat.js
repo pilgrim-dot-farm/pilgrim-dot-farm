@@ -1,4 +1,4 @@
-/* Pilgrim Dot Farm — THE SHEEP PEN (SHEEP_PEN.md §2, §9.1).
+/* Pilgrim Dot Farm — THE SHEEP PEN (docs/plans/sheep-pen-brief.md §2, §9.1).
    One shared chat room over a WebSocket. The browser token is the existing
    voter id (voter.js, localStorage `pd_voter`); the display name is chosen
    here. All user text is rendered with textContent, never as HTML. No build

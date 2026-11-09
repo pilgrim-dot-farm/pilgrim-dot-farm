@@ -15,7 +15,7 @@ from pilgrim import db as pilgrim_db  # noqa: E402
 from pilgrim.config import Config, ensure_dirs, load_config  # noqa: E402
 from pilgrim.store import Store  # noqa: E402
 
-# `make pg-test` (SCALABILITY.md Step 2): the SAME suite against a throwaway
+# `make pg-test` (docs/plans/scalability.md Step 2): the SAME suite against a throwaway
 # Postgres. Unset (the default, `make test`) every store is the SQLite file in
 # the test's temp directory. Set, tmp_env and every Station open the Postgres
 # database instead, reset to an empty schema before each test.

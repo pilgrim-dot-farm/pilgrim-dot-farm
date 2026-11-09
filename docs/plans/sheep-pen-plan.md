@@ -1,6 +1,8 @@
-# SHEEP_PEN_PLAN.md — The Sheep Pen chat (implementation plan)
+# Sheep Pen — implementation plan
 
-> **Read this first.** This is the executable plan derived from `SHEEP_PEN.md`
+> *Formerly `SHEEP_PEN_PLAN.md`.*
+
+> **Read this first.** This is the executable plan derived from `docs/plans/sheep-pen-brief.md`
 > (the brief). `RADIO.md` and `AGENTS.md` outrank it; within the brief the
 > order is §0.6, §0.7, §0.5, then the rest. Every step ends with a *Done when*
 > line, the AGENTS.md §7 checks, a commit citing RADIO.md sections, and the §8

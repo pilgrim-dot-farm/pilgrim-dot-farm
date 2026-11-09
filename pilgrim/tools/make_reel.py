@@ -1,4 +1,4 @@
-"""Instagram Reel builder (ALBUM_ART.md Step 11; RADIO §8.4).
+"""Instagram Reel builder (docs/shipped/album-art.md Step 11; RADIO §8.4).
 
 Inputs come from S3 **through CloudFront** — the song's published MP3 and its
 published cover JPEG — which proves the published copies are good. Output is

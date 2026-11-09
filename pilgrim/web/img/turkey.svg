@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-  <!-- Source copy of the RATE THIS SONG turkey symbol (VOTING.md Step 5).
+  <!-- Source copy of the RATE THIS SONG turkey symbol (docs/plans/voting.md Step 5).
        index.html inlines the same <symbol id="turkey"> once. Strokes use
        currentColor; `.turkey.filled` fills the same paths. No external asset. -->
   <symbol id="turkey" viewBox="0 0 24 24">

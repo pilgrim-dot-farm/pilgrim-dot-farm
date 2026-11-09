@@ -291,7 +291,7 @@ class VoicePipeline:
         voice = self._voice_for(role, voice)
         speed = self.cfg.voices.speed
         wav = await self.kokoro.synth(clean, voice, speed)
-        # staging-safe (TUI.md §6.4): the intermediate WAV never collides with a
+        # staging-safe (docs/systems/console.md §6.4): the intermediate WAV never collides with a
         # concurrent job; the final MP3 lands directly in the media dir.
         with tempfile.TemporaryDirectory(prefix="radio_vp_") as td:
             r = _finalize_voice(self.cfg, wav, clean, self.media_dir, role,
@@ -302,7 +302,7 @@ class VoicePipeline:
                              target_s: float | None = None,
                              out_dir: Path | None = None) -> dict:
         """Render EXACT words (verbatim, never LLM-rewritten) as an operator
-        phrase (RADIO §11, TUI.md §6, §6.4). Runs the mandatory TTS cleanup
+        phrase (RADIO §11, docs/systems/console.md §6, §6.4). Runs the mandatory TTS cleanup
         (idempotent on already-confirmed text), synthesizes with the given
         voice/speed, and QC/normalizes into a fresh MP3 in a per-job staging
         dir outside the library, publishing only after QC passes."""

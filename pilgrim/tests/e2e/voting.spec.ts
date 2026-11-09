@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const VOTER = "0123456789abcdef0123456789abcdef";
 
-/* VOTING.md Step 7: ratings + queue votes through the real client and the real
+/* docs/plans/voting.md Step 7: ratings + queue votes through the real client and the real
    e2e board. The e2e server seeds 12 free requests + 1 paid and 5 aired. */
 test.describe.configure({ mode: "serial" });
 
@@ -46,7 +46,7 @@ test("a turkey click posts, fills the row, and shows the aggregate", async ({ pa
   const airing = await waitForSong(page);
   await announce(page, airing);
   await expect(page.locator("#rate-row")).toHaveAttribute("aria-disabled", "false");
-  // FIX_RATINGS.md Step 3: the aggregate is never blank while a song is audible
+  // docs/plans/ratings.md Step 3: the aggregate is never blank while a song is audible
   await expect(page.locator("#rate-agg")).not.toHaveText("");
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes("/api/station/rating")),
@@ -127,7 +127,7 @@ test("the server closes the window after the song ends", async ({ page }) => {
 });
 
 test("the community average shows as pink turkeys until the listener rates", async ({ page }) => {
-  // FIX_RATINGS.md Step 3 (D2): rating_avg 3.4 rounds to 3 pink turkeys and the
+  // docs/plans/ratings.md Step 3 (D2): rating_avg 3.4 rounds to 3 pink turkeys and the
   // exact text is beside them; with no ratings nothing is pink and the text
   // says NO RATINGS YET. Both are read in the same evaluate as the dispatch.
   await page.goto("/");
@@ -231,7 +231,7 @@ test("mobile: no horizontal scroll, 40px vote targets, status under the title", 
     await expect(page.locator(".req-item .req-status").first()).toBeHidden();
     await expect(page.locator(".req-item .req-status-inline").first()).toBeVisible();
     // the rating row never overflows the pane's content box (on phones the
-    // art may be narrower than the row: UI_REFACTOR.md D8)
+    // art may be narrower than the row: docs/plans/ui-refactor.md D8)
     await page.click('#nav-mobile [data-go="radio"]');
     const rate = page.locator("#rate-row");
     const rw = (await rate.boundingBox())!.width;

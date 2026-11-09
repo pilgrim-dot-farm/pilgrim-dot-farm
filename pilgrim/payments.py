@@ -1,11 +1,11 @@
 """Stripe client + webhook verification for paid priority requests.
 
-PAYMENT.md §2.2. Two halves live here: the thin async Stripe client (Checkout
+docs/shipped/payments.md §2.2. Two halves live here: the thin async Stripe client (Checkout
 Sessions only) and the pure `verify_webhook` function. State transitions
 (`PaymentService`) arrive with the store in Step 3/4.
 
 Nothing in this module is imported by `scheduler.py`, `selector.py` or
-`producer.py` (AGENTS §1.11, PAYMENT.md §0.3).
+`producer.py` (AGENTS §1.11, docs/shipped/payments.md §0.3).
 """
 from __future__ import annotations
 
@@ -205,7 +205,7 @@ class StripeClient:
 
 
 # --------------------------------------------------------------------------- #
-# Webhook verification — pure function, stdlib only (PAYMENT.md §2.2b)
+# Webhook verification — pure function, stdlib only (docs/shipped/payments.md §2.2b)
 # --------------------------------------------------------------------------- #
 def verify_webhook(
     payload: bytes, sig_header: str, secret: str, now: float, tolerance_s: int
@@ -265,7 +265,7 @@ def verify_webhook(
 
 
 # --------------------------------------------------------------------------- #
-# PaymentService — the only code that changes payment columns (PAYMENT.md §2.2c)
+# PaymentService — the only code that changes payment columns (docs/shipped/payments.md §2.2c)
 # --------------------------------------------------------------------------- #
 def _epoch(iso: str | None) -> float | None:
     if not iso:

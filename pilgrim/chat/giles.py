@@ -1,13 +1,13 @@
 """Giles, the barnyard correspondent, files text dispatches into the pen.
 
-SHEEP_PEN.md §8. Giles is the existing station character: persona wording comes
+docs/plans/sheep-pen-brief.md §8. Giles is the existing station character: persona wording comes
 from `prompts/field_chat.md` (derived from the current `prompts/field.md`), the
 name from `talk.field_reporter_name`, the model from `models.chat_giles`
 (default `qwen38`). Text only — never TTS, never the producer or scheduler
 (hard rule 1).
 
 The canon sign-off is enforced in code, exactly once (operator decision,
-SHEEP_PEN.md §0.2): count `"outstanding in my field"` case-insensitively; 0 →
+docs/plans/sheep-pen-brief.md §0.2): count `"outstanding in my field"` case-insensitively; 0 →
 append the canon sentence; ≥ 1 → drop every sentence containing it, then append
 the canon sentence once.
 """
@@ -44,7 +44,7 @@ def _sentences(text: str) -> list[str]:
 
 
 def enforce_signoff(text: str, name: str) -> str:
-    """Exactly one canon sign-off, as the final sentence (SHEEP_PEN.md §0.2)."""
+    """Exactly one canon sign-off, as the final sentence (docs/plans/sheep-pen-brief.md §0.2)."""
     canon = signoff(name)
     body = text.strip()
     if PHRASE in body.lower():

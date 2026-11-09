@@ -160,7 +160,7 @@ class Producer:
         self._last_stock_song_at: float | None = None
         # one-shot log so a capped stock worker doesn't spam every 20 s
         self._stock_cap_logged = False
-        # IDLE.md: station policy predicate (no listeners -> idle). Default
+        # docs/plans/idle.md: station policy predicate (no listeners -> idle). Default
         # never idle so tests, seed and the sim behave exactly as before.
         self.idle: Callable[[], bool] = idle or (lambda: False)
         self._idle_stock_logged = False
@@ -453,7 +453,7 @@ class Producer:
         return None
 
     async def ensure_field_reports(self) -> None:
-        """Keep `field_reports_min` unaired field reports (SFX.md §4.2). Like
+        """Keep `field_reports_min` unaired field reports (docs/systems/sfx.md §4.2). Like
         dj_talk they are contextual: aired once, never recycled."""
         have = self._count_fresh_unexpired("field_report")
         need = self.cfg.inventory.field_reports_min - have
@@ -713,7 +713,7 @@ class Producer:
     # ------------------------------------------------------------------ sfx
     async def ensure_sfx_pool(self, limit: int | None = None) -> int:
         """Render each approved evergreen cue once into the recycled stock pool
-        (SFX.md §6.2). Contextual cues are rendered per host in _attach_sfx.
+        (docs/systems/sfx.md §6.2). Contextual cues are rendered per host in _attach_sfx.
         Returns how many were made; a failing backend just leaves gaps."""
         if self.sfx is None or not self.cfg.sfx.enabled:
             return 0
@@ -754,7 +754,7 @@ class Producer:
 
     async def _attach_sfx(self, item: dict, role: str) -> None:
         """Resolve a rendered host's script cues to stored sfx items and record
-        them as `meta.sfx` overlays (SFX.md §7.1). Which of them air (coin flip,
+        them as `meta.sfx` overlays (docs/systems/sfx.md §7.1). Which of them air (coin flip,
         rate budget) is decided at commit time by sfx_plan. Never fatal: any
         cue that can't be rendered is dropped and the host airs dry."""
         meta = item.setdefault("meta", {})
@@ -887,7 +887,7 @@ class Producer:
         log.info("producer running")
         while True:
             if self.idle():
-                # IDLE.md D6: nobody is listening, so voice refill pauses.
+                # docs/plans/idle.md D6: nobody is listening, so voice refill pauses.
                 # Listener requests keep producing (song_loop) — a requester
                 # is on the page waiting; a paid one has paid.
                 await self._sleep(self.cfg.idle.producer_poll_s)
@@ -907,7 +907,7 @@ class Producer:
             await self._sleep(6.0)
 
     async def sfx_loop(self) -> None:
-        """SFX worker (SFX.md §7.3): attaches overlays to stored talk, then
+        """SFX worker (docs/systems/sfx.md §7.3): attaches overlays to stored talk, then
         fills the evergreen stock pool. One render at a time; the backend is
         slow (docs/backends.md §7) and nothing waits on it."""
         while True:
@@ -1000,7 +1000,7 @@ class Producer:
     def _spawn(self, job: SongJob) -> None:
         if job.req is not None:
             # claim it now: the next _next_job() runs before the task does.
-            # claimed_at (VOTING.md V6) orders in-flight work by claim time;
+            # claimed_at (docs/plans/voting.md V6) orders in-flight work by claim time;
             # it is set once and kept across retries.
             job.req["claimed_at"] = self.store.mark_request_producing(job.req["id"])
             self.request_stage[job.req["id"]] = "waiting"
@@ -1071,7 +1071,7 @@ class Producer:
 
     def _stock_due(self, in_flight: int) -> bool:
         if self.idle():
-            # IDLE.md D6: stock songs serve airtime nobody hears. Queued
+            # docs/plans/idle.md D6: stock songs serve airtime nobody hears. Queued
             # requests are still picked above this check.
             if not self._idle_stock_logged:
                 log.info("song.stock_paused_idle")
@@ -1285,7 +1285,7 @@ class Producer:
             await self._wait_turn(job)
             item_meta = {**dict(item.get("meta") or {}), "request_id": req["id"],
                          "request_text": req["text"], "paid": paid}
-            if parts is not None:  # PROMPT_UPGRADE.md Step 3: art reads this
+            if parts is not None:  # docs/shipped/prompt-upgrade.md Step 3: art reads this
                 item_meta["request_parts"] = {"lyrics": parts.lyrics,
                                               "music": parts.music,
                                               "art": parts.art}

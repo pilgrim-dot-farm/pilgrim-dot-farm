@@ -1,4 +1,4 @@
-"""Cover art per song (ALBUM_ART.md Steps 4-5; RADIO §8.4, §14).
+"""Cover art per song (docs/shipped/album-art.md Steps 4-5; RADIO §8.4, §14).
 
 Storage half (Step 4): where the master PNG and the delivered JPEG live, and
 how they are written without ever touching an existing library file
@@ -120,7 +120,7 @@ def scene_texts(item: dict[str, Any]) -> tuple[str, str]:
 
 
 # --------------------------------------------------------------------------- #
-# Memory gate (ALBUM_ART.md §0.2 rule 3): the same vm_stat formula the FLUX
+# Memory gate (docs/shipped/album-art.md §0.2 rule 3): the same vm_stat formula the FLUX
 # server uses, so we skip before it refuses.
 # --------------------------------------------------------------------------- #
 def available_gb() -> float | None:
@@ -272,7 +272,7 @@ class ArtWorker:
         art_direction = str(meta.get("art_direction") or "") or None
         parts = meta.get("request_parts")
         if isinstance(parts, dict):
-            # PROMPT_UPGRADE.md Step 4: the item's own three parts win over
+            # docs/shipped/prompt-upgrade.md Step 4: the item's own three parts win over
             # the (possibly composed) request_text for background/backfill.
             request_text = (str(parts.get("lyrics") or "")
                             or str(parts.get("music") or "")) or None
@@ -328,7 +328,7 @@ class ArtWorker:
             "style_prompt": brief.get("style_prompt", ""),
             "request_text": request_text, "paid": bool(paid)}
         if parts is not None:
-            # PROMPT_UPGRADE.md Step 4: the cover follows the art box; the
+            # docs/shipped/prompt-upgrade.md Step 4: the cover follows the art box; the
             # lyrics box is subject context. Stored so the background worker
             # and art_backfill see the same inputs.
             request_text = parts.subject_text()

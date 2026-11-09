@@ -1,4 +1,6 @@
-# SCALABILITY.md — the origin stays home, everything public moves into the VPC
+# Scalability — the origin stays home, everything public moves into the VPC
+
+> *Formerly `SCALABILITY.md`.*
 
 Status: Step 1 (containers) done and pushed as `pilgrimdotfarm/front-end`;
 the Fargate service is up behind the ALB (2026-11-05). Step 8's bastion is the
@@ -83,7 +85,7 @@ ask for comes from Valkey, Postgres or CloudFront.
 
 4. **Wake becomes asynchronous** (done inside Step 3). Today
    `GET /api/station/program` thaws a frozen station in the same request
-   (IDLE.md D2). On the split, Fargate serves the frozen window (always
+   (docs/plans/idle.md D2). On the split, Fargate serves the frozen window (always
    playable, `on_air` true) and sets the `wake` key; the station takes it on
    its next publish tick and thaws, bumping the revision so the browser's
    next poll picks up the thawed programme. RADIO §3 now says "within

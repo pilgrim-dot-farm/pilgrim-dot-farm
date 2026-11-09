@@ -1,6 +1,6 @@
 """Per-task WebSocket fan-out and the single Valkey subscriber.
 
-SHEEP_PEN.md §0.7.4. One subscriber per task on the exact channel
+docs/plans/sheep-pen-brief.md §0.7.4. One subscriber per task on the exact channel
 `pilgrim:{chat}:pubsub` (serverless has no `PSUBSCRIBE`), a bounded
 `asyncio.Queue` per socket (a full queue closes that socket with 1013 so the
 client reconnects and replays), and an `XRANGE` resync every `chat.resync_s`
@@ -8,7 +8,7 @@ that covers publish failures, Pub/Sub gaps and cache failover with one loop.
 
 Internal envelopes may name a target `user_id`/`ip_hash`; they are filtered
 here and never forwarded. Frames sent to browsers carry no identity handles
-(SHEEP_PEN.md §0.7.6).
+(docs/plans/sheep-pen-brief.md §0.7.6).
 """
 from __future__ import annotations
 
@@ -208,7 +208,7 @@ async def history_frames_async(cache: ChatStore, store: Any,
     """Newest `limit` messages, oldest-first, tombstones applied.
 
     Valkey is the fast path; when the deleted set is unavailable the durable
-    Postgres rows decide (SHEEP_PEN.md §0.7.5).
+    Postgres rows decide (docs/plans/sheep-pen-brief.md §0.7.5).
     """
     rows = await cache.recent(limit)
     ids = [str(i) for i, _ in rows]

@@ -1,4 +1,6 @@
-# MODELS.md — Pilgrim Dot Farm Radio
+# Models — Pilgrim Dot Farm Radio
+
+> *Formerly `MODELS.md`.*
 
 The models this station runs, what each one does, and where it runs. Five
 production models plus one development model. All endpoints, aliases, and
@@ -101,9 +103,9 @@ this file is the human-readable summary of *which model does what*.
 
 - **HF repo:** [`OpenMOSS-Team/MOSS-SoundEffect-v2.0`](https://huggingface.co/OpenMOSS-Team/MOSS-SoundEffect-v2.0)
   (replaced Stable Audio 3 Small SFX on 2026-10-01).
-- **Role (§4, §5, §SFX.md):** short sound-effect stingers and ambience beds
+- **Role (§4, §5, §docs/systems/sfx.md):** short sound-effect stingers and ambience beds
   layered *over* a host clip (DJ talk, field reports, commercials, liners) as
-  sidecar overlays. **Never** on news — structurally impossible (§0 of SFX.md).
+  sidecar overlays. **Never** on news — structurally impossible (§0 of docs/systems/sfx.md).
 - **Hardware / transport:** `127.0.0.1:8000`, an OpenAI-compatible wrapper
   (no auth, CUDA, bf16). `POST /v1/audio/speech`. Shapes in
   `docs/backends.md` §7.

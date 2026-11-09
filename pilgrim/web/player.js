@@ -24,7 +24,7 @@
   const songArtist = $("song-artist");
   const coverArt = $("cover-art");
   const dlBtn = $("dl-mp3");
-  // Cover art (ALBUM_ART.md Step 8): the placeholder always fills the frame,
+  // Cover art (docs/shipped/album-art.md Step 8): the placeholder always fills the frame,
   // so the PLAY row never moves. Art is cosmetic: a load error falls back
   // silently and never touches playback, the indicator or OFF AIR logic.
   const ART_PLACEHOLDER = "img/fall.jpg";
@@ -63,7 +63,7 @@
   let playing = false;
   let hbTimer = null;
   let session = 0;
-  // Programme epoch/revision (TUI.md §5, §9.2). A revision change means
+  // Programme epoch/revision (docs/systems/console.md §5, §9.2). A revision change means
   // already-published future playback moved (e.g. a listener request was
   // spliced into the next song slot): cancel obsolete future sources and
   // refetch the snapshot instead of playing the stale rows.
@@ -250,7 +250,7 @@
     if (!it.buffer) it.buffer = await decode(it, ctx);
     preloadArt(it);
     // SFX overlays decode in the background and are never awaited: a slow or
-    // failed stinger is skipped, it never delays its host (SFX.md §7.4).
+    // failed stinger is skipped, it never delays its host (docs/systems/sfx.md §7.4).
     for (const ov of it.sfx || []) {
       if (ov._loading) continue;
       ov._loading = true;
@@ -495,13 +495,13 @@
     setCoverArt(it, named);
     setDownload(named ? it : null);
     if (playing) setMediaSession(named ? it : null);
-    // VOTING.md §4/§5: one hook for the rating row. The detail is the song that
+    // docs/plans/voting.md §4/§5: one hook for the rating row. The detail is the song that
     // is AUDIBLE now (audio clock), never the next one; null when nothing is.
     // rating.js ignores repeats of the same airing.
     document.dispatchEvent(new CustomEvent("pd:nowplaying", {
       detail: named ? { epoch, seq: it.seq, media_id: it.media_id,
                         title: it.title, artist: it.artist,
-                        // FIX_RATINGS.md Step 3: the lifetime aggregate rides
+                        // docs/plans/ratings.md Step 3: the lifetime aggregate rides
                         // on the programme row (RADIO §11), so the rating row
                         // can show it the instant the song is audible.
                         rating_count: it.rating_count || 0,
@@ -719,7 +719,7 @@
     }
   }
 
-  /* Revision-aware refresh (TUI.md §5, §9.2). A revision change means the
+  /* Revision-aware refresh (docs/systems/console.md §5, §9.2). A revision change means the
      published future moved — e.g. a listener request was spliced ahead of the
      stock songs. Keep the audible item, cancel the obsolete future sources,
      and reschedule the new snapshot from the audio clock. */
@@ -899,7 +899,7 @@
     clearSongLabel();
     setCoverArt(null, false);
     setDownload(null);
-    // VOTING.md: STOP closes the rating row immediately.
+    // docs/plans/voting.md: STOP closes the rating row immediately.
     document.dispatchEvent(new CustomEvent("pd:nowplaying", { detail: null }));
     btn.textContent = "▶  PLAY"; btn.classList.remove("stop");
     setState("idle"); lctx.clearRect(0, 0, level.width, level.height);

@@ -287,7 +287,7 @@ concatenates (same 24 kHz) before writing the WAV.
 
 ## 5. LiteLLM MCP — the DJ's time tool (`https://litellm.twr.church/mcp`; was `localhost:4000/mcp`)
 
-Since BRAVE.md (2026-11-04) the station uses the LiteLLM MCP server for **one
+Since docs/systems/search.md (2026-11-04) the station uses the LiteLLM MCP server for **one
 tool: `time-get_current_time`**. Web search moved to the Brave Search API
 (§11); the searxng tool on this server is no longer called. Config key:
 `hosts.mcp` (was `hosts.searxng`). Streamable-HTTP transport, probed
@@ -330,7 +330,7 @@ behaviour, not LiteLLM, is why search moved to Brave.
 ## 7. SFX — MOSS-SoundEffect v2.0 (`192.168.68.88:8000`, re-verified 2026-11-01; was tunnelled as `127.0.0.1:8000`)
 
 OpenAI-style wrapper (FastAPI, `/openapi.json` available), no auth, CUDA bf16.
-Replaced Stable Audio 3 Small SFX (`:8500`); `SFX.md` §1–§2 hold the old
+Replaced Stable Audio 3 Small SFX (`:8500`); `docs/systems/sfx.md` §1–§2 hold the old
 model's probe notes.
 
 - `GET /health` → `{"status":"ok","model":"moss-soundeffect-v2.0","device":"cuda",
@@ -564,7 +564,7 @@ unverified.
 
 ## 10. Image generation — FLUX 3 Klein (`127.0.0.1:8084`) (re-probed 2026-11-02)
 
-ALBUM_ART.md Step 1. The server is the M5's own FLUX server
+docs/shipped/album-art.md Step 1. The server is the M5's own FLUX server
 (`/Users/justinherter/local_llm/flux3/serve.py`), FastAPI/uvicorn, loopback
 only. Source read for the behaviour curl can't show (locks, memory guard,
 503 body).
@@ -620,7 +620,7 @@ free by the server's own vm_stat formula)
 | 256×256 | 4 | **1.0 s** | 98 KB |
 | 1024×1024 | 16 | **37.6 s** | 1.79 MB (2.39 MB base64) |
 
-So the 40 s figure in ALBUM_ART.md §0.1 is the 1024×1024/16-step number and
+So the 40 s figure in docs/shipped/album-art.md §0.1 is the 1024×1024/16-step number and
 still holds; a small probe render is ~1 s, cheap enough for tests against the
 real server if ever needed. Output PNG: 8-bit RGB (colortype 2), IHDR at
 bytes 16–24 (`width`, `height` big-endian), signature
@@ -666,7 +666,7 @@ This is a normal back-off, not an error.
 ### The "album" finding, re-verified
 
 Prompting "album cover"/"record"/"vinyl" makes FLUX draw a vinyl disc. The
-ALBUM_ART.md §0.3 template (square full-bleed art + `reads exactly "…"` for
+docs/shipped/album-art.md §0.3 template (square full-bleed art + `reads exactly "…"` for
 title and artist) rendered **exactly correct** text on a real library song:
 title `Biscuits and Gravy (Two-Step Flow)`, artist `The Dirty Gravy Boys`,
 square, no disc, no border. Props that carry writing (box labels, screens)
@@ -676,11 +676,11 @@ produce pseudo-text, so scenes must not contain them.
 
 ## 11. Web search — Brave Search API (`https://api.search.brave.com`), probed 2026-11-04
 
-Direct REST, no MCP (BRAVE.md §0). Auth header `X-Subscription-Token:
+Direct REST, no MCP (docs/systems/search.md §0). Auth header `X-Subscription-Token:
 $BRAVE_SEARCH_KEY`, `Accept: application/json`. Client:
 `pilgrim/pipelines/brave.py` (`BraveSearch.news`, `BraveSearch.web`, tri-state
 `SearchOutcome`). Consumers: the news bulletin (RADIO §6.4) and the
-copied-lyrics screen (PAYMENT.md Step 12b).
+copied-lyrics screen (docs/shipped/payments.md Step 12b).
 
 ### Plan / limits (response headers)
 
@@ -757,7 +757,7 @@ Error shape (observed in the Brave docs, not triggered live): non-200 with
    validated end-to-end (M10).
 
 
-## 12. ElastiCache Valkey Serverless (SCALABILITY.md Step 3)
+## 12. ElastiCache Valkey Serverless (docs/plans/scalability.md Step 3)
 
 Probed 2026-11-05 from the Mac over the bastion's tailnet route with redis-py
 8.1.0 (`redis.Redis.from_url("rediss://pg-cache-....serverless.usw1.cache.amazonaws.com:6379")`):
@@ -777,7 +777,7 @@ Probed 2026-11-05 from the Mac over the bastion's tailnet route with redis-py
 
 ## 13. The Sheep Pen — Valkey chat, CloudWatch audit and the Mac worker
 
-Sources: SHEEP_PEN.md §0.3–§0.7 (dated 2026-11-07) and the AWS ElastiCache
+Sources: docs/plans/sheep-pen-brief.md §0.3–§0.7 (dated 2026-11-07) and the AWS ElastiCache
 serverless supported-commands page
 (https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/SupportedCommands.html).
 
@@ -798,13 +798,13 @@ Today's heartbeat already costs one `SET` per listener every 5 s; the chat
 accept path adds two rate-limit `EVAL`s, one `XADD`, one `SET NX` and one
 `PUBLISH` per message, plus per-task fan-out is local (not per browser). The
 serverless cache is configured at `ecpu_per_second.maximum = 1000` and stays
-there in this release (SHEEP_PEN.md §0.6.7); the EMF metric
+there in this release (docs/plans/sheep-pen-brief.md §0.6.7); the EMF metric
 `chat_messages_per_s` and the per-listener command count are what a later
 fleet/cache sizing exercise uses.
 
 **CloudWatch.** Container stdout already reaches `/aws/ecs/pg-app/app`
 through the execution role, but the deployed **task role** has no `logs:`
-permission (SHEEP_PEN.md §0.4). Chat audit lines (message text, `ip_hash`) go
+permission (docs/plans/sheep-pen-brief.md §0.4). Chat audit lines (message text, `ip_hash`) go
 to the dedicated group `/aws/pilgrim/chat-audit` with boto3 `PutLogEvents`:
 the Mac worker uses `media.aws_profile` (`mac-studio`, which holds `logs:*`
 since 2026-11-07); the Fargate task needs a scoped

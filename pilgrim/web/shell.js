@@ -1,4 +1,4 @@
-/* Pilgrim Dot Farm — app shell (UI_REFACTOR.md, RADIO §9.1).
+/* Pilgrim Dot Farm — app shell (docs/plans/ui-refactor.md, RADIO §9.1).
    Desktop (>= 900 px): a left nav that scrolls #desktop to a pane and
    highlights the pane in view. Phone (<= 899 px): one pane at a time, four
    bottom tabs, and a mini player that mirrors #btn-play / #indicator /

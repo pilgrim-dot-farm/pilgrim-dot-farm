@@ -1,4 +1,4 @@
-"""The Mac-side Sheep Pen worker (SHEEP_PEN.md §0.5.1, §0.7.7).
+"""The Mac-side Sheep Pen worker (docs/plans/sheep-pen-brief.md §0.5.1, §0.7.7).
 
 `python -m pilgrim.chat_worker` runs three things beside the station, in their
 own process and launchd unit: Layer B review (Ornith), Giles dispatches, and
@@ -123,7 +123,7 @@ async def _amain() -> None:
         await run(worker, stop)
     finally:
         # Finish the batch in hand before exiting; the cursor is only written
-        # after every executor write for that batch committed (SHEEP_PEN.md §B.4).
+        # after every executor write for that batch committed (docs/plans/sheep-pen-brief.md §B.4).
         await worker["cache"].close()
         worker["store"].close()
         await worker["llm"].close()

@@ -45,7 +45,7 @@ http {
     limit_req_zone $req_line_key zone=paid_req:10m rate=1r/s;
     limit_req_zone $edge_key zone=paid_status:10m rate=5r/s;
     limit_req_zone $edge_key zone=stripe_hook:10m rate=20r/s;
-    # VOTING.md Step 2: one shared ceiling per edge for vote/rating POSTs. The
+    # docs/plans/voting.md Step 2: one shared ceiling per edge for vote/rating POSTs. The
     # per-listener fairness limit is the origin's (voting/ratings
     # .per_client_per_10min), keyed on the real client IP.
     limit_req_zone $req_line_key zone=votes:10m rate=5r/s;
@@ -116,7 +116,7 @@ http {
         }
 
         # The rotating live-cover pool (RADIO §9.1, §11): a filesystem glob,
-        # never station state, so it does not wake a frozen station (IDLE.md).
+        # never station state, so it does not wake a frozen station (docs/plans/idle.md).
         location = /api/station/cats {
             limit_except GET { deny all; }
             proxy_pass http://pilgrim_origin;
@@ -157,7 +157,7 @@ http {
             error_page 504 = @request_timeout;
         }
 
-        # PAID REQUE$T (PAYMENT.md Step 10.2, Step 12b): exactly four paths.
+        # PAID REQUE$T (docs/shipped/payments.md Step 10.2, Step 12b): exactly four paths.
         location = /api/paid-requests {
             limit_except POST { deny all; }
             limit_req zone=paid_req burst=20 nodelay;
@@ -201,7 +201,7 @@ http {
             error_page 502 504 = @offair;
         }
 
-        # COMMUNITY VOTING (VOTING.md Step 2): exactly two POST-only paths.
+        # COMMUNITY VOTING (docs/plans/voting.md Step 2): exactly two POST-only paths.
         location ~ "^/api/requests/[0-9]+/vote$" {
             limit_except POST { deny all; }
             limit_req zone=votes burst=50 nodelay;

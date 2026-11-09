@@ -1,4 +1,4 @@
-"""Secrets Manager -> environment for the web tier (SCALABILITY.md Step 5,
+"""Secrets Manager -> environment for the web tier (docs/plans/scalability.md Step 5,
 RADIO §12). The reader is injected; no AWS call is ever made (AGENTS §1.2)."""
 from __future__ import annotations
 

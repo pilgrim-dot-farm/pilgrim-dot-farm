@@ -1,4 +1,4 @@
-"""Air-time SFX policy (SFX.md §0, §7.2). Pure: a function of its inputs and
+"""Air-time SFX policy (docs/systems/sfx.md §0, §7.2). Pure: a function of its inputs and
 the injected RNG, so `make sim` stays reproducible (AGENTS rule 3).
 
 A host clip's `meta.sfx` lists the overlays the producer rendered for it:

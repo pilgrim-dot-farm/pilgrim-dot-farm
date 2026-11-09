@@ -1,9 +1,9 @@
 """News pipeline (RADIO.md §6.4): one bounded Brave news search + qwen38
 summarise -> bulletin.
 
-Search is the Brave Search API news endpoint (pipelines/brave.py, BRAVE.md),
+Search is the Brave Search API news endpoint (pipelines/brave.py, docs/systems/search.md),
 freshness = last 24 h. It is best-effort: a degraded or empty search degrades
-to a model-written bulletin (operator decision, BRAVE.md §0) so the tape never
+to a model-written bulletin (operator decision, docs/systems/search.md §0) so the tape never
 stalls. Web text reaches the model quoted as data only.
 """
 from __future__ import annotations

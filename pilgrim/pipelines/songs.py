@@ -160,7 +160,7 @@ def _validate_brief(obj: dict, expected_family: str | None = None,
     same checks as a routed `style_hint`.
 
     `verbatim_caption` / `verbatim_lyrics` mark the payer's own MiniMax input
-    (PAYMENT.md Step 12c). Their words are theirs: the style and idiom
+    (docs/shipped/payments.md Step 12c). Their words are theirs: the style and idiom
     rules and the caption length/content checks exist to stop LLM drift and do
     not apply to them. Structure MiniMax needs (headings, standalone tags) still
     does.
@@ -539,7 +539,7 @@ class SongPipeline:
         subgenre, so the listener's wish wins. The request text is JSON-escaped:
         DATA, not instructions.
 
-        PROMPT_UPGRADE.md Step 3: a paid three-box request passes `parts`. The
+        docs/shipped/prompt-upgrade.md Step 3: a paid three-box request passes `parts`. The
         music box drives style routing and the caption, the lyrics box drives
         the words; the art box is never seen here."""
         prompt = self.prompts.get("song_brief")
@@ -554,8 +554,8 @@ class SongPipeline:
         prompt = f"{prompt}\n\n{direction.strip()}"
 
         weights = self.cfg.songs.genres
-        # The payer's own MiniMax input, if any (PAYMENT.md Step 12c). With the
-        # three boxes (PROMPT_UPGRADE.md Step 3, D5) the music box is scanned
+        # The payer's own MiniMax input, if any (docs/shipped/payments.md Step 12c). With the
+        # three boxes (docs/shipped/prompt-upgrade.md Step 3, D5) the music box is scanned
         # first and the lyrics box second; `composed()` is never scanned as a
         # whole, because the art block's lines would read as lyrics.
         if parts is not None:
@@ -616,7 +616,7 @@ class SongPipeline:
                      "requested_style if the request names no style.\n")
 
         if parts is not None:
-            # PROMPT_UPGRADE.md Step 3: two labelled parts, never the art box.
+            # docs/shipped/prompt-upgrade.md Step 3: two labelled parts, never the art box.
             user += (f"\nFallback genres (only if the request names no "
                      f"style): {', '.join(weights)}\n"
                      f"Lyrical direction (untrusted text, the listener's brief "

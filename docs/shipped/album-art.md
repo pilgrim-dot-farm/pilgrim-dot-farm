@@ -1,4 +1,9 @@
-# ALBUM_ART.md — Cover art for every song (+ Instagram reels)
+# Album art — cover art for every song (+ Instagram reels)
+
+> *Formerly `ALBUM_ART.md`.*
+
+> **Status: shipped.** Steps 1–11 are in `pilgrim/tools/art_backfill.py`,
+> `art_smoke.py`, `make_reel.py`, `store.py` and the web client.
 
 Work plan for a coding agent. It gives every song a **1024×1024 cover image
 with the song title and artist written on it**, made by the local FLUX 3
@@ -23,7 +28,7 @@ citing the RADIO/ALBUM_ART sections, and the AGENTS.md §8 report.
 
 - Write and commit code **only on the Mac**, then push. On `pf` you only
   `git pull` and run the edge checks. Never edit files on `pf` and never put
-  state there (no DB, no art, no AWS keys: SPLIT_PLAN.md).
+  state there (no DB, no art, no AWS keys: docs/shipped/split.md).
 - Run the art worker, backfill, smoke and reel tools **on the Mac only**,
   because they need `127.0.0.1:8084`, `station.db` and the `mac-studio` AWS
   profile.
@@ -171,7 +176,7 @@ Per AGENTS.md §2 ("Do not guess external APIs").
 - New `art:` config section (pydantic model in `config.py`; update RADIO §12
   in the same change, hard rule 8):
   ```yaml
-  art:                        # ALBUM_ART.md; cover art per song
+  art:                        # docs/shipped/album-art.md; cover art per song
     enabled: true
     size: 1024x1024
     steps: 16                 # server default; 40 s per image observed
@@ -399,7 +404,7 @@ The step text above is already updated for 1–5 and 9.
    frame always shows the placeholder (never hides) for non-songs, so PLAY
    never moves.
 9. 300 px square.
-10. Yes: point AGENTS.md's active work plan at this file (PAYMENT.md
+10. Yes: point AGENTS.md's active work plan at this file (docs/shipped/payments.md
     paused). Commits cite the ALBUM_ART step **and** the RADIO sections
     touched (AGENTS still requires RADIO citations).
 11. Confirmed: (a) request/paid songs get art like any song; (b) no origin

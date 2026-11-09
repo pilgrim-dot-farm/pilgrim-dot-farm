@@ -1,4 +1,4 @@
-"""PAYMENT.md Step 12b: the copied-lyrics screen (pure matching + fakes).
+"""docs/shipped/payments.md Step 12b: the copied-lyrics screen (pure matching + fakes).
 
 The "published" song here is invented; the result shapes mirror what the live
 Brave web-search probe returned (title / description / url, lyric sites).

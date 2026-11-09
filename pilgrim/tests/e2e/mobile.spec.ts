@@ -1,4 +1,4 @@
-/** Phone shell (UI_REFACTOR.md Step 3, RADIO §9.1/§9.2) on one standard phone
+/** Phone shell (docs/plans/ui-refactor.md Step 3, RADIO §9.1/§9.2) on one standard phone
  *  (iPhone 14 metrics in Chromium). Fakes only (e2e_server). */
 import { test, expect, type Page } from "@playwright/test";
 

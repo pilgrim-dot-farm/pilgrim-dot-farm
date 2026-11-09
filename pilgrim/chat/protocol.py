@@ -1,4 +1,4 @@
-"""The Sheep Pen wire protocol (SHEEP_PEN.md §0.7.6; RADIO §11).
+"""The Sheep Pen wire protocol (docs/plans/sheep-pen-brief.md §0.7.6; RADIO §11).
 
 JSON text frames, one object each, `type` first. Client frames are parsed into
 strict pydantic models (`extra="forbid"`); server frames are plain dicts built
@@ -6,7 +6,7 @@ by the helpers here so both the web tier and the e2e server emit exactly the
 same shape.
 
 No frame sent to a browser ever carries a user id, session/token hash, IP or
-IP hash (SHEEP_PEN.md §0.7.6).
+IP hash (docs/plans/sheep-pen-brief.md §0.7.6).
 """
 from __future__ import annotations
 

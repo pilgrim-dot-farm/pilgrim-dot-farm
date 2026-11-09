@@ -1,4 +1,4 @@
-"""Fake Stripe for tests (PAYMENT.md §2.3). Never touches the network.
+"""Fake Stripe for tests (docs/shipped/payments.md §2.3). Never touches the network.
 
 Same surface as `pilgrim.payments.StripeClient` for the calls the app makes,
 plus `pay()` / `expire()` which return a *correctly signed* webhook event so

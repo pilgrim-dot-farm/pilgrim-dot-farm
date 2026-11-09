@@ -1,6 +1,6 @@
 # Bastion (`pf2`, was `pf`) — tailnet subnet router + LiteLLM relay
 
-The old EC2 edge host. Two jobs now (SCALABILITY.md Step 8 and the Step 5
+The old EC2 edge host. Two jobs now (docs/plans/scalability.md Step 8 and the Step 5
 addendum); the edge nginx and `make edge-up` are retired.
 
 1. **Subnet router** for the VPC CIDR, so the Mac reaches RDS and Valkey

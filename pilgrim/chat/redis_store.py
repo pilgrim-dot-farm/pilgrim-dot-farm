@@ -1,4 +1,4 @@
-"""Async Valkey access for the Sheep Pen (SHEEP_PEN.md §0.5.3, §0.7).
+"""Async Valkey access for the Sheep Pen (docs/plans/sheep-pen-brief.md §0.5.3, §0.7).
 
 One `redis.asyncio.Redis` client and one `pubsub()` per web task, built from
 the same `REDIS_URL`/`cache.*` settings as `hotstate.connect`. `HotState` stays
@@ -7,7 +7,7 @@ sync and untouched.
 Every chat key is `pilgrim:{chat}:<name>` — `cache.key_prefix` plus a literal
 `{chat}` hash tag, so a Lua script or any multi-key command stays in one slot
 (Valkey Serverless is cluster mode; CROSSSLOT otherwise). Only exact channel
-names are used: serverless has no `PSUBSCRIBE` (SHEEP_PEN.md §0.4).
+names are used: serverless has no `PSUBSCRIBE` (docs/plans/sheep-pen-brief.md §0.4).
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pilgrim.config import Config
 log = logging.getLogger("radio.chat.redis")
 
 # Single-key INCR + first-hit EXPIRE, atomic. A crash can never leave an
-# immortal rate-limit counter (SHEEP_PEN.md §9).
+# immortal rate-limit counter (docs/plans/sheep-pen-brief.md §9).
 RATE_SCRIPT = """
 local n = redis.call('INCR', KEYS[1])
 if n == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end

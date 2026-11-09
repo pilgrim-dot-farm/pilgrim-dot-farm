@@ -91,10 +91,10 @@ log = logging.getLogger("radio.server")
 
 class PublicSurface:
     """What the public routes need from whoever serves them (RADIO §11): the
-    station process and the Fargate web tier (SCALABILITY.md Step 5,
+    station process and the Fargate web tier (docs/plans/scalability.md Step 5,
     `pilgrim/web_app.py`) both inherit this. Client identity through the
     trusted-proxy chain (RADIO §14), the visitor counter, and the Stripe
-    setup (PAYMENT.md). Requires `cfg`, `db` and `clock` on the instance;
+    setup (docs/shipped/payments.md). Requires `cfg`, `db` and `clock` on the instance;
     the attributes below are what `_add_public_routes` reads."""
 
     cfg: Config
@@ -159,7 +159,7 @@ class PublicSurface:
         are ignored so a spoof cannot reach the visitor counter."""
         peer = request.client.host if (request.client and request.client.host) else None
         if self.cfg.visitors.is_trusted(self._canonical_ip(peer)):
-            # Behind Cloudflare -> ALB (SCALABILITY.md Step 5) the browser IP
+            # Behind Cloudflare -> ALB (docs/plans/scalability.md Step 5) the browser IP
             # is CF-Connecting-IP; X-Forwarded-For may start with whatever the
             # browser sent, since Cloudflare appends rather than replaces.
             header = (request.headers.get("cf-connecting-ip")
@@ -198,9 +198,9 @@ class PublicSurface:
             return {"paid_requests": 0, "total_requests": 0}
 
     def _setup_payments(self, cfg: Config) -> None:
-        """Stripe wiring shared by the station and the web tier (PAYMENT.md).
+        """Stripe wiring shared by the station and the web tier (docs/shipped/payments.md).
         Needs `self.db` and `self.clock`; never logs a key."""
-        # Paid priority requests (PAYMENT.md). Off unless config + keys agree.
+        # Paid priority requests (docs/shipped/payments.md). Off unless config + keys agree.
         # The keys come from the environment or the repo-root .env fallback
         # (config.stripe_env), so a plain `python -m pilgrim.server` restart
         # does not silently close payments (Step 12 regression, Oct 31).
@@ -228,7 +228,7 @@ class PublicSurface:
         orphaned = self.db.abandon_checking_requests()
         if orphaned:
             log.info("payment.abandoned_checking", extra={"count": orphaned})
-        # Operator comp secret (PAYMENT.md Step 12b). Never logged or stored.
+        # Operator comp secret (docs/shipped/payments.md Step 12b). Never logged or stored.
         self.override_token = load_secret(PAID_OVERRIDE_ENV)
 
 
@@ -248,7 +248,7 @@ class Station(PublicSurface):
         self.kokoro = KokoroClient(cfg)
         self.prompts = _load_prompts(cfg)
         self.moderator = Moderation(cfg, self.llm, prompts=self.prompts)
-        # One Brave client for news + the copyright screen (BRAVE.md).
+        # One Brave client for news + the copyright screen (docs/systems/search.md).
         self.search = BraveSearch(cfg, load_brave_key())
         self.copyright = CopyrightScreen(cfg, self.search)
         self.voice = VoicePipeline(cfg, self.llm, self.kokoro, self.db, self.media_dir,
@@ -269,19 +269,19 @@ class Station(PublicSurface):
         # with the listener map; transitions are logged (`listener.telemetry`)
         # so background/lock behaviour on phones is visible after the fact.
         self._player_tel: dict[str, dict] = {}
-        # IDLE.md (RADIO §3): the playhead freezes and production pauses when
+        # docs/plans/idle.md (RADIO §3): the playhead freezes and production pauses when
         # nobody has been listening for `idle.after_s`. Policy lives here; the
         # mechanics are Scheduler.freeze()/thaw().
         self._idle_since: float | None = None
         self._last_listener_at: float = self.clock.now()
         self.idle_wakes = 0
         self.selector = RandomSelector(self.rng, cfg)
-        self.epoch = uuid.uuid4().hex[:12]  # changes on restart (TUI.md §5)
+        self.epoch = uuid.uuid4().hex[:12]  # changes on restart (docs/systems/console.md §5)
         self.scheduler = Scheduler(cfg, self.db, self.selector, self.clock, self.rng,
                                    epoch=self.epoch)
         self.phrases = PhraseManager(cfg, self.db, self.voice, self.media_dir,
                                      scheduler=self.scheduler)
-        # Close the phrase lifecycle (RADIO §5.5; TUI.md §6): when a committed
+        # Close the phrase lifecycle (RADIO §5.5; docs/systems/console.md §6): when a committed
         # phrase row falls behind the playhead the scheduler marks the job
         # 'aired'; the TTL in PhraseManager._expire handles the never-placed
         # rest. (Hook set post-construction: phrases needs the scheduler,
@@ -292,7 +292,7 @@ class Station(PublicSurface):
             self.clock, prompts=_load_prompts(cfg), media_dir=self.media_dir,
             api_key=api_key, rng=self.rng, news_pipeline=self.news, sfx=self.sfx,
             idle=self.is_idle)
-        # Hot state in Valkey (SCALABILITY.md Step 3; RADIO §14). Enabled by
+        # Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §14). Enabled by
         # REDIS_URL; the client connects lazily so construction never fails.
         # Published from hot_loop() (own task, hard rule 1), never from playout.
         self.hot: HotState | None = None
@@ -305,10 +305,10 @@ class Station(PublicSurface):
                 log.info("hotstate.enabled", extra={"publish_s": cfg.cache.publish_s})
             except Exception as e:  # noqa: BLE001 - no redis lib / bad URL: degrade
                 log.warning("hotstate.disabled", extra={"error": str(e)[:300]})
-        self._setup_payments(cfg)  # PAYMENT.md; shared with the web tier (PublicSurface)
+        self._setup_payments(cfg)  # docs/shipped/payments.md; shared with the web tier
         self._tasks: list = []
         self._http = httpx.AsyncClient(timeout=4.0)
-        # Cover art (ALBUM_ART.md Step 5): its own task, never inside playout.
+        # Cover art (docs/shipped/album-art.md Step 5): its own task, never inside playout.
         # A song without art airs exactly as today (hard rule 1).
         self.art_worker: ArtWorker | None = None
         # S3 publishing (RADIO §8.4): its own task, never inside playout.
@@ -365,7 +365,7 @@ class Station(PublicSurface):
         pool = getattr(self.songs, "pool", None)
         st["music_slots"] = pool.slots() if pool is not None else {}
         # Brave is metered: report the last real search instead of probing
-        # (BRAVE.md Step 6). True until a call degrades, False without a key.
+        # (docs/systems/search.md Step 6). True until a call degrades, False without a key.
         st["search"] = self.search.healthy
         st["search_last"] = dict(self.search.last)
         try:
@@ -432,11 +432,11 @@ class Station(PublicSurface):
             "song_realtime": round(self.songs.generation_rate, 2),
             "art": self.art_health(),
             "time": time.time(),
-            # IDLE.md D10: operator visibility. `on_air` stays true while frozen
+            # docs/plans/idle.md D10: operator visibility. `on_air` stays true while frozen
             # (coverage > 0), so PLAY is never disabled by idle.
-            # SCALABILITY.md Step 2: which store engine this process opened (RADIO §14)
+            # docs/plans/scalability.md Step 2: which store engine this process opened (RADIO §14)
             "db": {**db_env_summary(), "engine": self.db.dialect},
-            # SCALABILITY.md Step 3: the hot-state publisher (RADIO §14)
+            # docs/plans/scalability.md Step 3: the hot-state publisher (RADIO §14)
             "cache": self.hot.summary() if self.hot is not None else {"enabled": False},
             "idle": {"idle": self.is_idle(),
                      "since": self._idle_since,
@@ -463,7 +463,7 @@ class Station(PublicSurface):
         else:
             items = scheduler.store.program_after(after_seq)
             start_offset = 0.0
-        # FIX_RATINGS.md Step 2 (VOTING.md V10): every song row carries its
+        # docs/plans/ratings.md Step 2 (docs/plans/voting.md V10): every song row carries its
         # lifetime aggregate so the client can show it the instant the song
         # is audible. One batch query; non-songs and disabled ratings send 0/null.
         song_ids = [it["item_id"] for it in items if it["type"] == "song"]
@@ -511,21 +511,21 @@ class Station(PublicSurface):
                 "current_art_url": art,
                 "current_offset_s": round(offset, 3),
                 "prepared_cutover": None, "listeners": self.active_listeners(),
-                # IDLE.md D10: public clients can show the freeze (PLAY is never
+                # docs/plans/idle.md D10: public clients can show the freeze (PLAY is never
                 # disabled by it: on_air stays true while coverage > 0).
                 "idle": self.is_idle(),
-                # VOTING.md: the on-air song's rating window + lifetime aggregate
+                # docs/plans/voting.md: the on-air song's rating window + lifetime aggregate
                 # (`null` when ratings are disabled). Voter-independent, so the
                 # shared max-age=1 cache stays correct.
                 "rating": self._public_rating(seq)}
 
-    # ------------------------------------------------------------- idle (IDLE.md)
+    # ------------------------------------------------------------- idle (docs/plans/idle.md)
     def is_idle(self) -> bool:
         """True while the playhead is frozen (no listeners for idle.after_s)."""
         return self.scheduler.frozen
 
     def wake(self, reason: str) -> None:
-        """Thaw the frozen station. Synchronous by design (IDLE.md D2/rule 1):
+        """Thaw the frozen station. Synchronous by design (docs/plans/idle.md D2/rule 1):
         it only touches already-rendered inventory, so the request that woke it
         returns a playable programme in the same response. No-op when awake.
 
@@ -562,7 +562,7 @@ class Station(PublicSurface):
                                         "coverage_s": round(self.scheduler.coverage(), 1)})
 
     async def idle_loop(self) -> None:
-        """Freeze when nobody is listening (IDLE.md D1); wake is immediate, on
+        """Freeze when nobody is listening (docs/plans/idle.md D1); wake is immediate, on
         the program/heartbeat/admin request, never on a poll. server.py may use
         asyncio.sleep; the scheduler may not (hard rule 3)."""
         while True:
@@ -590,7 +590,7 @@ class Station(PublicSurface):
         prev = self._previous_row()
         if prev is not None:
             # The published rows start at the on-air row, so the web tier's
-            # rating grace (VOTING.md V8; FIX_RATINGS.md Step 1) also needs the
+            # rating grace (docs/plans/voting.md V8; docs/plans/ratings.md Step 1) also needs the
             # row that just ended. Cache document only: the web tier strips it
             # from the HTTP response, so RADIO §11 is unchanged.
             program["prev"] = prev
@@ -610,7 +610,7 @@ class Station(PublicSurface):
             self.wake(f"cache:{result['wake']}")
 
     async def hot_loop(self) -> None:
-        """Publish hot state every `cache.publish_s` (SCALABILITY.md Step 3).
+        """Publish hot state every `cache.publish_s` (docs/plans/scalability.md Step 3).
         The network call runs in a worker thread so a slow cache never stalls
         the event loop; a failure is logged by HotState and retried next tick."""
         assert self.hot is not None
@@ -642,7 +642,7 @@ class Station(PublicSurface):
                 "type": r["type"], "duration_s": float(r["duration_s"])}
 
     def _public_rating(self, seq: int | None) -> dict | None:
-        """The on-air item's rating window + lifetime aggregate (VOTING.md V10).
+        """The on-air item's rating window + lifetime aggregate (docs/plans/voting.md V10).
         Zeroes when the on-air row is not a song; null when ratings are off."""
         if not self.cfg.ratings.enabled:
             return None
@@ -720,7 +720,7 @@ class Station(PublicSurface):
             self._last_listener_at = self.clock.now()
             if self.hot is not None and player_id not in self.hot._pending_players:
                 self.hot.queue_player(player_id, {})
-            # IDLE.md D2: a heartbeat is a listener; wake before the handler
+            # docs/plans/idle.md D2: a heartbeat is a listener; wake before the handler
             # reads anything so the response reflects the thawed programme.
             self.wake("heartbeat")
 
@@ -734,7 +734,7 @@ class Station(PublicSurface):
     # ---------------------------------------------------------------- DJ (§11)
     def dj_state(self) -> dict:
         """Read-only console state — computed in-process, no backend probes
-        (TUI.md §4)."""
+        (docs/systems/console.md §4)."""
         st = self.scheduler
         on_air = self.on_air
         current = None
@@ -790,7 +790,7 @@ class Station(PublicSurface):
 
     def dj_songs(self, q: str | None, sort: str, direction: str,
                  cursor: str | None, limit: int) -> dict:
-        """Read-only song catalogue with advisory eligibility (TUI.md §4)."""
+        """Read-only song catalogue with advisory eligibility (docs/systems/console.md §4)."""
         cur = self._decode_cursor(cursor)
         rows, nxt, cat_rev = self.db.song_catalogue(q, sort, direction, cur, limit)
         floor = float(min(self.cfg.playout.song_min_spacing_s))
@@ -849,7 +849,7 @@ class RequestIn(BaseModel):
 
 
 class PaidRequestIn(BaseModel):
-    """`{lyrics, music, art}` (PROMPT_UPGRADE.md) or the legacy `{text}`.
+    """`{lyrics, music, art}` (docs/shipped/prompt-upgrade.md) or the legacy `{text}`.
     `promo` is the operator comp code from its own UI box (2026-11-08)."""
     text: str | None = None
     lyrics: str | None = None
@@ -892,10 +892,10 @@ def _fallback_summary(text: str, max_length: int) -> str:
 
 async def _summarise_paid(station: PublicSurface, text: str, max_length: int,
                           fallback_text: str | None = None) -> str:
-    """One-line board label for a paid request (PAYMENT.md §3.4). LLM first,
+    """One-line board label for a paid request (docs/shipped/payments.md §3.4). LLM first,
     deterministic fallback when the model fails; never blocks the request.
 
-    PROMPT_UPGRADE.md Step 2: the LLM sees lyrics + music only (never art), and
+    docs/shipped/prompt-upgrade.md Step 2: the LLM sees lyrics + music only (never art), and
     the fallback label comes from the subject text."""
     fallback = _fallback_summary(fallback_text if fallback_text is not None
                                  else text, max_length)
@@ -946,7 +946,7 @@ async def _backfill_paid_summaries(station: Station) -> None:
 
 
 def _normalise_paid(text: str) -> str:
-    """PAYMENT.md Step 4.2: CRLF -> LF, rstrip lines, strip, 3+ blank -> 2.
+    """docs/shipped/payments.md Step 4.2: CRLF -> LF, rstrip lines, strip, 3+ blank -> 2.
     The one implementation lives in pipelines/request_parts.py."""
     return normalise_paid(text)
 
@@ -985,9 +985,9 @@ async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
                            comped: bool, parts: RequestParts | None = None) -> None:
     """Moderation -> copyright screen -> summary -> ready (or comped into the
     queue). Runs after the POST has answered; the client polls the stage
-    (PAYMENT.md Step 12b). Any crash rejects the row: nobody is charged.
+    (docs/shipped/payments.md Step 12b). Any crash rejects the row: nobody is charged.
 
-    PROMPT_UPGRADE.md Step 2 (D4): the moderator sees the composed text; the
+    docs/shipped/prompt-upgrade.md Step 2 (D4): the moderator sees the composed text; the
     copied-lyrics screen and the board summary never see the art part."""
     db = station.db
     cfg = station.cfg
@@ -1148,7 +1148,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
 
     def _board() -> dict:
         """The public board, with the voting fields and bury policy applied
-        (VOTING.md §1/§2). Every handler that returns the board uses this so a
+        (docs/plans/voting.md §1/§2). Every handler that returns the board uses this so a
         mixed-version deploy cannot show a row without its score."""
         return station.db.request_board(
             cfg.requests.queue_cap, cfg.requests.max_length,
@@ -1165,7 +1165,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     async def program(after_seq: int | None = Query(default=None, ge=0),
                       epoch: str | None = Query(default=None, max_length=64),
                       revision: int | None = Query(default=None, ge=0)):
-        # IDLE.md D2: PLAY is a program fetch with no cursor. Wake first, then
+        # docs/plans/idle.md D2: PLAY is a program fetch with no cursor. Wake first, then
         # build the response, so the waking request already gets a playable
         # programme (thaw only touches rendered inventory: hard rule 1).
         station.wake("program")
@@ -1182,7 +1182,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     async def station_cats():
         """The rotating live-cover pool (RADIO §9.1, §11). Reads the
         filesystem only, never station state: it does not wake a frozen
-        station (IDLE.md)."""
+        station (docs/plans/idle.md)."""
         return JSONResponse({"cats": cat_manifest(cfg)},
                             headers={"Cache-Control": "no-store"})
 
@@ -1191,7 +1191,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         # item_id comes from the client as media_id (the inventory id); seq is
         # the program position (OVERHAUL 2.5 — they used to be conflated). The
         # revision-aware fields (player_id, observed_epoch/revision, readiness)
-        # are accepted and ignored until the browser upgrade lands (TUI.md §9.2),
+        # are accepted and ignored until the browser upgrade lands (docs/systems/console.md §9.2),
         # except player_id, which feeds the live listener count (RADIO §14).
         station.touch_listener(payload.player_id)
         station.record_player_telemetry(payload.player_id, payload)
@@ -1234,7 +1234,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
             raise HTTPException(422, "request empty or too long")
         if _leaks_secret(text, _override_secret(station)):
             # The comp secret pasted into the free line: never stored, logged,
-            # moderated or put on the board (PAYMENT.md Step 12b).
+            # moderated or put on the board (docs/shipped/payments.md Step 12b).
             return {"ok": False, "rejected": True, "reason": _LEAK_REASON,
                     "paid_enabled": station.payments_active}
         if station.db.waiting_free_requests() >= cfg.requests.free_queue_max:
@@ -1297,12 +1297,12 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                              "voting_enabled": cfg.voting.enabled},
                             headers={"Cache-Control": "public, max-age=2"})
 
-    # ------------------------------------------- community voting (VOTING.md §2)
+    # ------------------------------------------- community voting (docs/plans/voting.md §2)
     @app.post("/api/requests/{request_id}/vote")
     async def vote_request(request_id: int, payload: voting.VoteIn,
                            request: Request):
         """+1/-1/0 (retract) on a free request. POST only: the gateway has no
-        limit_req zone for PUT/DELETE (VOTING.md §0.1)."""
+        limit_req zone for PUT/DELETE (docs/plans/voting.md §0.1)."""
         if not cfg.voting.enabled:
             raise HTTPException(404, "not found")
         if _vote_rate_limited(request):
@@ -1316,7 +1316,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     @app.post("/api/station/rating")
     async def rate_song(payload: voting.RatingIn, request: Request):
         """Five turkeys for the on-air song. The window is server-authoritative
-        (VOTING.md V8); the client only hides the control."""
+        (docs/plans/voting.md V8); the client only hides the control."""
         if not cfg.ratings.enabled:
             raise HTTPException(404, "not found")
         if _rating_rate_limited(request):
@@ -1331,11 +1331,11 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     @app.post("/api/paid-requests")
     async def submit_paid_request(payload: PaidRequestIn, request: Request,
                                   background: BackgroundTasks):
-        """PAYMENT.md Step 12b: prefilter now, then moderation + copyright in
+        """docs/shipped/payments.md Step 12b: prefilter now, then moderation + copyright in
         the background; the client polls the stage and asks for Checkout
         only once the row is `ready`.
 
-        PROMPT_UPGRADE.md Step 2: `{lyrics, music, art}` (both lyrics and
+        docs/shipped/prompt-upgrade.md Step 2: `{lyrics, music, art}` (both lyrics and
         music required) or the legacy `{text}`.
         """
         if _paid_rate_limited(request):
@@ -1544,7 +1544,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
 
     # ---- DJ console (RADIO §11): read-only behind the operator token. Control
     # mutations (skip/queue/phrases) land with the scheduler command service and
-    # additionally require dj.enabled (TUI.md §7). ----
+    # additionally require dj.enabled (docs/systems/console.md §7). ----
     @app.post("/api/admin/dj/play", dependencies=[Depends(require_dj)])
     async def dj_play(payload: PlayNextIn):
         """Operator: air this song next (ALBUM_ART demo / TUI §5).
@@ -1557,7 +1557,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         if not cfg.dj.enabled:
             raise HTTPException(403, detail={
                 "code": "dj_disabled", "detail": "DJ control is disabled"})
-        # IDLE.md D2: an operator mutation is a human presence; wake first so
+        # docs/plans/idle.md D2: an operator mutation is a human presence; wake first so
         # the splice lands in a running programme, not a frozen window.
         station.wake("dj")
         seq = station.scheduler.place_song_next(int(payload.media_id))
@@ -1570,7 +1570,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
 
     @app.get("/api/admin/voting", dependencies=[Depends(require_dj)])
     async def admin_voting(limit: int = Query(default=100, ge=1, le=500)):
-        """Audit only (VOTING.md §2): recent votes and ratings, plus the
+        """Audit only (docs/plans/voting.md §2): recent votes and ratings, plus the
         currently buried free rows. Never exposes voter ids or IPs."""
         threshold = cfg.voting.bury_threshold
         return {"votes": station.db.recent_votes(limit),
@@ -1581,7 +1581,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
     @app.get("/api/admin/dj/state", response_model=dj.DjState,
              dependencies=[Depends(require_dj)])
     async def dj_state():
-        """Read-only console state; no backend probes (TUI.md §4)."""
+        """Read-only console state; no backend probes (docs/systems/console.md §4)."""
         return station.dj_state()
 
     @app.get("/api/admin/dj/songs", response_model=dj.DjSongPage,
@@ -1591,13 +1591,13 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
                        direction: dj.SortDirection = "asc",
                        cursor: str | None = Query(default=None, max_length=512),
                        limit: int = Query(default=100, ge=1, le=500)):
-        """Sortable/searchable song catalogue (TUI.md §2, §4)."""
+        """Sortable/searchable song catalogue (docs/systems/console.md §2, §4)."""
         return station.dj_songs(q, sort, direction, cursor, limit)
 
     @app.get("/api/admin/dj/character", response_model=dj.CharacterInfo,
              dependencies=[Depends(require_dj)])
     async def dj_character():
-        """Operator character + setup readiness + unused voices (TUI.md §6).
+        """Operator character + setup readiness + unused voices (docs/systems/console.md §6).
         The voice list is the one live probe here; failure is surfaced as an
         explicit error, never a silent empty pick."""
         ch = cfg.dj.character
@@ -1633,7 +1633,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
     @app.post("/api/admin/dj/phrases/validate", response_model=dj.ValidateResponse,
               dependencies=[Depends(require_dj)])
     async def phrases_validate(payload: dj.PhraseValidateRequest):
-        """Pure cleaned-text validation; no synthesis or scheduling (TUI.md §6)."""
+        """Pure cleaned-text validation; no synthesis or scheduling (docs/systems/console.md §6)."""
         return station.phrases.validate(payload.character_id, payload.text)
 
     @app.post("/api/admin/dj/phrases", response_model=dj.PhraseSubmitResponse,
@@ -1661,7 +1661,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
     @app.get("/api/admin/dj/phrases/{job_id}", response_model=dj.PhraseJob,
              dependencies=[Depends(require_dj)])
     async def phrases_job(job_id: int):
-        """Phrase job render stage and finished clip (TUI.md §6)."""
+        """Phrase job render stage and finished clip (docs/systems/console.md §6)."""
         job = station.phrases.get(job_id)
         if not job:
             raise HTTPException(404, detail={"code": "no_such_job",
@@ -1673,7 +1673,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         status: str = Query(default="failed,awaiting_payment,abandoned,queued"),
         limit: int = Query(default=50, ge=1, le=200),
     ):
-        """Paid request audit + money-without-a-request events (PAYMENT.md §9)."""
+        """Paid request audit + money-without-a-request events (docs/shipped/payments.md §9)."""
         statuses = [s for s in status.split(",") if s]
         keys = ("id", "status", "priority", "created_at", "paid_at",
                 "amount_cents", "currency", "payment_intent_id",
@@ -1684,7 +1684,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
             "mismatches": station.db.mismatch_events(50),
         }
 
-    # ---- The Sheep Pen (SHEEP_PEN.md §0.5.2, §10). These routes exist only on
+    # ---- The Sheep Pen (docs/plans/sheep-pen-brief.md §0.5.2, §10). These routes exist only on
     # the Mac's loopback admin listener, behind require_dj. They act by writing
     # to Valkey (events stream + PUBLISH), which every Fargate task observes.
     # The web tier has no admin routes (_add_api_404 answers 404). ----
@@ -1736,7 +1736,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
 
     @app.get("/api/admin/chat/state", dependencies=[Depends(require_dj)])
     async def admin_chat_state():
-        """Backlog, cursor, switches and recent decisions (SHEEP_PEN.md §10)."""
+        """Backlog, cursor, switches and recent decisions (docs/plans/sheep-pen-brief.md §10)."""
         await _chat_actions()
         cache: ChatStore = _chat["cache"]
         try:

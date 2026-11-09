@@ -1,4 +1,9 @@
-# SONG_GEN_CONCURRENCY_PLAN.md — concurrent song generation (rev 2)
+# Song concurrency — concurrent song generation (rev 2)
+
+> *Formerly `SONG_GEN_CONCURRENCY_PLAN.md`.*
+
+> **Status: shipped.** Covered by `pilgrim/tests/test_song_concurrency.py`; the
+> slot ceiling and submission staggering are recorded in docs/backends.md §2b.
 
 MiniMax Music 3 now has **three deployments** registered in the LiteLLM proxy
 under one model group. Today the station generates songs one at a time: a

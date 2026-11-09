@@ -1,4 +1,4 @@
-"""The moderation/admin executor (SHEEP_PEN.md §6 B.3).
+"""The moderation/admin executor (docs/plans/sheep-pen-brief.md §6 B.3).
 
 One code path for every chat action, whoever asked for it (Layer B worker or an
 operator admin route): validate → durable Postgres audit row → `events` stream
@@ -8,7 +8,7 @@ doubles a ban, while a later legitimate ban/unban has a different id.
 
 Internal Pub/Sub envelopes may carry a target `user_id`/`ip_hash`; the web tier
 filters them before fan-out, and no frame sent to a browser ever carries one
-(SHEEP_PEN.md §0.7.6).
+(docs/plans/sheep-pen-brief.md §0.7.6).
 """
 from __future__ import annotations
 
@@ -125,7 +125,7 @@ class ChatActions:
                        severity: int = 2, confidence: float = 1.0,
                        message_id: str | None = None,
                        until: float | None = None) -> float:
-        """Ladder ban (SHEEP_PEN.md §B.3): 10 min → 1 h → 24 h by bans_30d."""
+        """Ladder ban (docs/plans/sheep-pen-brief.md §B.3): 10 min → 1 h → 24 h by bans_30d."""
         now = self.clock.wall()
         if until is None:
             count = self.store.bans_since("user", user_id, _iso(now - 86400))
@@ -158,7 +158,7 @@ class ChatActions:
     async def _maybe_ip_ban(self, user_id: str, *, actor: str,
                             reason: str) -> None:
         """Deterministic escalation: N distinct banned users from one IP in
-        24 h bans the IP for `ip_ban_s` (SHEEP_PEN.md §B.3)."""
+        24 h bans the IP for `ip_ban_s` (docs/plans/sheep-pen-brief.md §B.3)."""
         user = self.store.chat_user(user_id) or {}
         iph = user.get("ip_hash")
         if not iph:
@@ -195,7 +195,7 @@ class ChatActions:
     async def ban_ip(self, ip_hash: str, reason: str, *, actor: str,
                      seconds: int | None = None) -> float:
         """Operator IP ban. A duration is a temporary ban; no duration is a
-        long-lived one (the admin's call, SHEEP_PEN.md §10)."""
+        long-lived one (the admin's call, docs/plans/sheep-pen-brief.md §10)."""
         now = self.clock.wall()
         until = now + (seconds if seconds is not None else 10 * 365 * 86400)
         action_id = f"ban:ip:{ip_hash}:{int(until)}"

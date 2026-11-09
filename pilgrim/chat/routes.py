@@ -1,10 +1,10 @@
-"""The Sheep Pen HTTP + WebSocket surface (SHEEP_PEN.md §0.7.2–7; RADIO §11).
+"""The Sheep Pen HTTP + WebSocket surface (docs/plans/sheep-pen-brief.md §0.7.2–7; RADIO §11).
 
 Registered from `web_app.create_web_app` and the fakes e2e server, before the
 HTTP-only `_add_api_404` catch-all. The Mac station process serves none of
 these: it serves `/api/admin/chat/*` only.
 
-Accept path (SHEEP_PEN.md §0.7.3): Layer A → ban checks → rate limits → XADD →
+Accept path (docs/plans/sheep-pen-brief.md §0.7.3): Layer A → ban checks → rate limits → XADD →
 Postgres insert → PUBLISH → audit → ack. A message is durable before it is
 announced; a failed publish is covered by the subscriber's resync.
 """
@@ -47,7 +47,7 @@ class _Ban(Exception):
 async def _ban_until(cache: ChatStore, store: Store, scope: str, target: str,
                      wall: float) -> float | None:
     """Ban expiry from Valkey, falling back to Postgres when the key is gone
-    (cache failover must not unban anyone; SHEEP_PEN.md §9)."""
+    (cache failover must not unban anyone; docs/plans/sheep-pen-brief.md §9)."""
     try:
         raw = await cache.get(f"ban:{scope}:{target}")
         if raw:
@@ -282,7 +282,7 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
                        audit: AuditLog | NullAudit, clock: Clock,
                        send: Any, actions: ChatActions) -> None:
     """One message through the accept path. Nothing is written until Layer A,
-    bans and rate limits pass (SHEEP_PEN.md §0.7.3)."""
+    bans and rate limits pass (docs/plans/sheep-pen-brief.md §0.7.3)."""
     uid = user["user_id"]
     wall = clock.wall()
     # The socket may have connected before the name claim (the client connects

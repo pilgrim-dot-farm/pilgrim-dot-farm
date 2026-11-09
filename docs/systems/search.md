@@ -1,4 +1,6 @@
-# BRAVE.md — Web search moves from searxng to the Brave Search API
+# Web search — Brave Search API
+
+> *Formerly `BRAVE.md`.*
 
 Status: **shipped 2026-11-04** (Steps 1–8). Kept as the reference for the
 search client, the config keys it added, and why searxng is gone.

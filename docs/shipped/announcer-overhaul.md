@@ -1,4 +1,10 @@
-# ANNOUNCER_OVERHAUL_PROPOSITION — discourse, clock accuracy, self-promotion
+# Announcer overhaul — discourse, clock accuracy, self-promotion
+
+> *Formerly `ANNOUNCER_OVERHAUL_PROPOSITION.md`.*
+
+> **Status: shipped 2026-11-01.** The plan and rationale below are kept as
+> history; RADIO.md §4, §5.2, §5.3, §6.1, §6.3, §10, §11, §12 and §15 carry the
+> normative behaviour.
 
 > **2026-11-01.** Diagnosis of the station's between-song discourse plus a
 > proposed overhaul. **No production behaviour is changed by this document.**
@@ -928,7 +934,7 @@ station:
   never a name or email (AGENTS rule 11 / PAYMENT §0.3). No Stripe, no payment
   logic, no browser trust.
 - *Why:* 0 of 1,881 DJ clips mention the request line. Free self-promotion that
-  also feeds the paid-request funnel (PAYMENT.md).
+  also feeds the paid-request funnel (docs/shipped/payments.md).
 
 #### C4 — Top-of-hour ID + tease
 

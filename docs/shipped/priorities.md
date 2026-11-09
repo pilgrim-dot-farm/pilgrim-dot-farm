@@ -1,4 +1,12 @@
-# PRIORITIES.md — prioritizing fresher songs
+# Priorities — prioritizing fresher songs
+
+> *Formerly `PRIORITIES.md`.*
+
+> **Status (2026-11-08): shipped.** The recycled-song weights live in
+> `pilgrim/config.yaml` (`songs`, `PRIORITIES §3`), the persisted airplay ledger
+> and the freshness queries in `pilgrim/store.py` (`PRIORITIES §4`), and the
+> normative behaviour in RADIO.md §5.2, §7 and §14. The "plan only" sentence
+> below is the original 2026-10-01 text, kept as history.
 
 Operator, 2026-10-01: "It always starts with the first song it generated. I
 don't like how new songs are not prioritized."

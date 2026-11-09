@@ -1,6 +1,6 @@
-"""Pilgrim DJ — Textual operator console (TUI.md §2–3).
+"""Pilgrim DJ — Textual operator console (docs/systems/console.md §2–3).
 
-Wide-terminal layout per TUI.md §2:
+Wide-terminal layout per docs/systems/console.md §2:
     PILGRIM DJ                    CONNECTED · updated HH:MM:SS
     ON AIR   Song — Artist        01:12 / 03:24        [Skip: not yet]
     SONGS                          UPCOMING
@@ -14,7 +14,7 @@ Wide-terminal layout per TUI.md §2:
 Implemented: state polling, catalogue browse/sort/search, character setup,
 and administrator phrase submission (`POST /api/admin/dj/phrases`). The words
 typed are rendered verbatim in the character's reserved Kokoro voice and the
-server appends the finished clip at the next legal boundary (TUI.md §6).
+server appends the finished clip at the next legal boundary (docs/systems/console.md §6).
 Skip/queue command mutations (§5, §7) remain proposed.
 """
 from __future__ import annotations
@@ -60,7 +60,7 @@ def _song_key(s: DjSong, field: str) -> str:
 
 
 class DjConsole(App):
-    """Read-only operator console for the DJ backend (TUI.md §2)."""
+    """Read-only operator console for the DJ backend (docs/systems/console.md §2)."""
 
     CSS_PATH = "console.tcss"
     TITLE = "PILGRIM DJ"
@@ -75,7 +75,7 @@ class DjConsole(App):
         Binding("ctrl+p", "phrase", "Phrase"),
     ]
     # Enter = queue next is handled by the catalogue itself (RowSelected), so it
-    # never fires while typing in the search field (TUI.md §2 focus rule).
+    # never fires while typing in the search field (docs/systems/console.md §2 focus rule).
 
     def __init__(self, cfg: Config | None = None, client: DjClient | None = None) -> None:
         super().__init__()
@@ -83,7 +83,7 @@ class DjConsole(App):
         self.client = client or DjClient(self.cfg)
         self._search_timer: Timer | None = None
         self._phrase_timer: Timer | None = None
-        # preserved across refresh (TUI.md §2): search, sort, selection
+        # preserved across refresh (docs/systems/console.md §2): search, sort, selection
         self.query_text = ""
         self.sort_field = "title"
         self.sort_direction = "asc"
@@ -91,7 +91,7 @@ class DjConsole(App):
         self._seen_rev: int | None = None
         self._cat_keys: dict[str, object] = {}  # column label -> ColumnKey
         self._cat_idx: dict[str, int] = {}      # item id -> current row index
-        # character + phrase state (TUI.md §6)
+        # character + phrase state (docs/systems/console.md §6)
         self.character: CharacterInfo | None = None
         self._phrase_raw = ""
         self._phrase_ok = False
@@ -206,7 +206,7 @@ class DjConsole(App):
     # ------------------------------------------------------ character/phrase
     def _typing(self) -> bool:
         """True when a text field has focus: single-letter bindings must edit
-        text, not sort or refresh (TUI.md §2 focus rule)."""
+        text, not sort or refresh (docs/systems/console.md §2 focus rule)."""
         focused = self.focused
         return focused is not None and focused.id in ("search", "phrase")
 
@@ -307,7 +307,7 @@ class DjConsole(App):
         self.query_one("#phrasestatus", Static).update("Status: validating…")
         try:
             # Re-validate the *current* text: the hash must match what renders
-            # (TUI.md §6), so a stale preview can never submit other words.
+            # (docs/systems/console.md §6), so a stale preview can never submit other words.
             v = await self.client.validate_phrase(self._character_id(), text)
             if not v.ok:
                 self.query_one("#phrasestatus", Static).update(
@@ -366,7 +366,7 @@ class DjConsole(App):
     # ------------------------------------------------------------------- sort
     def _sorted(self, songs: Iterable[DjSong]) -> list[DjSong]:
         """Case-insensitive order with the server's tie-break: primary column,
-        then the other column, then id (TUI.md §2)."""
+        then the other column, then id (docs/systems/console.md §2)."""
         field = self.sort_field
         other = "artist" if field == "title" else "title"
 

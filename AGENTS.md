@@ -1,23 +1,33 @@
 # AGENTS.md — Pilgrim Dot Farm Radio
 
-Active work plans: IDLE.md (freeze playout + pause production when nobody is
-listening; one agent, Steps 1–5) and VOTING.md (turkey song ratings +
-request-queue votes + mobile queue; agents A–E, Steps 1–8). FIX_RATINGS.md (Steps 1–5) amends VOTING.md's
-rating UI and the web tier's rating window. UI_REFACTOR.md (Steps 1–6, app
-shell: ABOUT pane, desktop nav, phone tabs + mini player) is the plan for the
-desktop/phone shell. IDLE.md and
-VOTING.md Agent A may run concurrently in separate worktrees. ALBUM_ART.md
-(Steps 1–11) and PAYMENT.md (Steps 0–12b) are shipped and stay as reference.
-SPLIT_PLAN.md is complete (Steps 1–10) and stays the reference for
-the edge/gateway/origin layout. BRAVE.md (Steps 1–8, shipped 2026-11-04) is
-the reference for web search: Brave Search API direct, searxng retired.
-SCALABILITY.md is the plan for the VPC move (Fargate web tier, RDS Postgres,
-ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
-SHEEP_PEN_PLAN.md (Steps 1–12) is the plan for The Sheep Pen chat; SHEEP_PEN.md
-is its brief (read the brief first, then the plan). PROMPT_UPGRADE.md (Steps
-1–6, shipped 2026-11-08) is the reference for the three-box paid request
-(lyrics / musical direction / cover art); it supersedes PAYMENT.md's single
-paid text box.
+Documentation lives under `docs/`; `docs/README.md` is the index and
+`docs/architecture.md` the system overview. Active work plans are in
+`docs/plans/`:
+
+- `docs/plans/idle.md` — freeze playout + pause production when nobody is
+  listening; one agent, Steps 1–5.
+- `docs/plans/voting.md` — turkey song ratings + request-queue votes + mobile
+  queue; agents A–E, Steps 1–8. `docs/plans/ratings.md` (Steps 1–5) amends its
+  rating UI and the web tier's rating window.
+- `docs/plans/ui-refactor.md` — app shell: ABOUT pane, desktop nav, phone tabs +
+  mini player; Steps 1–6. Its living feedback log is `docs/plans/ui-feedback.md`.
+- `docs/plans/scalability.md` — the VPC move (Fargate web tier, RDS Postgres,
+  ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
+- `docs/plans/sheep-pen-plan.md` — The Sheep Pen chat; Steps 1–12. Its brief is
+  `docs/plans/sheep-pen-brief.md` (read the brief first, then the plan).
+
+`docs/plans/idle.md` and `docs/plans/voting.md` Agent A may run concurrently in
+separate worktrees.
+
+Shipped plans stay as reference in `docs/shipped/`: `album-art.md` (Steps 1–11),
+`payments.md` (Steps 0–12b), `split.md` (complete, Steps 1–10; the reference for
+the edge/gateway/origin layout), `prompt-upgrade.md` (Steps 1–6, shipped
+2026-11-08; the three-box paid request — lyrics / musical direction / cover art
+— which supersedes `payments.md`'s single paid text box), plus
+`song-concurrency.md`, `priorities.md`, `fix-radio.md` and
+`announcer-overhaul.md`. Subsystem references are in `docs/systems/`;
+`docs/systems/search.md` (shipped 2026-11-04) is the web-search reference: Brave
+Search API direct, searxng retired.
 
 You are building an AI-generated radio station. **`RADIO.md` is the source of
 truth.** Read the relevant section of RADIO.md before implementing anything,
@@ -25,9 +35,11 @@ and cite the section number (e.g. "per §5.2") in commit messages and reports.
 If this file and RADIO.md disagree, RADIO.md wins; report the conflict.
 
 **Layout:** all application + test code lives under `pilgrim/` (RADIO.md §18).
-The repo root holds only repo-level files (`AGENTS.md`, `RADIO.md`, `Makefile`,
-`pyproject.toml`, `requirements.txt`, `docs/`). `make test/sim/lint/e2e` and
-`make run/seed/smoke` all resolve the `pilgrim` package paths.
+The repo root holds only repo-level files (`AGENTS.md`, `RADIO.md`, `README.md`,
+`Makefile`, `Dockerfile`, `pyproject.toml`, `requirements.txt`, `docs/`). All
+other documentation lives under `docs/`; `docs/README.md` is the index. `make
+test/sim/lint/e2e` and `make run/seed/smoke` all resolve the `pilgrim` package
+paths.
 
 ---
 
@@ -67,19 +79,19 @@ If a task cannot be done without breaking one, stop and report.
 10. **News is never recycled.** Contextual items (DJ talk-ups, time checks) are
     never recycled. Enforce this in code, not just in prompts.
 11. **Payments never touch playout, and the browser is never trusted about
-    money** (PAYMENT.md §0.3). `pilgrim/scheduler.py`, `pilgrim/selector.py`
-    and `pilgrim/producer.py` never import `pilgrim/payments.py` or call
-    Stripe. Only a signature-verified webhook or a server-side session
-    retrieve marks a request paid. Moderate before creating a Checkout
-    Session. Tests use `pilgrim/tests/fakes/fake_stripe.py`; real Stripe calls
-    happen only in `make pay-smoke` with a **test-mode** key. Never log or
-    store keys, `client_secret`, card data or customer email.
-    **Operator-approved exception (PAYMENT.md Step 12b):** a paid prompt whose
-    first line equals the `PAID_OVERRIDE_TOKEN` secret is an operator comp. It
-    is marked queued with `comped=1` and amount 0 without Stripe, after the
-    same moderation and copyright checks. Treat the token like a key: never in
-    the repo, logs, DB, prompts or responses. Do not remove this path as a
-    "fix" for the rule above.
+    money** (docs/shipped/payments.md §0.3). `pilgrim/scheduler.py`,
+    `pilgrim/selector.py` and `pilgrim/producer.py` never import
+    `pilgrim/payments.py` or call Stripe. Only a signature-verified webhook or a
+    server-side session retrieve marks a request paid. Moderate before creating
+    a Checkout Session. Tests use `pilgrim/tests/fakes/fake_stripe.py`; real
+    Stripe calls happen only in `make pay-smoke` with a **test-mode** key. Never
+    log or store keys, `client_secret`, card data or customer email.
+    **Operator-approved exception (docs/shipped/payments.md Step 12b):** a paid
+    prompt whose first line equals the `PAID_OVERRIDE_TOKEN` secret is an
+    operator comp. It is marked queued with `comped=1` and amount 0 without
+    Stripe, after the same moderation and copyright checks. Treat the token like
+    a key: never in the repo, logs, DB, prompts or responses. Do not remove this
+    path as a "fix" for the rule above.
 
 ---
 
@@ -96,10 +108,10 @@ If a task cannot be done without breaking one, stop and report.
 | `ornith` | 4070 Ti host | via LiteLLM; commercials, liners |
 | Kokoro TTS | `192.168.68.89:8001` | `/tts`, `/voices`, `/health`; 16-bit mono 24 kHz |
 | SFX (MOSS-SoundEffect v2.0) | `192.168.68.88:8000` | `/health` |
-| Brave Search API | `hosts.brave` = `https://api.search.brave.com` | News bulletin + copied-lyrics screen (BRAVE.md); key `BRAVE_SEARCH_KEY` in `.env`. Metered: never add a health probe, never call it from tests |
+| Brave Search API | `hosts.brave` = `https://api.search.brave.com` | News bulletin + copied-lyrics screen (docs/systems/search.md); key `BRAVE_SEARCH_KEY` in `.env`. Metered: never add a health probe, never call it from tests |
 | Media (S3 + CloudFront) | `media.*` in config | Public bucket `pilgrim-dot-farm-public-2` (us-west-2, account 477688903218 since 2026-11-06), read only by CloudFront `E2J4EQA5VW0HUG`; station uploads with AWS profile `mac-studio` (RADIO §8.4, docs/backends.md §9) |
-| RDS Postgres + ElastiCache Valkey | VPC `172.31.0.0/16`, via the bastion's tailnet route (SCALABILITY.md Step 8) | `DATABASE_URL` + `DB_PASS_SECRET_ARN`, `REDIS_URL` (TLS, no password) in `.env` on the M5 and in the ECS task env; the web tier is `pilgrimdotfarm/front-end` on Fargate |
-| Stripe | `payments.api_base` in config | Checkout Sessions + webhooks; keys in `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (PAYMENT.md Step 0) |
+| RDS Postgres + ElastiCache Valkey | VPC `172.31.0.0/16`, via the bastion's tailnet route (docs/plans/scalability.md Step 8) | `DATABASE_URL` + `DB_PASS_SECRET_ARN`, `REDIS_URL` (TLS, no password) in `.env` on the M5 and in the ECS task env; the web tier is `pilgrimdotfarm/front-end` on Fargate |
+| Stripe | `payments.api_base` in config | Checkout Sessions + webhooks; keys in `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (docs/shipped/payments.md Step 0) |
 
 **Do not guess external APIs.** Before writing a client for any backend,
 probe it (`curl .../health`, `curl .../voices`, a minimal request) and record
@@ -119,7 +131,7 @@ note it.
 - Validation: pydantic models for config, LLM JSON outputs, and API payloads.
 - Audio: `soundfile` + `numpy` for QC; **ffmpeg CLI** for two-pass `loudnorm`,
   silence trimming, and FLAC encoding.
-- Storage: one engine-neutral `store.py` (SCALABILITY.md Step 2, RADIO §14):
+- Storage: one engine-neutral `store.py` (docs/plans/scalability.md Step 2, RADIO §14):
   SQLite (`station.db`, stdlib `sqlite3`) for tests, sim and dev; PostgreSQL
   (RDS, psycopg 3) in production when `DATABASE_URL` is set. Engine
   differences live only in `pilgrim/db.py`; never branch on the engine inside
@@ -211,7 +223,7 @@ Run, in order, and include the results in your report:
 4. `make e2e` (from M9 onward)
 5. For split/deploy changes: `make deploy-check`, `make split-smoke`, and
    `make e2e-split`.
-6. For payment changes: everything above that the step lists (PAYMENT.md),
+6. For payment changes: everything above that the step lists (docs/shipped/payments.md),
    plus `make pay-smoke` output when Step 11 or later is touched.
 
 **Never report a task as complete without having run these.** If something
@@ -244,9 +256,10 @@ Stop and ask instead of guessing when:
 - A design choice isn't covered by RADIO.md and would be hard to reverse
   (schemas, API shape, storage layout).
 - Voice role assignment (§10). This is a human listening decision.
-- Stripe behaves differently from PAYMENT.md or `docs/backends.md`, or a
-  payment step needs a key permission, Dashboard setting or policy text that
-  is not in place (PAYMENT.md Step 0, §14).
+- Stripe behaves differently from `docs/shipped/payments.md` or
+  `docs/backends.md`, or a payment step needs a key permission, Dashboard
+  setting or policy text that is not in place (docs/shipped/payments.md Step 0,
+  §14).
 
 For small, reversible choices, decide, note it under **Deviations**, and
 continue.
@@ -288,7 +301,7 @@ continue.
   Encrypt) chain needs 2. Too shallow = edge serves off-air (docs/backends.md §8).
 - **`items.media_path` is absolute.** Moving the checkout or library means
   rewriting the prefix in `station.db` (RUNBOOK §3–4), after a `.backup`.
-- **A probe of `/api/station/program` wakes a frozen station** (IDLE.md):
+- **A probe of `/api/station/program` wakes a frozen station** (docs/plans/idle.md):
   `GET /api/station/program` and a heartbeat are wake signals. For monitoring
   use `/api/station/state` or `/api/health` (the admin one reports
   `idle: {idle, since, wakes}`), which never wake it. `make split-smoke`'s

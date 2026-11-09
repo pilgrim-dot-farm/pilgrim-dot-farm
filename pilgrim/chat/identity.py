@@ -1,6 +1,6 @@
 """Chat identity: browser token, server-side user, unique display names.
 
-SHEEP_PEN.md §4, §0.6.1. No accounts, passwords or email. The browser's
+docs/plans/sheep-pen-brief.md §4, §0.6.1. No accounts, passwords or email. The browser's
 existing 32-hex `pd_voter` id is the token; the server hashes it and maps the
 hash to a server-generated user id. Postgres is the name-uniqueness authority
 (a partial unique index); the Valkey reservation is only the cheap pre-check.
@@ -39,7 +39,7 @@ def token_hash(token: str) -> str:
 
 
 def ip_hash(canonical_ip: str | None) -> str | None:
-    """SHEEP_PEN.md §0.6.5: plain SHA-256 prefix, no secret, no raw IP."""
+    """docs/plans/sheep-pen-brief.md §0.6.5: plain SHA-256 prefix, no secret, no raw IP."""
     if not canonical_ip:
         return None
     return hashlib.sha256(canonical_ip.encode("utf-8")).hexdigest()[:16]
@@ -62,7 +62,7 @@ def validate_name(display: str, cfg: Chat) -> str | None:
     Unicode-aware: length counts code points, control/format/invisible
     characters are refused, HTML angle brackets are refused, links are refused
     by the station's existing prefilter, prohibited terms and reserved names by
-    the digest lists. No LLM is involved (SHEEP_PEN.md §4).
+    the digest lists. No LLM is involved (docs/plans/sheep-pen-brief.md §4).
     """
     name = display.strip()
     if len(name) < cfg.name_min or len(name) > cfg.name_max:

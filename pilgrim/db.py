@@ -1,4 +1,4 @@
-"""Database connections for `Store` (SCALABILITY.md Step 2; RADIO §14).
+"""Database connections for `Store` (docs/plans/scalability.md Step 2; RADIO §14).
 
 One `Store`, two engines. SQLite stays for `make test`, `make sim` and the
 single-host dev run (AGENTS §1.2; operator decision, SCALABILITY §6).

@@ -1,4 +1,4 @@
-"""PAYMENT.md §2.3 — the fake Stripe must sign like the real one."""
+"""docs/shipped/payments.md §2.3 — the fake Stripe must sign like the real one."""
 from __future__ import annotations
 
 import json

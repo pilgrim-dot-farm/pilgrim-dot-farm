@@ -98,7 +98,7 @@ class FakeMinimax:
 
 
 class FakeSfx:
-    """Fake of SfxClient (SFX.md §7.5): a 48 kHz mono tone of exactly the
+    """Fake of SfxClient (docs/systems/sfx.md §7.5): a 48 kHz mono tone of exactly the
     requested duration, like MOSS-SoundEffect (docs/backends.md §7). `fail=True` injects outages."""
 
     def __init__(self, fail: bool = False) -> None:

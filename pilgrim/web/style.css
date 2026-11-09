@@ -115,7 +115,7 @@ body {
 .req-empty td { font-size: 15px; color: var(--dim); border-bottom: none; }
 .req-paid-icon { height: 1.25em; width: auto; vertical-align: -0.12em; margin-right: 2px; }
 
-/* Request-queue votes (VOTING.md Step 6, RADIO §9.1). Up arrow above the
+/* Request-queue votes (docs/plans/voting.md Step 6, RADIO §9.1). Up arrow above the
    number, down arrow below it, so the column is one arrow wide (48 px) and the
    prompt/title get the rest. It is the left-most column of the queue table.
    40x40 boxes with a 44x44 hit area (the ::after inset). Pressed = filled in
@@ -145,7 +145,7 @@ body {
   25% { transform: translateX(-2px); }
   75% { transform: translateX(2px); }
 }
-/* Scroll cue + visible scrollbar (VOTING.md Step 6): the box scrolls inside
+/* Scroll cue + visible scrollbar (docs/plans/voting.md Step 6): the box scrolls inside
    260 px with a sticky header. The bottom gradient is pinned to the box (a
    background, not a positioned child: an absolutely positioned ::after inside
    a scroll container scrolls with the content). It costs zero height and
@@ -189,7 +189,7 @@ body {
 .cred-attr { font-size: 14px; color: var(--dim); }
 .cred-attr a { color: var(--dim); }
 
-/* PAID REQUE$T (PAYMENT.md §8.2). */
+/* PAID REQUE$T (docs/shipped/payments.md §8.2). */
 .pay-head { margin-top: 4px; }
 .pay-note { color: var(--cyan); font-size: 14px; letter-spacing: 1px; }
 .pay-note-head { font-size: 1.25em; display: block; }
@@ -352,7 +352,7 @@ body {
 .play-cell .indicator { flex: 0 1 auto; max-width: 100%; height: 44px; padding: 0 16px; }
 .play-cell .big-btn { flex: 0 1 auto; max-width: 100%; }
 
-/* Cover art (ALBUM_ART.md Step 8): a square frame above the play row. The
+/* Cover art (docs/shipped/album-art.md Step 8): a square frame above the play row. The
    placeholder always fills it, so PLAY never moves when art appears or
    changes. 300px keeps the pane compact (the desktop scrolls). */
 .art-frame {
@@ -408,7 +408,7 @@ body {
 .dl-mp3:disabled { filter: grayscale(.6); cursor: progress; }
 .dl-mp3[hidden] { display: none; }
 
-/* RATE THIS SONG (VOTING.md Step 5, RADIO §9.1): five turkeys above the cover
+/* RATE THIS SONG (docs/plans/voting.md Step 5, RADIO §9.1): five turkeys above the cover
    art, open only while that song is audible. The art is only 300 px wide, so
    the row wraps deliberately: label + aggregate on the first line, the five
    44 px turkeys centred on the second. It is always present with a fixed
@@ -440,7 +440,7 @@ body {
 .turkey.filled { color: var(--cyan); }
 .turkey.filled svg { fill: currentColor;
   filter: drop-shadow(0 0 4px rgba(36, 224, 255, .45)); }
-/* FIX_RATINGS.md Step 3: until this browser rates the airing, the turkeys
+/* docs/plans/ratings.md Step 3: until this browser rates the airing, the turkeys
    show the COMMUNITY average in magenta ("pink"); casting a rating replaces
    it with the listener's own level in cyan. */
 .turkey.prior { color: var(--magenta); }
@@ -514,7 +514,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .infra-link:hover .infra-img, .infra-link:focus-visible .infra-img {
   opacity: .92; }
 
-/* ABOUT (UI_REFACTOR.md Step 1, RADIO §9.1): one pane holding the hit
+/* ABOUT (docs/plans/ui-refactor.md Step 1, RADIO §9.1): one pane holding the hit
    counter, mission statement, infra diagram and credits as sub-sections with
    their former titles. The sub-section bodies keep their own .win-body.*
    rules; the outer body carries no padding so dividers run edge to edge. */
@@ -556,7 +556,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 /* The phone shell shows this instead of #footer (Step 3). */
 .about-copyright { display: none; }
 
-/* Desktop left nav (UI_REFACTOR.md Step 2, RADIO §9.1): fixed in the left
+/* Desktop left nav (docs/plans/ui-refactor.md Step 2, RADIO §9.1): fixed in the left
    margin so the 484 px column never moves. Right edge sits 24 px left of the
    column (column left = 50% - 242px); below 900 px the phone shell takes
    over (Step 3) and this is display:none. */
@@ -585,7 +585,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   background: rgba(36,224,255,.08);
 }
 
-/* Phone chrome (UI_REFACTOR.md Step 3, RADIO §9.1): the mini player and tab
+/* Phone chrome (docs/plans/ui-refactor.md Step 3, RADIO §9.1): the mini player and tab
    row are flex children of body (never position:fixed, so they behave when
    iOS opens the keyboard). Hidden on desktop; the phone media block at the
    end of this file shows them. */
@@ -698,7 +698,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
   .req-form button { padding: 12px; }
 }
 
-/* THE SHEEP PEN (SHEEP_PEN.md §2, §9.1): the one chat pane. Mobile-first,
+/* THE SHEEP PEN (docs/plans/sheep-pen-brief.md §2, §9.1): the one chat pane. Mobile-first,
    same window/neon vocabulary as the request line; no framework, no build. */
 .window.sheep { width: min(94vw, 484px); }
 .win-body.sheep { align-items: stretch; text-align: left; gap: 10px; }
@@ -767,7 +767,7 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 }
 
 /* ============================================================
-   Phone shell (UI_REFACTOR.md Step 3, RADIO §9.1). One breakpoint, 899 px:
+   Phone shell (docs/plans/ui-refactor.md Step 3, RADIO §9.1). One breakpoint, 899 px:
    header (one line, no tagline) / the active pane / mini player / tabs. The
    footer is hidden; ABOUT ends with its copyright line. All four panes stay
    laid out (visibility, not display), so scroll positions, the chat log's

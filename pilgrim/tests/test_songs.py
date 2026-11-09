@@ -675,7 +675,7 @@ def test_free_direction_asks_for_a_leading_chorus(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# three-box paid brief (PROMPT_UPGRADE.md Step 3, RADIO §6.2)
+# three-box paid brief (docs/shipped/prompt-upgrade.md Step 3, RADIO §6.2)
 # --------------------------------------------------------------------------- #
 def test_parts_message_is_labelled_and_never_includes_art(cfg):
     import json as _json

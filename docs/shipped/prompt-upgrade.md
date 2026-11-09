@@ -1,4 +1,9 @@
-# PROMPT_UPGRADE.md — Paid request input: three boxes (lyrics, music, cover art)
+# Prompt upgrade — paid request input: three boxes (lyrics, music, cover art)
+
+> *Formerly `PROMPT_UPGRADE.md`.*
+
+> **Status: shipped 2026-11-08.** Supersedes the single paid text box in
+> docs/shipped/payments.md.
 
 Work plan for a coding agent. The PAID REQUE$T panel's single multi-line box
 becomes **three** boxes: **lyrical direction**, **musical direction** and
@@ -8,8 +13,8 @@ MiniMax structured caption and style routing; the art box drives the FLUX
 cover scene. Six steps, done **in order**, one commit per step.
 
 Read this whole file first. Then read, in order: `AGENTS.md`; `RADIO.md`
-§6.2, §8.4, §9.1, §11, §12, §14; `PAYMENT.md` §0.3–§0.5, Step 4, Step 7,
-Step 8, Step 12b, Step 12c; `ALBUM_ART.md` §0.2–§0.3 and Step 3;
+§6.2, §8.4, §9.1, §11, §12, §14; `docs/shipped/payments.md` §0.3–§0.5, Step 4, Step 7,
+Step 8, Step 12b, Step 12c; `docs/shipped/album-art.md` §0.2–§0.3 and Step 3;
 `docs/backends.md` §2 ("Prompt budget", "Prompt adherence probe") and §10.
 `RADIO.md` is the source of truth; if this file and RADIO.md disagree, stop
 and report (AGENTS.md §9).
@@ -155,7 +160,7 @@ into what is there instead.
 | `pilgrim/pipelines/songs.py`, `pilgrim/prompts/paid_request.md`, `pilgrim/prompts/paid_summary.md`, `pilgrim/producer.py`, `pilgrim/tests/test_songs.py`, `pilgrim/tests/test_producer.py` | 3 |
 | `pilgrim/pipelines/art.py`, `pilgrim/album_art.py`, `pilgrim/prompts/album_art_scene.md`, `pilgrim/producer.py`, `pilgrim/tests/test_art_scene.py`, `pilgrim/tests/test_art_worker.py`, `pilgrim/tests/test_producer.py` | 4 |
 | `pilgrim/web/index.html`, `pilgrim/web/pay.js`, `pilgrim/web/style.css`, `pilgrim/tests/e2e/e2e_server.py`, `pilgrim/tests/e2e/paid.spec.ts` (new) | 5 |
-| `RADIO.md`, `PAYMENT.md` (pointer only), `AGENTS.md`, `docs/backends.md` (one line) | 6 |
+| `RADIO.md`, `docs/shipped/payments.md` (pointer only), `AGENTS.md`, `docs/backends.md` (one line) | 6 |
 
 Nothing else. In particular: no change to `pilgrim/scheduler.py`,
 `pilgrim/selector.py`, `pilgrim/payments.py`, `pilgrim/voting.py`,
@@ -219,7 +224,7 @@ per-box limits.
 ### 1.1 `pilgrim/pipelines/request_parts.py` (new)
 
 ```python
-"""The three-box paid request (PROMPT_UPGRADE.md Step 1).
+"""The three-box paid request (docs/shipped/prompt-upgrade.md Step 1).
 
 A paid request arrives as up to three parts. They are stored separately and
 also composed into one labelled document kept in `requests.text`, so every
@@ -291,7 +296,7 @@ Add to `Payments`:
 
 ```python
 class PaidParts(BaseModel):
-    """Per-box character limits for the three-box paid form (PROMPT_UPGRADE.md)."""
+    """Per-box character limits for the three-box paid form (docs/shipped/prompt-upgrade.md)."""
     lyrics_max: int = 4000
     music_max: int = 3000
     art_max: int = 800
@@ -311,7 +316,7 @@ the `Payments` validator: `paid_max_length` must be ≥
 `config.yaml`:
 
 ```yaml
-  paid_max_length: 8000       # the composed three-part text (PROMPT_UPGRADE.md Step 1)
+  paid_max_length: 8000       # the composed three-part text (docs/shipped/prompt-upgrade.md Step 1)
   paid_max_lines: 200
   parts:                      # per-box limits; the client mirrors them as maxlength
     lyrics_max: 4000
@@ -354,7 +359,7 @@ yaml block may be edited now so lint of docs stays consistent, your call).
 
 ```python
 class PaidRequestIn(BaseModel):
-    """`{lyrics, music, art}` (PROMPT_UPGRADE.md) or the legacy `{text}`."""
+    """`{lyrics, music, art}` (docs/shipped/prompt-upgrade.md) or the legacy `{text}`."""
     text: str | None = None
     lyrics: str | None = None
     music: str | None = None
@@ -810,11 +815,11 @@ cover art optional", the expandable technical help, the draft key
    §6.2 gets the "three boxes" bullet (routing on the music box, art never
    reaches the brief); §14 the item-meta key `request_parts` and the art
    meta `art_direction`.
-2. `PAYMENT.md` §0.4 "Paid input" row and §0.5 "Paid text path" row: append
-   *"Superseded by PROMPT_UPGRADE.md (three boxes), 2026-11."* Do not rewrite
+2. `docs/shipped/payments.md` §0.4 "Paid input" row and §0.5 "Paid text path" row: append
+   *"Superseded by docs/shipped/prompt-upgrade.md (three boxes), 2026-11."* Do not rewrite
    the plan.
-3. `AGENTS.md` "Active work plans": add `PROMPT_UPGRADE.md (Steps 1–6,
-   shipped <date>)` as a reference entry next to PAYMENT.md once the operator
+3. `AGENTS.md` "Active work plans": add `docs/shipped/prompt-upgrade.md (Steps 1–6,
+   shipped <date>)` as a reference entry next to docs/shipped/payments.md once the operator
    confirms the deploy.
 4. `docs/backends.md` §2 "Notes for producer": one line stating that paid
    captions now come from the music box and lyrics from the lyrics box
