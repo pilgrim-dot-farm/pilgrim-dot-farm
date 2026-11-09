@@ -34,6 +34,28 @@ def test_site_served(tmp_env):
     assert c.get("/visitors.js").status_code == 200
 
 
+def test_cats_pool_globs_the_directory(tmp_env, tmp_path):
+    """RADIO §9.1/§11: the live-cover pool is a filesystem glob, sorted by
+    name, images only; a file dropped in later shows up on the next request
+    (that is the whole procedure for adding a picture)."""
+    cfg, _, _ = tmp_env
+    web = tmp_path / "web"
+    cats = web / "img" / "cats"
+    cats.mkdir(parents=True)
+    (cats / "IMG_0002.jpeg").write_bytes(b"x")
+    (cats / "IMG_0001.JPG").write_bytes(b"x")
+    (cats / "notes.txt").write_text("not an image")
+    cfg.library.web_dir = str(web)
+    c = TestClient(create_app(cfg))
+    r = c.get("/api/station/cats")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store"
+    assert r.json() == {"cats": ["img/cats/IMG_0001.JPG", "img/cats/IMG_0002.jpeg"]}
+    (cats / "IMG_0003.png").write_bytes(b"x")
+    assert c.get("/api/station/cats").json()["cats"] == [
+        "img/cats/IMG_0001.JPG", "img/cats/IMG_0002.jpeg", "img/cats/IMG_0003.png"]
+
+
 def test_program_endpoint_empty_inventory(tmp_env):
     """An empty temp library yields an empty program, not an error, with the
     DJ identity fields (RADIO §11 extension: epoch/revision/reset/server_time)."""

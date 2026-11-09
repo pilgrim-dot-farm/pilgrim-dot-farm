@@ -28,9 +28,13 @@
   // so the PLAY row never moves. Art is cosmetic: a load error falls back
   // silently and never touches playback, the indicator or OFF AIR logic.
   const ART_PLACEHOLDER = "img/fall.jpg";
-  // On-air default cover: shown while the radio is playing when the audible
-  // item has no uploaded art. The idle placeholder stays fall.jpg.
-  const ART_LIVE = "img/IMG_6238.jpeg";
+  // Live cover pool (feedback 2026-11-08): every image under img/cats/,
+  // listed by /api/station/cats. While playing, each new non-song item
+  // advances one step through the pool; idle always shows fall.jpg.
+  const CATS_URL = "/api/station/cats";
+  let catList = [];
+  let catIndex = -1;
+  let lastCatKey = null;
   let shownArt = ART_PLACEHOLDER;
 
   let ctx = null, analyser = null, raf = null;
@@ -354,7 +358,9 @@
     if (key === msKey) return;
     msKey = key;
     try {
-      const art = (named && it.art_url) ? it.art_url : new URL(ART_LIVE, location.href).href;
+      const art = (named && it.art_url) ? it.art_url
+        : new URL(catList.length ? catList[catIndex % catList.length] : ART_PLACEHOLDER,
+                  location.href).href;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: named ? it.title : "PILGRIM DOT FARM",
         artist: named ? it.artist : "live radio",
@@ -486,7 +492,7 @@
     const named = !!(it && it.type === "song" && it.title && it.artist);
     if (named) { songTitle.textContent = it.title; songArtist.textContent = it.artist; }
     else clearSongLabel();
-    setCoverArt(named ? it : null, named);
+    setCoverArt(it, named);
     setDownload(named ? it : null);
     if (playing) setMediaSession(named ? it : null);
     // VOTING.md §4/§5: one hook for the rating row. The detail is the song that
@@ -544,12 +550,36 @@
   });
 
   /* The cover swaps with the label, from the same playhead decision: an
-     audible song with an uploaded art_url shows its cover, anything else
-     shows the placeholder. The next song's art is never shown early. */
+     audible song with an uploaded art_url shows its cover; a playing non-song
+     (or a song without art) shows the live cat pool; idle shows the
+     placeholder. The next item's art is never shown early. */
+  async function loadCats() {
+    try {
+      const r = await fetch(CATS_URL, { cache: "no-store" });
+      if (!r.ok) return;
+      const body = await r.json();
+      const cats = body && body.cats;
+      if (Array.isArray(cats)) {
+        catList = cats.filter(c => typeof c === "string" && c);
+      }
+    } catch (e) { /* cosmetic: keep the placeholder */ }
+  }
+
+  /* One step per audible non-song item. Keyed on epoch+seq so a buffering gap
+     (item not started yet) does not burn a rotation, and a repeat of the same
+     airing never advances twice. */
+  function catCover(it) {
+    if (it) {
+      const key = epoch + "|" + it.seq;
+      if (key !== lastCatKey) { lastCatKey = key; catIndex++; }
+    }
+    if (!catList.length) return ART_PLACEHOLDER;
+    return catList[catIndex % catList.length];
+  }
+
   function setCoverArt(it, named) {
-    // Playing without per-song art shows the live default; idle shows fall.
     const url = (named && it && it.art_url) ? it.art_url
-      : (playing ? ART_LIVE : ART_PLACEHOLDER);
+      : (playing ? catCover(named ? null : it) : ART_PLACEHOLDER);
     if (url === shownArt) return;
     shownArt = url;
     coverArt.src = url;
@@ -808,6 +838,8 @@
     myStartAt = Date.now();
     dryFailSince = null;
     rejoinAt = 0; rejoinGap = REJOIN_GAP_MIN_MS; resetPending = false;
+    catIndex = -1; lastCatKey = null;   // every session starts at the first cat
+    void loadCats();
     const token = ++session;
     setState("buffering"); btn.textContent = "■  STOP"; btn.classList.add("stop");
 
@@ -874,6 +906,7 @@
   }
 
   btn.addEventListener("click", () => (playing ? stop() : play()));
+  void loadCats();   // ready before the first non-song airs
   initMediaSession();
   startHealth();
 })();

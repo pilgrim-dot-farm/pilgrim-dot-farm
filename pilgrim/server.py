@@ -1119,6 +1119,19 @@ def _mount_web(app: FastAPI, cfg: Config) -> None:
               name="web")
 
 
+_CAT_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def cat_manifest(cfg: Config) -> list[str]:
+    """The rotating live-cover pool (RADIO §9.1, §11): every image under
+    `web_dir/img/cats/`, sorted by name. Globbing the directory means an
+    operator adds a file and the next non-song airing shows it."""
+    cat_dir = ROOT / cfg.library.web_dir / "img" / "cats"
+    names = sorted(p.name for p in cat_dir.glob("*")
+                   if p.is_file() and p.suffix.lower() in _CAT_SUFFIXES)
+    return [f"img/cats/{n}" for n in names]
+
+
 def _add_public_routes(app: FastAPI, station: PublicSurface,
                        health: Callable[[Station], Awaitable[dict]]) -> None:
     """Register the edge-facing surface exactly once, shared by both apps.
@@ -1164,6 +1177,14 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         """Cheap public station state for DJ-aware clients (RADIO §11, §5.3)."""
         return JSONResponse(station.public_state(),
                             headers={"Cache-Control": "public, max-age=1"})
+
+    @app.get("/api/station/cats")
+    async def station_cats():
+        """The rotating live-cover pool (RADIO §9.1, §11). Reads the
+        filesystem only, never station state: it does not wake a frozen
+        station (IDLE.md)."""
+        return JSONResponse({"cats": cat_manifest(cfg)},
+                            headers={"Cache-Control": "no-store"})
 
     @app.post("/api/station/heartbeat")
     async def heartbeat(payload: dj.HeartbeatIn):
