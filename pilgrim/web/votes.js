@@ -12,7 +12,8 @@
     // an empty vote column instead of throwing inside requests.js.
     window.PD_VOTES = { cell: () => {
       const td = document.createElement("td");
-      td.className = "req-vote";
+      td.className = "req-vote req-dash";
+      td.textContent = "—";
       return td;
     }, refresh: () => {} };
     return;
@@ -113,7 +114,11 @@
   function cell(row) {
     const td = document.createElement("td");
     td.className = "req-vote";
-    if (!row.votable) return td;   // paid row or voting disabled: empty cell
+    if (!row.votable) {           // paid row or voting disabled: em dash
+      td.classList.add("req-dash");
+      td.textContent = "—";
+      return td;
+    }
     const wrap = document.createElement("div");
     wrap.className = "vote";
     wrap.dataset.id = String(row.id);

@@ -214,7 +214,7 @@ test("the queue box scrolls with a visible cue", async ({ page }) => {
   await expect(box).not.toHaveClass(/has-more/);
 });
 
-test("mobile: no horizontal scroll, 40px vote targets, status under the title", async ({ page }) => {
+test("mobile: no horizontal scroll, 40px vote targets, all columns visible", async ({ page }) => {
   for (const width of [360, 320]) {
     await page.setViewportSize({ width, height: 640 });
     await page.goto("/");
@@ -227,9 +227,10 @@ test("mobile: no horizontal scroll, 40px vote targets, status under the title", 
     const box = await up.boundingBox();
     expect(box!.width).toBeGreaterThanOrEqual(40);
     expect(box!.height).toBeGreaterThanOrEqual(40);
-    // the Status column is hidden and its text sits under the title
-    await expect(page.locator(".req-item .req-status").first()).toBeHidden();
-    await expect(page.locator(".req-item .req-status-inline").first()).toBeVisible();
+    // all columns stay on mobile: Vote / Request / Status (feedback
+    // 2026-11-08); the old inline status fallback is gone
+    await expect(page.locator(".req-item .req-status").first()).toBeVisible();
+    await expect(page.locator(".req-item .req-status-inline")).toHaveCount(0);
     // the rating row never overflows the pane's content box (on phones the
     // art may be narrower than the row: docs/plans/ui-refactor.md D8)
     await page.click('#nav-mobile [data-go="radio"]');

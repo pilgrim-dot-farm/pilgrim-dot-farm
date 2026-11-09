@@ -168,7 +168,7 @@ test("phone form controls are 16 px so iOS does not zoom on focus", async ({ pag
 });
 
 test("mini player mirrors the radio pane and never restarts audio", async ({ page }) => {
-  await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM");
+  await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM ▶");
   await expect(page.locator("#mini-play")).toHaveAttribute("aria-label", "Play");
   await page.locator("#mini-play").tap();
   await expect(page.locator("#btn-play")).toHaveClass(/stop/);
@@ -212,7 +212,7 @@ test("mini player mirrors the radio pane and never restarts audio", async ({ pag
   await expect(page.locator('[data-win="sheep"]')).toHaveClass(/active/);
   await expect(page.locator("#indicator")).toHaveClass(/idle/);
   await expect(page.locator("#mini-play")).toHaveAttribute("aria-label", "Play");
-  await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM");
+  await expect(page.locator("#mini-text")).toHaveText("PILGRIM DOT FARM ▶");
   // STOP closes the one context (player.js stop(): ctx.close()); still only one
   const closed = await probe();
   expect(closed).toHaveLength(1);
@@ -244,6 +244,27 @@ test("keyboard contract: shell follows --vvh and frees the bottom while typing",
     document.body.classList.remove("kbd-open");
   });
   await expect(page.locator("#nav-mobile")).toBeVisible();
+});
+
+test("opening the keyboard scrolls the chat to the newest message", async ({ page }) => {
+  await tab(page, "sheep");
+  await page.evaluate(() => {
+    const log = document.getElementById("chat-log")!;
+    for (let i = 0; i < 40; i++) {
+      const d = document.createElement("div");
+      d.className = "chat-msg";
+      d.textContent = "keyboard filler " + i;
+      log.appendChild(d);
+    }
+    log.scrollTop = 0;
+  });
+  await page.locator("#chat-name-input").focus();
+  await page.waitForTimeout(600);
+  const left = await page.evaluate(() => {
+    const l = document.getElementById("chat-log")!;
+    return l.scrollHeight - l.scrollTop - l.clientHeight;
+  });
+  expect(left).toBeLessThanOrEqual(2);
 });
 
 test("focusing a REQUEST field scrolls it into the pane", async ({ page }) => {

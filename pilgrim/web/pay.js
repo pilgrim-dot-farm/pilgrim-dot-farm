@@ -38,8 +38,10 @@
   let doneTimer = null;
   let pollStarted = 0;
   let stripePromise = null;
-  let promoCode = null;      // validated operator comp code (never persisted)
+  let promoCode = null;      // validated promo/operator code (never persisted)
   let promoAttempts = 2;     // feedback 2026-11-08: two wrong tries, then grey
+  const voterId = (window.PD_VOTER && typeof window.PD_VOTER.id === "function")
+    ? window.PD_VOTER.id() : "";   // one redemption per browser identity
 
   function showMsg(text, ok) {
     msg.textContent = text || "";
@@ -90,7 +92,7 @@
       const r = await fetch("/api/paid-requests/promo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code, voter_id: voterId }),
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) {
@@ -101,12 +103,17 @@
       }
       if (!r.ok) throw new Error("promo check failed");
       promoAttempts -= 1;
+      // A spent code says so instead of the generic failure: the station
+      // keeps exhausted codes so a guess reads "all used up".
+      const reason = d.code === "exhausted" ? "That code is all used up."
+                   : d.code === "used_by_identity" ? "You've already used that code."
+                   : null;
       if (promoAttempts > 0) {
         promoApply.disabled = false;
-        setPromoMsg("FAILED: " + promoAttempts + " attempts remain.", false);
+        setPromoMsg(reason || ("FAILED: " + promoAttempts + " attempts remain."), false);
       } else {
         promoInput.disabled = true;
-        setPromoMsg("FAILED: no attempts remain.", false);
+        setPromoMsg(reason || "FAILED: no attempts remain.", false);
       }
     } catch (e) {
       promoApply.disabled = false;
@@ -389,7 +396,7 @@
     if (stepsEl) stepsEl.scrollIntoView({ block: "nearest" });
     try {
       const body = { lyrics, music, art };
-      if (promoCode) body.promo = promoCode;
+      if (promoCode) { body.promo = promoCode; body.voter_id = voterId; }
       const r = await fetch("/api/paid-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -400,6 +407,17 @@
         showMsg(d.off_air
           ? "The station is off the air. Requests are closed."
           : "Paid requests are closed right now.", false);
+        setState("composing");
+        return;
+      }
+      if (r.status === 403 || r.status === 409) {
+        // The code was spent or already used by this browser between APPLY
+        // and submit. Say so and let the listener try a different code.
+        const reason = d.code === "exhausted" ? "That code is all used up."
+                     : d.code === "used_by_identity" ? "You've already used that code."
+                     : (d.detail || "That promo code didn't work.");
+        showMsg(reason, false);
+        resetPromo();
         setState("composing");
         return;
       }

@@ -134,7 +134,9 @@
     if (song) miniText.textContent = song.title + " — " + song.artist;
     else if (st === "buffering") miniText.textContent = "BUFFERING…";
     else if (st === "onair") miniText.textContent = "ON AIR";
-    else miniText.textContent = btn.disabled ? "OFF THE AIR" : "PILGRIM DOT FARM";
+    // Idle: the station name plus a play arrow, so the tap target reads as
+    // "press this" (feedback 2026-11-08). OFF THE AIR keeps its warning.
+    else miniText.textContent = btn.disabled ? "OFF THE AIR" : "PILGRIM DOT FARM ▶";
   }
   document.addEventListener("pd:nowplaying", (ev) => {
     const d = ev.detail;
@@ -161,6 +163,14 @@
     const el = document.activeElement;
     return !!el && /^(INPUT|TEXTAREA)$/.test(el.tagName);
   }
+  function scrollChatToBottom() {
+    const log = document.getElementById("chat-log");
+    if (!log) return;
+    const prev = log.style.scrollBehavior;
+    log.style.scrollBehavior = "auto";
+    log.scrollTop = log.scrollHeight;
+    log.style.scrollBehavior = prev;
+  }
   function viewport() {
     const root = document.documentElement;
     if (!MQ.matches) {
@@ -173,6 +183,13 @@
     if (!typing()) baseH = Math.max(baseH, h);
     root.style.setProperty("--vvh", Math.round(h) + "px");
     document.body.classList.toggle("kbd-open", typing() && baseH - h >= 120);
+    // Keyboard open in the pen: keep the newest messages above the keys
+    // (feedback 2026-11-08). The log's own follow-the-bottom logic only runs
+    // when a message arrives.
+    if (document.body.classList.contains("kbd-open")
+        && byName.sheep && byName.sheep.classList.contains("active")) {
+      scrollChatToBottom();
+    }
     if ((vv && vv.offsetTop > 0) || window.scrollY > 0) window.scrollTo(0, 0);
   }
   if (vv) {
@@ -189,6 +206,7 @@
     setTimeout(() => {
       viewport();
       try { el.scrollIntoView({ block: "nearest" }); } catch (e) { /* old browsers */ }
+      if (el.closest('[data-win="sheep"]')) scrollChatToBottom();
     }, 350);
   });
   document.addEventListener("focusout", () => setTimeout(viewport, 100));

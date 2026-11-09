@@ -777,14 +777,15 @@ def test_promo_endpoint_validates_without_echo(tmp_env, monkeypatch):
     _, app, station, _ = _build(tmp_env, monkeypatch)
     secret = "operator-comp-secret-0123456789"
     c = TestClient(app)
-    # no secret configured: never ok
-    assert c.post("/api/paid-requests/promo",
-                  json={"code": secret}).json() == {"ok": False}
+    # no secret configured: never ok (and no such promo code either)
+    missing = c.post("/api/paid-requests/promo", json={"code": secret}).json()
+    assert missing["ok"] is False and missing["code"] == "invalid"
     station.override_token = secret
     ok = c.post("/api/paid-requests/promo", json={"code": secret})
     assert ok.status_code == 200 and ok.json() == {"ok": True}
     bad = c.post("/api/paid-requests/promo", json={"code": "nope-nope-nope"})
-    assert bad.status_code == 200 and bad.json() == {"ok": False}
+    assert bad.status_code == 200
+    assert bad.json()["ok"] is False and bad.json()["code"] == "invalid"
     # the response never echoes the code
     assert secret not in ok.text and secret not in bad.text
 
@@ -807,6 +808,71 @@ def test_wrong_promo_body_is_403(tmp_env, monkeypatch):
     r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC, promo="wrong")
     assert r.status_code == 403
     assert station.db.all_requests() == []
+
+
+def test_promo_code_apply_submit_reuse_and_exhaustion(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch)
+    station.db.create_promo_code("ride-free", 2, "test")
+    c = TestClient(app)
+    voter_a = "a" * 32
+    voter_b = "b" * 32
+    voter_c = "c" * 32
+
+    # APPLY is a read-only availability check (case-insensitive)
+    apply = c.post("/api/paid-requests/promo",
+                   json={"code": "ride-free", "voter_id": voter_a})
+    assert apply.status_code == 200 and apply.json() == {"ok": True}
+    assert station.db.promo_code("RIDE-FREE")["uses"] == 0
+
+    # submit spends exactly one use and comps the request
+    r = _post_parts(c, lyrics=LYRICS, music=MUSIC, promo="RIDE-FREE",
+                    voter_id=voter_a)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    row = station.db.all_requests()[0]
+    assert row["comped"] == 1 and row["status"] == "queued"
+    assert station.db.promo_code("RIDE-FREE")["uses"] == 1
+
+    # the same identity cannot redeem it again
+    again = c.post("/api/paid-requests/promo",
+                   json={"code": "RIDE-FREE", "voter_id": voter_a})
+    assert again.json()["ok"] is False
+    assert again.json()["code"] == "used_by_identity"
+    dup = _post_parts(c, lyrics=LYRICS, music=MUSIC, promo="RIDE-FREE",
+                      voter_id=voter_a)
+    assert dup.status_code == 409 and dup.json()["code"] == "used_by_identity"
+    assert station.db.promo_code("RIDE-FREE")["uses"] == 1
+
+    # another identity takes the last use; the code retires but is not deleted
+    r2 = _post_parts(c, lyrics=LYRICS, music=MUSIC, promo="RIDE-FREE",
+                     voter_id=voter_b)
+    assert r2.status_code == 200
+    row2 = station.db.promo_code("RIDE-FREE")
+    assert row2["uses"] == 2 and row2["active"] == 0
+    assert row2["retired_by"] == "exhausted"
+
+    # a guessed spent code says so, not "invalid"
+    spent = c.post("/api/paid-requests/promo",
+                   json={"code": "RIDE-FREE", "voter_id": voter_c})
+    assert spent.json()["ok"] is False and spent.json()["code"] == "exhausted"
+    rejected = _post_parts(c, lyrics=LYRICS, music=MUSIC, promo="RIDE-FREE",
+                           voter_id=voter_c)
+    assert rejected.status_code == 409
+    assert rejected.json()["code"] == "exhausted"
+
+
+def test_promo_code_use_is_returned_when_checks_reject(tmp_env, monkeypatch):
+    _, app, station, _ = _build(tmp_env, monkeypatch, moderate=False)
+    station.db.create_promo_code("ONE-SHOT", 1)
+    voter = "d" * 32
+    r = _post_parts(TestClient(app), lyrics=LYRICS, music=MUSIC,
+                    promo="ONE-SHOT", voter_id=voter)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    row = station.db.all_requests()[0]
+    assert row["status"] == "rejected"
+    # a rejected request never burns the code
+    promo = station.db.promo_code("ONE-SHOT")
+    assert promo["uses"] == 0 and promo["active"] == 1
+    assert station.db.promo_redemptions("ONE-SHOT") == []
 
 
 def test_comp_token_on_lyrics_box(tmp_env, monkeypatch):

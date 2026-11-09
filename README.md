@@ -36,6 +36,7 @@ make venv       # install Python dependencies
 make seed       # fill a new library using the real backends
 make run        # start the station: public listener :5080, admin (DJ console) :5081
 make tui        # operator DJ console (Textual; needs PILGRIM_DJ_TOKEN for /api/admin/dj/*)
+make promo-codes PROMO_ARGS="add --code RIDE-FREE --uses 5"   # paid-request promo codes
 pilgrim/tools/submit_phrase.sh "message"   # air an administrator message verbatim
 ```
 
