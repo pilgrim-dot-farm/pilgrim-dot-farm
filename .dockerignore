@@ -1,4 +1,4 @@
-# Build context for Dockerfile: application code only (SCALABILITY.md Step 1).
+# Build context for Dockerfile: application code only (docs/plans/scalability.md Step 1).
 .git
 .venv
 .env
@@ -41,7 +41,6 @@ sfx_test
 # Repo-level docs and media (not read at run time)
 *.md
 docs
-future_plans
 voice-samples
 image.png
 pay*.jpeg
