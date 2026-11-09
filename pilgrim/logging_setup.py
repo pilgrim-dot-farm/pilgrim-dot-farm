@@ -79,7 +79,7 @@ class TextFormatter(logging.Formatter):
 
 
 class JsonFormatter(logging.Formatter):
-    """One JSON object per line (SHEEP_PEN.md §0.5.5; RADIO §7).
+    """One JSON object per line (docs/plans/sheep-pen-brief.md §0.5.5; RADIO §7).
 
     Selected by ``logging.format: json`` (the container overlay). CloudWatch
     Logs Insights queries the fields directly, and EMF metric lines survive

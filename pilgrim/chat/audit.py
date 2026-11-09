@@ -1,6 +1,6 @@
 """CloudWatch audit log writer for chat events with message text / IP hashes.
 
-SHEEP_PEN.md §0.5.5, §7. Ordinary structured events go to stdout (and the
+docs/plans/sheep-pen-brief.md §0.5.5, §7. Ordinary structured events go to stdout (and the
 container log group). Message text and IP hashes go **only** here, to the
 dedicated audit log group, via boto3 `PutLogEvents`. The client is built from
 `media.aws_profile` on the Mac (IAM user `mac-studio` holds `logs:*` since

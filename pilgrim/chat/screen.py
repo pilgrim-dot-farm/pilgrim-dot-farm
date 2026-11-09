@@ -1,6 +1,6 @@
 """Layer A: deterministic screening before a chat message is accepted.
 
-SHEEP_PEN.md §6 Layer A. Runs synchronously on the web tier, costs nothing,
+docs/plans/sheep-pen-brief.md §6 Layer A. Runs synchronously on the web tier, costs nothing,
 and rejects before anything is written: empty, overlength, control/invisible
 characters, links/contact info (the station's existing prefilter), prohibited
 terms (digest list), and repeats. Swear words are deliberately **not** filtered,

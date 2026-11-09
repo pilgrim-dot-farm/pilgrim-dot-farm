@@ -1,4 +1,4 @@
-"""Art worker (ALBUM_ART.md Step 5): one song at a time, back-off, no raises."""
+"""Art worker (docs/shipped/album-art.md Step 5): one song at a time, back-off, no raises."""
 from __future__ import annotations
 
 import asyncio

@@ -17,11 +17,11 @@ hosts:
   litellm: https://litellm.twr.church/v1
   # LiteLLM MCP (Streamable HTTP): only the DJ's time tool now (docs/backends.md §5).
   mcp: https://litellm.twr.church/mcp
-  # Brave Search API: news bulletin + copied-lyrics screen (BRAVE.md; docs/backends.md §11).
+  # Brave Search API: news bulletin + copied-lyrics screen (docs/systems/search.md; docs/backends.md §11).
   # Key: BRAVE_SEARCH_KEY in .env, sent as X-Subscription-Token.
   brave: https://api.search.brave.com
   sfx: http://192.168.68.88:8000   # MOSS-SoundEffect v2.0 (docs/backends.md §7)
-  flux: http://127.0.0.1:8084      # FLUX 3 Image Klein, cover art (ALBUM_ART.md; docs/backends.md §10)
+  flux: http://127.0.0.1:8084      # FLUX 3 Image Klein, cover art (docs/shipped/album-art.md; docs/backends.md §10)
 
 models:
   news: qwen38
@@ -30,8 +30,8 @@ models:
   commercials: "Ornith-1.5-9B"
   liners: "Ornith-1.5-9B"
   field_report: qwen38
-  chat_moderation: "Ornith-1.5-9B"   # Layer B review worker (SHEEP_PEN.md §6)
-  chat_giles: qwen38                   # Giles's chat dispatches (SHEEP_PEN.md §0.7.10)
+  chat_moderation: "Ornith-1.5-9B"   # Layer B review worker (docs/plans/sheep-pen-brief.md §6)
+  chat_giles: qwen38                   # Giles's chat dispatches (docs/plans/sheep-pen-brief.md §0.7.10)
   music: MiniMax-Music-3   # LiteLLM model group for songs.gen_backends with auth: litellm
   # Context window per model. Calls send max_tokens = context - prompt estimate
   # (no artificial output limit); omitting max_tokens hits qwen38's server
@@ -49,7 +49,7 @@ voices:
   news: am_michael
   commercials: af_aoede
   liners: am_liam
-  field_reporter: bm_lewis   # British field reporter (SFX.md §4.2, user pick)
+  field_reporter: bm_lewis   # British field reporter (docs/systems/sfx.md §4.2, user pick)
   speed: 1.0             # seconds-per-word calibrated at setup; 1.0 is Koken default
 
 playout:
@@ -142,7 +142,7 @@ news:
   results: 8          # Brave news results handed to the anchor per bulletin
   freshness: pd       # last 24 h (pd/pw/pm/py or YYYY-MM-DDtoYYYY-MM-DD)
 
-# Brave Search API client (BRAVE.md). Shared by news and the copyright screen.
+# Brave Search API client (docs/systems/search.md). Shared by news and the copyright screen.
 search:
   timeout_s: 15       # per HTTP call
   retries: 1          # extra attempts on 429/5xx/transport errors
@@ -171,7 +171,7 @@ visitors:
   listener_timeout_s: 15   # live listener drops after this long without a heartbeat
   max_listeners: 1000      # cap on tracked player IDs (player_id is client-supplied)
 
-# Idle policy (IDLE.md): with no listener heartbeats for `after_s`, the playhead
+# Idle policy (docs/plans/idle.md): with no listener heartbeats for `after_s`, the playhead
 # freezes with the committed window already rendered and production pauses
 # (listener requests still produce). A program fetch or a heartbeat wakes it.
 # `enabled: false` restores the always-running behaviour exactly.
@@ -181,7 +181,7 @@ idle:
   check_s: 5               # how often the station checks (wake is immediate, on request)
   producer_poll_s: 30      # paused producer loops look again this often
 
-# Hot state in Valkey (SCALABILITY.md Step 3, RADIO §14 "Hot state"). Enabled by
+# Hot state in Valkey (docs/plans/scalability.md Step 3, RADIO §14 "Hot state"). Enabled by
 # REDIS_URL in the environment/.env (rediss://, TLS, no password); these only
 # tune it. The station publishes program/state/health/alive every publish_s
 # from its own task and counts heartbeat keys the web tier writes.
@@ -192,10 +192,10 @@ cache:
   wake_ttl_s: 60
   timeout_s: 2             # per-call socket timeout; a slow cache degrades, never blocks playout
 
-# The Sheep Pen chat (SHEEP_PEN.md; RADIO §11, §12, §14). One shared room on
+# The Sheep Pen chat (docs/plans/sheep-pen-brief.md; RADIO §11, §12, §14). One shared room on
 # the Fargate web tier; Layer B (Ornith) and Giles run in the separate Mac
 # worker. retention_days is fixed at 7 and must equal the terraform
-# chat_log_retention_days (SHEEP_PEN.md §0.6.4, §0.7.9).
+# chat_log_retention_days (docs/plans/sheep-pen-brief.md §0.6.4, §0.7.9).
 chat:
   enabled: true
   max_length: 200
@@ -238,7 +238,7 @@ chat:
   retention_days: 7
   audit_log_group: /aws/pilgrim/chat-audit
 
-# Community request-queue votes (VOTING.md). Votes decide which FREE request is
+# Community request-queue votes (docs/plans/voting.md). Votes decide which FREE request is
 # written next; paid requests stay ahead of every free one; work already in
 # flight is never reordered; a free queued request at/below `bury_threshold` is
 # not produced until it recovers (null disables burying).
@@ -248,7 +248,7 @@ voting:
   max_voters_per_ip: 3       # distinct voter ids per IP per request
   bury_threshold: -3         # free queued request at/below this score is skipped
 
-# Five-turkey song ratings (VOTING.md). One rating per (epoch, seq, voter) — an
+# Five-turkey song ratings (docs/plans/voting.md). One rating per (epoch, seq, voter) — an
 # airing, not the item — open only while that song is audible (+ grace_s).
 ratings:
   enabled: true
@@ -292,7 +292,7 @@ media:                       # RADIO §8.4: S3 + CloudFront is the media source 
   timeout_s: 120
   max_attempts: 5
 
-art:                         # ALBUM_ART.md; cover art per song (RADIO §8.4, §14)
+art:                         # docs/shipped/album-art.md; cover art per song (RADIO §8.4, §14)
   enabled: true
   size: 1024x1024
   steps: 16                  # server default; 37.6 s per image observed
@@ -313,7 +313,7 @@ library:
   bible_dir: bible
   prompts_dir: prompts
 
-dj:                          # DJ console (TUI.md §7, RADIO §12)
+dj:                          # DJ console (docs/systems/console.md §7, RADIO §12)
   enabled: true              # operator character + phrases armed
   state_poll_s: 1.0          # cheap state poll interval (console)
   backoff_max_s: 10          # reconnect backoff ceiling on disconnects
@@ -350,9 +350,9 @@ talk:
       voice: af_bella
       persona: dry and quick, a little conspiratorial; treats Thistledown like a beat she covers
       day_parts: [midday, afternoon, evening]
-  field_reporter_name: Giles  # PLACEHOLDER until the user names him (SFX.md §10.1)
+  field_reporter_name: Giles  # PLACEHOLDER until the user names him (docs/systems/sfx.md §10.1)
 
-# Sound effects overlaid on non-news talk (SFX.md). Never on news, by construction.
+# Sound effects overlaid on non-news talk (docs/systems/sfx.md). Never on news, by construction.
 sfx:
   enabled: true
   model: moss-soundeffect-v2.0
@@ -361,7 +361,7 @@ sfx:
   sigma_shift: 5.0         # flow-match scheduler shift (server default)
   negative_prompt: ""      # CFG negative prompt
   timeout_s: 180           # ~38 s wall per 2 s clip at 100 steps
-  stinger_gain: 0.5        # TBD by ear (SFX.md §10.3); applied at air time
+  stinger_gain: 0.5        # TBD by ear (docs/systems/sfx.md §10.3); applied at air time
   bed_gain: 0.15
   host_duck: 0.7           # host gain while a stinger plays (anti-clip)
   bed_cue: wind_bed        # ambience under every field report
@@ -409,10 +409,10 @@ sfx:
     harp_gliss: {prompt: "a magical harp glissando, a quick upward sweep of plucked strings ending in a bright shimmer, delicate airy tone, close studio recording", duration_s: 2.0, seed: 181, evergreen: true}
     kazoo: {prompt: "a kazoo playing a short comedic ta-daa tune, buzzy nasal plastic-reed sound, dry close studio recording", duration_s: 1.5, seed: 191, evergreen: true}
 
-# Paid priority requests (PAYMENT.md §2.1). Default off: also inactive when any
+# Paid priority requests (docs/shipped/payments.md §2.1). Default off: also inactive when any
 # of STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY / STRIPE_WEBHOOK_SECRET is unset.
 payments:
-  enabled: true            # live deployment (PAYMENT.md Step 12)
+  enabled: true            # live deployment (docs/shipped/payments.md Step 12)
   api_base: https://api.stripe.com
   api_version: "2026-10-28.endive"
   price_id_live: price_1UWQHdKOiB5HDXLd4qNMoosI
@@ -427,7 +427,7 @@ payments:
   reconcile_after_s: 10        # status poll may ask Stripe after this long
   reconcile_min_interval_s: 5  # at most one retrieve per row per interval
   abandon_after_s: 259200      # 72 h: awaiting_payment rows older than this -> abandoned
-  paid_max_length: 8000       # the composed three-part text (PROMPT_UPGRADE.md Step 1)
+  paid_max_length: 8000       # the composed three-part text (docs/shipped/prompt-upgrade.md Step 1)
   paid_max_lines: 200
   parts:                      # per-box limits; the client mirrors them as maxlength
     lyrics_max: 4000
@@ -436,7 +436,7 @@ payments:
   per_client_per_10min: 6      # rate limit on POST /api/paid-requests
   max_attempts: 5              # production attempts before `failed`
   managed_payments: false      # send managed_payments[enabled]=false (tax code ineligible)
-  copyright:                   # web screen for copied lyrics (PAYMENT.md Step 12b)
+  copyright:                   # web screen for copied lyrics (docs/shipped/payments.md Step 12b)
     enabled: true
     max_probes: 4              # lyric lines searched per paid request
     min_words: 6

@@ -1,4 +1,4 @@
-"""Cover-art backfill (ALBUM_ART.md Step 9; RADIO §8.4).
+"""Cover-art backfill (docs/shipped/album-art.md Step 9; RADIO §8.4).
 
 Dry run by default: it lists what would be rendered. `--apply` renders
 (resuming where it left off), newest first, reusing the live worker's

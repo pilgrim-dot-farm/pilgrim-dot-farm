@@ -820,7 +820,7 @@ def test_ensure_dj_renders_in_the_shift_hosts_voice(cfg, tmp_env):
 
 
 # --------------------------------------------------------------------------- #
-# IDLE.md Step 3: producers pause when nobody is listening; listener requests
+# docs/plans/idle.md Step 3: producers pause when nobody is listening; listener requests
 # still produce. Default predicate is never idle (existing tests unchanged).
 # --------------------------------------------------------------------------- #
 
@@ -905,7 +905,7 @@ async def _raising_sleep(seconds):
 
 
 # --------------------------------------------------------------------------- #
-# VOTING.md: bury (V7). A free queued row at/below the threshold is not
+# docs/plans/voting.md: bury (V7). A free queued row at/below the threshold is not
 # produced; paid rows always are; the producer passes the configured threshold.
 # --------------------------------------------------------------------------- #
 
@@ -954,7 +954,7 @@ def test_bury_threshold_none_disables(cfg, tmp_env):
 
 
 # --------------------------------------------------------------------------- #
-# three-box paid rows (PROMPT_UPGRADE.md Steps 3-4)
+# three-box paid rows (docs/shipped/prompt-upgrade.md Steps 3-4)
 # --------------------------------------------------------------------------- #
 def _queue_parts_row(store, parts, summary="a lunar raccoon anthem"):
     from pilgrim.pipelines.request_parts import RequestParts  # noqa: F401

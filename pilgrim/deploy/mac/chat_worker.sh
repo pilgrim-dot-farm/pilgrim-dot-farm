@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Sheep Pen Mac worker (SHEEP_PEN.md §0.5.1, §0.7.7): Layer B review,
+# The Sheep Pen Mac worker (docs/plans/sheep-pen-brief.md §0.5.1, §0.7.7): Layer B review,
 # Giles dispatches, the 7-day purge and the worker heartbeat. Its own launchd
 # unit beside the station; it never runs inside pilgrim.server.
 #

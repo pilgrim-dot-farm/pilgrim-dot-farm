@@ -1,5 +1,9 @@
 # Fix song prompting and genre variety
 
+> *Formerly `future_plans/FIX_PROMPTING.md`.*
+
+> **Backlog.** Not scheduled. Kept for the diagnosis.
+
 Status: diagnosis and implementation plan. No production behavior is changed by
 this document.
 

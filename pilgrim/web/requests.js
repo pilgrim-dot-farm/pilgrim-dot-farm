@@ -46,7 +46,7 @@
     return tr;
   }
 
-  /* VOTING.md Step 6: the scroll cue. A 24 px bottom gradient shows only while
+  /* docs/plans/voting.md Step 6: the scroll cue. A 24 px bottom gradient shows only while
      there is more queue below the fold, so touch users know the box scrolls. */
   function updateScrollCue() {
     if (!queueWrap) return;
@@ -108,11 +108,11 @@
           label = readySeen ? "ready to air" : "up next";
           readySeen = true;
         }
-        if (r.buried) label = "buried";   // VOTING.md V7: voted below the line
+        if (r.buried) label = "buried";   // docs/plans/voting.md V7: voted below the line
         // Only this page's rows are built; readySeen above still tracks the
         // whole queue so "up next" is right on page 2 as well.
         if (i < start || i >= end) return;
-        // VOTING.md: the vote cell is built with createElement, never strings.
+        // docs/plans/voting.md: the vote cell is built with createElement, never strings.
         // Cosmetic patch: votes are the left-most column of the queue table,
         // so the cell is appended before the request text.
         if (window.PD_VOTES && typeof window.PD_VOTES.cell === "function") {

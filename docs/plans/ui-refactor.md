@@ -1,4 +1,6 @@
-# UI_REFACTOR.md — App shell: ABOUT pane, desktop nav, phone tabs + mini player
+# UI refactor — app shell: ABOUT pane, desktop nav, phone tabs + mini player
+
+> *Formerly `UI_REFACTOR.md`.*
 
 Work plan for a coding agent. Six steps, done **in order**, one commit per
 step. Every code block in this file is the exact code to write unless the
@@ -194,7 +196,7 @@ Add directly after the `.window.infra …` / `.infra-link:hover …` block
 (before the `#footer` rule):
 
 ```css
-/* ABOUT (UI_REFACTOR.md Step 1, RADIO §9.1): one pane holding the hit
+/* ABOUT (docs/plans/ui-refactor.md Step 1, RADIO §9.1): one pane holding the hit
    counter, mission statement, infra diagram and credits as sub-sections with
    their former titles. The sub-section bodies keep their own .win-body.*
    rules; the outer body carries no padding so dividers run edge to edge. */
@@ -293,7 +295,7 @@ can place the nav under a header whose height depends on wrapping:
 Add after the ABOUT block from Step 1:
 
 ```css
-/* Desktop left nav (UI_REFACTOR.md Step 2, RADIO §9.1): fixed in the left
+/* Desktop left nav (docs/plans/ui-refactor.md Step 2, RADIO §9.1): fixed in the left
    margin so the 484 px column never moves. Right edge sits 24 px left of the
    column (column left = 50% - 242px); below 900 px the phone shell takes
    over (Step 3) and this is display:none. */
@@ -328,7 +330,7 @@ Add after the ABOUT block from Step 1:
 Write the whole file now; Steps 3 and 4 add to it at the marked places.
 
 ```js
-/* Pilgrim Dot Farm — app shell (UI_REFACTOR.md, RADIO §9.1).
+/* Pilgrim Dot Farm — app shell (docs/plans/ui-refactor.md, RADIO §9.1).
    Desktop (>= 900 px): a left nav that scrolls #desktop to a pane and
    highlights the pane in view. Phone (<= 899 px): one pane at a time, four
    bottom tabs, and a mini player that mirrors #btn-play / #indicator /
@@ -418,7 +420,7 @@ Write the whole file now; Steps 3 and 4 add to it at the marked places.
 ### 2.5 Tests: new `pilgrim/tests/e2e/nav.spec.ts`
 
 ```ts
-/** Desktop nav (UI_REFACTOR.md Step 2, RADIO §9.1): fixed in the left margin,
+/** Desktop nav (docs/plans/ui-refactor.md Step 2, RADIO §9.1): fixed in the left margin,
  *  never moves the column, scrolls to a pane, follows manual scrolling. */
 import { test, expect } from "@playwright/test";
 
@@ -519,7 +521,7 @@ Bump `shell.js?v=` and `style.css?v=`.
 Add after the `.nav-desktop` block:
 
 ```css
-/* Phone chrome (UI_REFACTOR.md Step 3, RADIO §9.1): the mini player and tab
+/* Phone chrome (docs/plans/ui-refactor.md Step 3, RADIO §9.1): the mini player and tab
    row are flex children of body (never position:fixed, so they behave when
    iOS opens the keyboard). Hidden on desktop; the phone media block at the
    end of this file shows them. */
@@ -579,7 +581,7 @@ equal-specificity rules win):
 
 ```css
 /* ============================================================
-   Phone shell (UI_REFACTOR.md Step 3, RADIO §9.1). One breakpoint, 899 px:
+   Phone shell (docs/plans/ui-refactor.md Step 3, RADIO §9.1). One breakpoint, 899 px:
    header (one line, no tagline) / the active pane / mini player / tabs. The
    footer is hidden; ABOUT ends with its copyright line. All four panes stay
    laid out (visibility, not display), so scroll positions, the chat log's
@@ -772,7 +774,7 @@ with
 
 ```ts
     // the rating row never overflows the pane's content box (on phones the
-    // art may be narrower than the row: UI_REFACTOR.md D8)
+    // art may be narrower than the row: docs/plans/ui-refactor.md D8)
     const inner = await page.locator(".win-body.radio").evaluate(el =>
       el.clientWidth - parseFloat(getComputedStyle(el).paddingLeft) - parseFloat(getComputedStyle(el).paddingRight));
     expect(rw).toBeLessThanOrEqual(inner + 1);
@@ -788,7 +790,7 @@ gets the same one-line tab click, nothing more; report each such edit.
 ```ts
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /mobile\.spec\.ts/ },
-    // UI_REFACTOR.md D1: one standard phone, Chromium with iPhone 14 metrics
+    // docs/plans/ui-refactor.md D1: one standard phone, Chromium with iPhone 14 metrics
     // (390x664, 3x, mobile UA, touch). Real Safari/Android = operator check.
     { name: "phone", use: { ...devices["iPhone 14"], browserName: "chromium", channel },
       testMatch: /mobile\.spec\.ts/ },
@@ -798,7 +800,7 @@ gets the same one-line tab click, nothing more; report each such edit.
 New `pilgrim/tests/e2e/mobile.spec.ts`:
 
 ```ts
-/** Phone shell (UI_REFACTOR.md Step 3, RADIO §9.1/§9.2) on one standard phone
+/** Phone shell (docs/plans/ui-refactor.md Step 3, RADIO §9.1/§9.2) on one standard phone
  *  (iPhone 14 metrics in Chromium). Fakes only (e2e_server). */
 import { test, expect, type Page } from "@playwright/test";
 
@@ -1156,7 +1158,7 @@ test("at 900 px the nav still clears the column; at 899 px the phone shell shows
    > (RADIO / REQUEST LINE / SHEEP PEN / ABOUT) in the margin that scrolls
    > to a pane and highlights the one in view; the 484 px column, header
    > and footer are unchanged by the nav. On phones (≤ 899 px) the page is
-   > an app (UI_REFACTOR.md): a one-line header (hat + station name, no
+   > an app (docs/plans/ui-refactor.md): a one-line header (hat + station name, no
    > tagline), **one pane at a time** filling the screen, a **mini player**
    > (state dot, audible song as *Title — Artist*, round PLAY/STOP) and four
    > bottom tabs **RADIO / REQUEST / CHAT / ABOUT**; the footer is hidden
@@ -1178,7 +1180,7 @@ test("at 900 px the nav still clears the column; at 899 px the phone shell shows
 
    Add a bullet **ABOUT** after THE SHEEP PEN:
 
-   > - **ABOUT** (UI_REFACTOR.md, 2026-11): one pane holding, in this order
+   > - **ABOUT** (docs/plans/ui-refactor.md, 2026-11): one pane holding, in this order
    >   and with these exact sub-headings, **HIT COUNTER & SOCIAL**,
    >   **CORPORATE MISSION STATEMENT**, **INFRA AND DATA FLOW**, **CREDITS**
    >   (the former standalone panes, content unchanged), and on phones a
@@ -1187,7 +1189,7 @@ test("at 900 px the nav still clears the column; at 899 px the phone shell shows
    Prefix the existing **MODEL CREDITS** and **HIT COUNTER** bullets with
    *"(sub-section of ABOUT)"*. Do not change anything else in §9.1 or §9.2.
 
-2. **`AGENTS.md`** "Active work plans": add `UI_REFACTOR.md (Steps 1–6, app
+2. **`AGENTS.md`** "Active work plans": add `docs/plans/ui-refactor.md (Steps 1–6, app
    shell: ABOUT pane, desktop nav, phone tabs + mini player)` to the first
    paragraph.
 
@@ -1202,7 +1204,7 @@ test("at 900 px the nav still clears the column; at 899 px the phone shell shows
      then vet the running container with the AWS CLI (task definition
      revision, `release` label, PRIMARY deployment `COMPLETED`, running
      count, `/api/health`). Record the digest line in the **Shipped**
-     section at the end of this file, as SHEEP_PEN_PLAN.md does.
+     section at the end of this file, as docs/plans/sheep-pen-plan.md does.
    - EC2 is gone and no nginx serves the front-end (D17): there is no edge
      checkout to `git pull`. The Fargate web tier is the only web surface.
    - No station restart is needed: nothing under `pilgrim/*.py` changed.
@@ -1213,7 +1215,7 @@ test("at 900 px the nav still clears the column; at 899 px the phone shell shows
      the CHAT composer: keyboard up, composer visible above it, tabs hidden,
      tabs back on blur; same for a REQUEST textarea; rotate once.
 
-5. Commit: `docs: app shell in RADIO §9.1; UI_REFACTOR.md pointers (UI_REFACTOR Step 6)`.
+5. Commit: `docs: app shell in RADIO §9.1; docs/plans/ui-refactor.md pointers (UI_REFACTOR Step 6)`.
 
 ---
 
@@ -1260,7 +1262,7 @@ All answered by the operator on 2026-11-08; the defaults in §0.3 are final.
 
 ## 9. Shipped
 
-Filled in by the agent at deploy time (D15; SHEEP_PEN_PLAN.md convention).
+Filled in by the agent at deploy time (D15; docs/plans/sheep-pen-plan.md convention).
 
 - Date: 2026-11-08
 - Commit / image tag: `526d3c9` → `pilgrimdotfarm/front-end:526d3c9` and `:latest`
@@ -1272,7 +1274,7 @@ Filled in by the agent at deploy time (D15; SHEEP_PEN_PLAN.md convention).
 - Operator real-phone check (D16): pending (iPhone Safari + one Android Chrome;
   see Step 6.4)
 
-**Feedback round (2026-11-08, UI_REFACTOR_FEEDBACK.md):** commit `4073bee`,
+**Feedback round (2026-11-08, docs/plans/ui-feedback.md):** commit `4073bee`,
 image `pilgrimdotfarm/front-end:4073bee` + `:latest`, digest
 `sha256:c384a8e443ddaff3ca73fcc4ec40c4a1c9bffb1135f21005f62e9036efcc8808`,
 `ecs_release` 15 → 16 (`pg-app:12`, HEALTHY), live site serves

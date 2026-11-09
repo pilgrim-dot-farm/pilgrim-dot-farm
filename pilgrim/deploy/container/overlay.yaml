@@ -1,4 +1,4 @@
-# Container overlay for pilgrim/config.yaml (SCALABILITY.md Step 1).
+# Container overlay for pilgrim/config.yaml (docs/plans/scalability.md Step 1).
 #
 # Deep-merged over config.yaml by load_config() when $PILGRIM_CONFIG_OVERLAY
 # names this file (the Dockerfile sets it). Same pydantic schema, no new keys:

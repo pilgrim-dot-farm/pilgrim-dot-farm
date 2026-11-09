@@ -1,4 +1,4 @@
-"""Payer-supplied MiniMax input, used as written (PAYMENT.md Step 12c).
+"""Payer-supplied MiniMax input, used as written (docs/shipped/payments.md Step 12c).
 
 The closer a submission already is to MiniMax Music 3 input, the less the
 station should touch it. The brief LLM reads the request in whatever English

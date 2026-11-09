@@ -1,4 +1,4 @@
-"""PAYMENT.md Steps 4–6, 9 + 12b: paid requests (staged checks, checkout,
+"""docs/shipped/payments.md Steps 4–6, 9 + 12b: paid requests (staged checks, checkout,
 operator comp), webhook, status, admin (fakes only)."""
 from __future__ import annotations
 
@@ -615,7 +615,7 @@ def test_status_route_works_without_payments(tmp_env, monkeypatch):
 
 def test_paid_limit_fits_a_full_minimax_input(tmp_env, monkeypatch):
     """Step 12c: a full caption + lyric sheet (~4,800 chars, 65 lines) fits;
-    PROMPT_UPGRADE.md Step 1 raises the composed limit to 8000 for three
+    docs/shipped/prompt-upgrade.md Step 1 raises the composed limit to 8000 for three
     boxes."""
     cfg, app, _, _ = _build(tmp_env, monkeypatch)
     assert cfg.payments.paid_max_length == 8000
@@ -694,7 +694,7 @@ def test_abandon_window_is_72_hours(cfg):
 
 
 # --------------------------------------------------------------------------- #
-# three-box request (PROMPT_UPGRADE.md Step 2)
+# three-box request (docs/shipped/prompt-upgrade.md Step 2)
 # --------------------------------------------------------------------------- #
 LYRICS = "A raccoon becomes president of the moon."
 MUSIC = "Death metal."

@@ -1,4 +1,4 @@
-"""Cover-art backfill tool (ALBUM_ART.md Step 9), fakes only."""
+"""Cover-art backfill tool (docs/shipped/album-art.md Step 9), fakes only."""
 from __future__ import annotations
 
 import argparse

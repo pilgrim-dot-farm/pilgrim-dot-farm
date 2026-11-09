@@ -1,4 +1,4 @@
-"""Hot state in Valkey (SCALABILITY.md Step 3; RADIO §3, §11, §14).
+"""Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §3, §11, §14).
 
 Fakes only: `FakeRedis` with an injected clock. Covers the key contract, the
 TTLs, failure degradation, the listener union and the wake flag."""

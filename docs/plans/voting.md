@@ -1,6 +1,8 @@
-# VOTING.md — Community voting: turkey ratings and request votes
+# Voting — community voting: turkey ratings and request votes
 
-> Amended by FIX_RATINGS.md (2026-11-06): programme rows carry the aggregate, the client shows it for the whole song, the community average is drawn as magenta turkeys until the listener rates, and the web tier's grace window is fixed. Where this file and FIX_RATINGS.md differ, FIX_RATINGS.md wins.
+> *Formerly `VOTING.md`.*
+
+> Amended by docs/plans/ratings.md (2026-11-06): programme rows carry the aggregate, the client shows it for the whole song, the community average is drawn as magenta turkeys until the listener rates, and the web tier's grace window is fixed. Where this file and docs/plans/ratings.md differ, docs/plans/ratings.md wins.
 
 Work plan for coding agents. Two listener controls, no accounts, no new
 infrastructure:
@@ -16,14 +18,14 @@ Plus a mobile pass on the queue: scrollable, obviously so, wrapping prompts,
 44 px touch targets, no horizontal scroll.
 
 Read this whole file first. Then read, in order: `AGENTS.md`, `RADIO.md`
-§5.2, §6.1, §9.1, §9.2, §11, §12, §14, §15, `PAYMENT.md` §3.2–3.4 (queue
+§5.2, §6.1, §9.1, §9.2, §11, §12, §14, §15, `docs/shipped/payments.md` §3.2–3.4 (queue
 order and board projection) and Step 10 (edge/gateway allowlists),
-`SPLIT_PLAN.md` §1–2 (route allowlist, cache headers). `RADIO.md` is the
+`docs/shipped/split.md` §1–2 (route allowlist, cache headers). `RADIO.md` is the
 source of truth; if this file and RADIO.md disagree, stop and report.
 
 Each step ends with the AGENTS.md §7 checks, a commit citing the
 RADIO/VOTING sections, and the AGENTS.md §8 report. Code is written on the
-Mac checkout; the edge gets `git pull` only (ALBUM_ART.md "Where the work
+Mac checkout; the edge gets `git pull` only (docs/shipped/album-art.md "Where the work
 happens") — this plan changes `pilgrim/web/` **and** the nginx templates, so
 Step 7 deploys the edge.
 
@@ -286,12 +288,12 @@ Logging: `vote.cast {request_id, value, score}` and `rating.cast {item_id, seq, 
 **Config** (`config.py` models `Voting`, `Ratings`; `config.yaml`; RADIO §12):
 
 ```yaml
-voting:                      # VOTING.md: request-queue votes
+voting:                      # docs/plans/voting.md: request-queue votes
   enabled: true
   per_client_per_10min: 60   # vote POSTs per client IP (same limiter as the request line)
   max_voters_per_ip: 3       # distinct voter ids per IP per request
   bury_threshold: -3         # free queued request at/below this score is not produced; null = off
-ratings:                     # VOTING.md: five-turkey song ratings
+ratings:                     # docs/plans/voting.md: five-turkey song ratings
   enabled: true
   per_client_per_10min: 60
   max_voters_per_ip: 3
@@ -361,7 +363,7 @@ proxied, not edge-404), a rating with a bad body is **422**, and both are
   ended);
 - anything else (future seq, older seq, intro, non-song) → closed.
 
-Note IDLE.md: a frozen station still has an on-air row; a rating then is
+Note docs/plans/idle.md: a frozen station still has an on-air row; a rating then is
 legal (someone could be hearing the tail of the buffered song) and harmless.
 
 **Tests** (`pilgrim/tests/test_voting.py`, SimClock scheduler over a temp
@@ -558,8 +560,8 @@ bounding boxes are ≥ 40×40 and the status text appears under the title;
    scroll cue, mobile status-under-title), §9.2 (the `pd:nowplaying` hook;
    `rating.js` never touches audio), §11 (two routes, `rating` on state,
    board fields, admin voting), §12 (`voting:`/`ratings:`), §14 (tables,
-   `claimed_at`, the new queue order — note that PAYMENT.md §3.2 is
-   superseded by it), §15 (tests). `PAYMENT.md` §3.2: one line pointing to
+   `claimed_at`, the new queue order — note that docs/shipped/payments.md §3.2 is
+   superseded by it), §15 (tests). `docs/shipped/payments.md` §3.2: one line pointing to
    RADIO §14. `README.md`: a short "Community voting" paragraph (identity =
    browser id + IP, what is stored, how to disable). `docs/backends.md`:
    nothing (no backend).
@@ -595,7 +597,7 @@ operator's call (§9 Q3).
 | Agent | Owns (files) | Depends on | Deliverable |
 |---|---|---|---|
 | **A — Backend** | `pilgrim/store.py`, `pilgrim/voting.py`, `pilgrim/server.py` (new routes at the end of `_add_public_routes`, admin route), `pilgrim/config.py` + `config.yaml` (`voting`, `ratings`), `pilgrim/producer.py` (the two lines in §2), `pilgrim/deploy/edge|gateway/nginx.conf.template`, `smoke.sh`, `cutover_check.sh`, tests in `test_requests.py`, `test_server.py`, `test_voting.py`, `test_render_deploy.py`; RADIO §11/§12/§14 | — | Steps 1–3 + the backend half of §2's deploy checks. Commit per step |
-| **B — Idle** | see `IDLE.md` | — | Runs concurrently with A in another worktree; only `server.py` (different regions), `config.*` (different sections) and RADIO.md overlap |
+| **B — Idle** | see `docs/plans/idle.md` | — | Runs concurrently with A in another worktree; only `server.py` (different regions), `config.*` (different sections) and RADIO.md overlap |
 | **C — Ratings UI** | `pilgrim/web/rating.js`, `pilgrim/web/voter.js`, `pilgrim/web/img/turkey.svg`, the `<symbol>` + `.rate-row` markup in `index.html` (radio pane only), the rating CSS block in `style.css`, the one-hook edit in `player.js` | contract in §2/§4 (can start at once; e2e needs Step 7) | Step 5 |
 | **D — Queue UI** | `pilgrim/web/votes.js`, `pilgrim/web/requests.js`, the NOW QUEUED markup in `index.html` (request pane only), the request/vote/scroll CSS blocks in `style.css` | contract in §2/§4 (can start at once; e2e needs Step 7) | Step 6 |
 | **E — Integration** | `pilgrim/tests/e2e/*` (server + specs), docs reconciliation, rebase of A/B/C/D, edge deploy, Step 8 if approved | A, B, C, D merged | Step 7 (+ 8) |

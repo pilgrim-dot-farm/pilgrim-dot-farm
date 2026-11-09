@@ -1,8 +1,8 @@
-"""Typed models for the console (TUI.md §3).
+"""Typed models for the console (docs/systems/console.md §3).
 
 Thin re-exports of the shared DJ contracts (`pilgrim.dj_contracts`) so the TUI
 has one stable boundary and never imports `Station`, opens `station.db`, or
-touches library paths (RADIO §3, TUI.md §3). `load_dj_token` is the single
+touches library paths (RADIO §3, docs/systems/console.md §3). `load_dj_token` is the single
 token source (`PILGRIM_DJ_TOKEN`, env or .env) shared with the server.
 """
 from __future__ import annotations

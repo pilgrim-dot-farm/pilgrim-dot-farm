@@ -1,4 +1,4 @@
-"""PAYMENT.md §2.4 — signature, client, config (fakes only, no Stripe calls)."""
+"""docs/shipped/payments.md §2.4 — signature, client, config (fakes only, no Stripe calls)."""
 from __future__ import annotations
 
 import json

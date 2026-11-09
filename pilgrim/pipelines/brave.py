@@ -1,4 +1,4 @@
-"""Brave Search API client (BRAVE.md; docs/backends.md §11).
+"""Brave Search API client (docs/systems/search.md; docs/backends.md §11).
 
 Two endpoints, both plain GETs with the key in `X-Subscription-Token`:
 

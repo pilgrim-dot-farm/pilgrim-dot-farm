@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make pg-test (SCALABILITY.md Step 2): the whole unit suite against a
+# make pg-test (docs/plans/scalability.md Step 2): the whole unit suite against a
 # throwaway Postgres container. Fakes only; the only "backend" is this local
 # container (AGENTS §1.2). Postgres major pinned to what RDS runs (18).
 set -euo pipefail

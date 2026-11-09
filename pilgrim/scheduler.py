@@ -34,7 +34,7 @@ NON_SONG_TYPES = ("dj_talk", "commercial_break", "liner", "news", "field_report"
                   "promo", "time_check")
 
 # Types a manually-placed operator phrase must never sit adjacent to in either
-# order (RADIO §11: "DJ-like news adjacency", TUI.md §6). A song is the only
+# order (RADIO §11: "DJ-like news adjacency", docs/systems/console.md §6). A song is the only
 # guaranteed separator.
 PHRASE_ADJACENT = frozenset({"dj_talk", "news", "operator_phrase"})
 
@@ -76,12 +76,12 @@ class Scheduler:
         self.selector = selector
         self.clock = clock
         self.rng = rng
-        # Phrase lifecycle hook (RADIO §5.5; TUI.md §6): called with an item_id
+        # Phrase lifecycle hook (RADIO §5.5; docs/systems/console.md §6): called with an item_id
         # when its committed phrase row falls fully behind the playhead (it
         # aired). The PhraseManager marks the job terminal. Optional so tests
         # and the simulation can build a scheduler without a phrase manager.
         self.on_phrase_aired = on_phrase_aired
-        # Station identity for the DJ protocol (TUI.md §5, RADIO §5.3): the
+        # Station identity for the DJ protocol (docs/systems/console.md §5, RADIO §5.3): the
         # `epoch` changes on restart; the programme `revision` bumps whenever
         # already-published future playback changes (cutovers bump it, §5.5).
         self.epoch = epoch or uuid.uuid4().hex[:12]
@@ -110,7 +110,7 @@ class Scheduler:
         self._cum: list[float] = []  # absolute start times (program seconds)
         self._total = 0.0
         self._offset = 0.0  # playhead anchor; shifts forward if the program starves
-        # IDLE.md: clock.now() when the playhead froze (None = running). While
+        # docs/plans/idle.md: clock.now() when the playhead froze (None = running). While
         # frozen, position()/coverage() are static and the committed window is
         # left untouched (it is already fully rendered).
         self._frozen_at: float | None = None
@@ -132,7 +132,7 @@ class Scheduler:
         self._hold_since: float = 0.0
         # SFX overlays that air with each committed host: seq -> overlays, plus
         # the absolute program start of recent stingers (rolling budget).
-        # Live-only, like the program itself (SFX.md §7.2).
+        # Live-only, like the program itself (docs/systems/sfx.md §7.2).
         self._sfx_by_seq: dict[int, list[dict]] = {}
         self._stinger_starts: list[float] = []
         # The committed program is live-only state: old rows refer to a clock
@@ -156,17 +156,17 @@ class Scheduler:
 
     def position(self) -> float:
         """Live playhead in program-seconds (advances on the real clock, unless
-        the station is idle: IDLE.md D3)."""
+        the station is idle: docs/plans/idle.md D3)."""
         now = self._frozen_at if self._frozen_at is not None else self.clock.now()
         return min(now - self._offset, self._total)
 
-    # ------------------------------------------------------------- idle (IDLE.md)
+    # ------------------------------------------------------------- idle (docs/plans/idle.md)
     @property
     def frozen(self) -> bool:
         return self._frozen_at is not None
 
     def freeze(self) -> None:
-        """Stop the playhead where it is (IDLE.md D3). Idempotent: the frozen
+        """Stop the playhead where it is (docs/plans/idle.md D3). Idempotent: the frozen
         window stays exactly as committed, already rendered and playable."""
         if self._frozen_at is not None:
             return
@@ -175,7 +175,7 @@ class Scheduler:
                                           "coverage_s": round(self.coverage(), 1)})
 
     def thaw(self) -> int:
-        """Resume the playhead and revalidate the committed future (IDLE.md D4).
+        """Resume the playhead and revalidate the committed future (docs/plans/idle.md D4).
 
         Shifts `_offset` by the frozen span (so playback resumes exactly where
         it stopped), drops future `time_check` rows and any future row whose
@@ -233,7 +233,7 @@ class Scheduler:
 
     def _bridge_song_gaps(self, start: int) -> int:
         """Insert a liner/station ID before any future song that directly
-        follows a song (IDLE.md D4, §5.2: words between songs).
+        follows a song (docs/plans/idle.md D4, §5.2: words between songs).
 
         Future rows are renumbered with fresh seqs above the high-water mark
         (never reusing an occurrence id) and the revision is bumped by the
@@ -468,7 +468,7 @@ class Scheduler:
         """
         cfg = self.cfg.playout
         if self._frozen_at is not None:
-            # IDLE.md D3/D8: while frozen the window is static (position does
+            # docs/plans/idle.md D3/D8: while frozen the window is static (position does
             # not move, so coverage and trim are static too) and filling it
             # would consume one-shot inventory for airtime nobody hears. A
             # ready listener request still takes the next slot the moment
@@ -594,7 +594,7 @@ class Scheduler:
             # committed, not yet heard: _settle_aired marks it when it airs
             self._pending_aired[seq] = e["request_id"]
             # teed up: the slot's wall time caps the board's Prep Time so a
-            # frozen station (IDLE.md D3) cannot inflate it (RADIO §11)
+            # frozen station (docs/plans/idle.md D3) cannot inflate it (RADIO §11)
             self.store.mark_request_due(e["request_id"], self._slot_wall(host_start))
             log.info("request.committed", extra={
                 "request_id": e["request_id"], "item_id": item_id, "seq": seq,
@@ -609,7 +609,7 @@ class Scheduler:
     def _plan_sfx(self, seq: int, e: dict, host_start: float) -> None:
         """Decide which of the host's rendered SFX overlays air (coin flip,
         rate budget; sfx_plan). Missing/retired sfx items are skipped: a
-        stinger is optional, never a stall (SFX.md §7.4)."""
+        stinger is optional, never a stall (docs/systems/sfx.md §7.4)."""
         if e["type"] not in SFX_HOST_TYPES:
             return  # songs, intros and news never carry SFX
         it = self.store.get_item(e["item_id"])
@@ -663,7 +663,7 @@ class Scheduler:
                 threshold_seq = r["seq"]
                 # Phrase lifecycle: a committed phrase row that fell fully
                 # behind the playhead has aired — mark its job terminal
-                # (RADIO §5.5; TUI.md §6). Defensive: a callback error must
+                # (RADIO §5.5; docs/systems/console.md §6). Defensive: a callback error must
                 # not break playout or the trim itself.
                 if r["type"] == "operator_phrase" and self.on_phrase_aired:
                     try:
@@ -793,7 +793,7 @@ class Scheduler:
         youth = max(rot.youth_floor, 0.5 ** (age_h / rot.half_life_h))
         wait = min(1.0, since_h / rot.wait_target_h)
         weight = youth * (rot.wait_floor + (1 - rot.wait_floor) * wait)
-        # VOTING.md Step 8 (off by default): let ratings nudge the recycled
+        # docs/plans/voting.md Step 8 (off by default): let ratings nudge the recycled
         # draw. A 3-turkey song is neutral; a 1-turkey song keeps a quarter of
         # its pull, a 5-turkey song gets half again. Store read only — pure of
         # time/random — and it never breaks spacing (it orders songs that
@@ -1136,7 +1136,7 @@ class Scheduler:
         rendered: appending at the tail would leave it behind the already-
         committed lookahead (the 'up next for three songs' bug). Each splice
         bumps the programme revision; the revision-aware client cancels its
-        obsolete future sources and refetches the snapshot (TUI.md §5, §9.2)."""
+        obsolete future sources and refetches the snapshot (docs/systems/console.md §5, §9.2)."""
         committed = set(self._pending_aired.values())
         for req in self.store.ready_request_songs():
             if req["id"] in committed:
@@ -1374,7 +1374,7 @@ class Scheduler:
         a client that has already fetched the current window.
 
         The tail is legal when its predecessor is not dj_talk / news / another
-        phrase (RADIO §11; TUI.md §6). Otherwise the caller defers and retries
+        phrase (RADIO §11; docs/systems/console.md §6). Otherwise the caller defers and retries
         next cycle; the committed window keeps extending, so a legal tail
         appears within a commit cycle. Bumps the programme revision because
         already-published future playback changes (§5.5). Returns the new seq,

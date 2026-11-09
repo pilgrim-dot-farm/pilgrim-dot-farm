@@ -60,7 +60,7 @@ async def seed(cfg: Config, api_key: str) -> int:
     n0 = len(db.list_items("station_id"))
     await prod.ensure_station_ids()
     made += len(db.list_items("station_id")) - n0
-    # stock stingers, so seeded talk can use them (SFX.md §8.1)
+    # stock stingers, so seeded talk can use them (docs/systems/sfx.md §8.1)
     log.info("seeding sfx stock pool...")
     made += await prod.ensure_sfx_pool()
     log.info("seeding commercials...")

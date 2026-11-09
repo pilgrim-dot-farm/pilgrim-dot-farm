@@ -346,7 +346,7 @@ def run(edge_url: str, gateway_url: str, state: Path,
 
     if max_check >= 16:
         def check_16():
-            # VOTING.md §2: the vote route is proxied end to end (the origin's
+            # docs/plans/voting.md §2: the vote route is proxied end to end (the origin's
             # 404, not the edge's) and never cached.
             r = edge.post("/api/requests/999999/vote",
                           json={"voter_id": "0" * 32, "value": 1})

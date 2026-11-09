@@ -1,5 +1,7 @@
 # DJ console — Textual frontend and station controls
 
+> *Formerly `TUI.md`.*
+
 Design proposal, 2026-10-01. RADIO.md remains authoritative. Adopt proposed
 changes there before implementing new contracts (RADIO §§11–12, 14).
 
@@ -483,7 +485,7 @@ and RADIO section references at each milestone.
 | Character identity and sound | Operator chooses a new name and an unused Kokoro voice after listening. No default assigned by this plan. |
 | API/config/database contracts | Review the drafts in §§4–7 before implementation and amend RADIO.md in the same implementation change. |
 
-The only repository addition for this planning task is `TUI.md`, at the
+The only repository addition for this planning task is `docs/systems/console.md`, at the
 user-requested root location. Existing uncommitted work is outside this change.
 
 

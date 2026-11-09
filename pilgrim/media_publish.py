@@ -99,7 +99,7 @@ def object_key(cfg: Config, item: dict[str, Any], digest: str) -> str:
 
 
 def art_object_key(cfg: Config, item: dict[str, Any], digest: str) -> str:
-    """`art/<song media stem>-<sha256[:16]>.jpg` (ALBUM_ART.md Step 6). The art
+    """`art/<song media stem>-<sha256[:16]>.jpg` (docs/shipped/album-art.md Step 6). The art
     file may carry a `-2` collision suffix; the song stem keeps the key stable
     across re-renders, and the hash keeps the bytes immutable behind the
     year-long cache."""
@@ -109,7 +109,7 @@ def art_object_key(cfg: Config, item: dict[str, Any], digest: str) -> str:
 
 def art_url(cfg: Config, item: dict[str, Any] | None) -> str:
     """Where a browser fetches a song's cover: CloudFront once uploaded, else
-    "" (no origin fallback — art is cosmetic; ALBUM_ART.md Step 7)."""
+    "" (no origin fallback — art is cosmetic; docs/shipped/album-art.md Step 7)."""
     key = (item or {}).get("art_s3_key")
     base = cfg.media.public_base_url.rstrip("/")
     return f"{base}/{key}" if key and base else ""
@@ -164,7 +164,7 @@ class MediaPublisher:
         return key
 
     async def publish_pending_art(self) -> int:
-        """Upload one batch of rendered cover JPEGs (ALBUM_ART.md Step 6)."""
+        """Upload one batch of rendered cover JPEGs (docs/shipped/album-art.md Step 6)."""
         now = time.monotonic()
         batch = [it for it in self.db.items_to_publish_art(
                      limit=max(1, self.cfg.media.concurrency) * 8 + len(self._failed_art))

@@ -1,4 +1,4 @@
-"""Operator phrase jobs (RADIO.md §4, §11, §6.3; TUI.md §6).
+"""Operator phrase jobs (RADIO.md §4, §11, §6.3; docs/systems/console.md §6).
 
 A phrase is submitted **verbatim** by the station operator through the DJ
 console API: the typed words are the copy and are never rewritten or extended
@@ -49,7 +49,7 @@ def phrase_hash(character_id: str, cleaned_text: str, version: str) -> str:
 
 
 def clean_and_diff(raw: str) -> tuple[str, list[dict]]:
-    """Run the mandatory TTS cleanup and report what changed (TUI.md §6)."""
+    """Run the mandatory TTS cleanup and report what changed (docs/systems/console.md §6)."""
     base = raw.strip()
     cleaned = tts_cleanup(base)
     changes: list[dict] = []
@@ -59,7 +59,7 @@ def clean_and_diff(raw: str) -> tuple[str, list[dict]]:
 
 
 class PhraseManager:
-    """In-memory operator-phrase job registry + render loop (TUI.md §6)."""
+    """In-memory operator-phrase job registry + render loop (docs/systems/console.md §6)."""
 
     def __init__(self, cfg, store, voice: VoicePipeline, media_dir: Path,
                  scheduler: Any | None = None) -> None:

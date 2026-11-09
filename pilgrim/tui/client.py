@@ -1,4 +1,4 @@
-"""HTTP client for the DJ console (RADIO §11, TUI.md §3). Thin, typed, resilient.
+"""HTTP client for the DJ console (RADIO §11, docs/systems/console.md §3). Thin, typed, resilient.
 
 All reads run in Textual async workers so a slow backend never freezes the
 interface. One shared ``httpx.AsyncClient`` with explicit timeouts from config.
@@ -66,7 +66,7 @@ class DjClient:
     @staticmethod
     def _decode(r: httpx.Response) -> dict:
         """Return the JSON body, or raise DjError with the server's stable code
-        and readable detail (TUI.md §3) instead of a raw traceback."""
+        and readable detail (docs/systems/console.md §3) instead of a raw traceback."""
         if r.status_code >= 400:
             try:
                 body = r.json()
@@ -118,7 +118,7 @@ class DjClient:
 
     # --------------------------------------------------------- character/phrase
     async def character(self) -> CharacterInfo:
-        """Configured operator character + unused voices (TUI.md §6)."""
+        """Configured operator character + unused voices (docs/systems/console.md §6)."""
         return CharacterInfo.model_validate(
             await self._get("/api/admin/dj/character"))
 

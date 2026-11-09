@@ -1,5 +1,5 @@
 // Tailnet policy for the Pilgrim split (SPLIT_PLAN §6.4) + the VPC bastion
-// (SCALABILITY.md Step 8). This mirrors the production policy as applied on
+// (docs/plans/scalability.md Step 8). This mirrors the production policy as applied on
 // 2026-11-05 minus the operator's own nodeAttrs; HuJSON allows comments and
 // trailing commas.
 //
@@ -24,7 +24,7 @@
   },
 
   "grants": [
-    // Edge -> origin gateway, 443 only (retired at SCALABILITY.md Step 9).
+    // Edge -> origin gateway, 443 only (retired at docs/plans/scalability.md Step 9).
     {"src": ["tag:radio-relay"], "dst": ["pilgrim-origin"], "ip": ["tcp:443"]},
     // Origin -> RDS Postgres + Valkey inside the VPC, through the bastion's
     // subnet route (SNAT on, so the VPC sees the bastion's private IP).

@@ -22,7 +22,7 @@ _HANDLE = re.compile(r"(?<!\w)@\w{2,}")
 
 _DIGITS_STRIP = re.compile(r"[\s.\-\[\]()]")
 # "runs": one run of 7+ digits joined by at most 2 separator chars. Lets a
-# detailed paid prompt say "120 BPM in 4/4, 1970s feel" (PAYMENT.md Step 4.2).
+# detailed paid prompt say "120 BPM in 4/4, 1970s feel" (docs/shipped/payments.md Step 4.2).
 _DIGIT_RUN = re.compile(r"\d(?:[\s.\-()\[\]]{0,2}\d){6,}")
 
 

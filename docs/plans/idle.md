@@ -1,4 +1,6 @@
-# IDLE.md — The farm sleeps when nobody is listening
+# IDLE — the farm sleeps when nobody is listening
+
+> *Formerly `IDLE.md`.*
 
 Work plan for a coding agent. When the station has **no active stream**
 (no player heartbeats for a grace period), playout **freezes** with a full
@@ -14,7 +16,7 @@ truth; if this file and RADIO.md disagree, stop and report.
 
 Do the steps in order. Each step ends with the AGENTS.md §7 checks, a commit
 citing the RADIO/IDLE sections, and the AGENTS.md §8 report. All code is
-written on the Mac checkout (ALBUM_ART.md "Where the work happens"); the edge
+written on the Mac checkout (docs/shipped/album-art.md "Where the work happens"); the edge
 needs no deploy for this plan (no web or nginx change).
 
 ---
@@ -107,7 +109,7 @@ needs no deploy for this plan (no web or nginx change).
 New top-level section, pydantic model `Idle`, field `idle: Idle` on `Config`:
 
 ```yaml
-idle:                      # IDLE.md: freeze playout + pause production with no listeners
+idle:                      # docs/plans/idle.md: freeze playout + pause production with no listeners
   enabled: true
   after_s: 120             # no heartbeat for this long -> idle (>= visitors.listener_timeout_s)
   check_s: 5               # how often the station checks (wake is immediate, on request)
@@ -140,7 +142,7 @@ def position(self) -> float:
 def frozen(self) -> bool: ...
 
 def freeze(self) -> None:
-    """Stop the playhead where it is (IDLE.md D3). Idempotent."""
+    """Stop the playhead where it is (docs/plans/idle.md D3). Idempotent."""
 
 def thaw(self) -> int:
     """Resume the playhead (shift _offset by the frozen span), revalidate the
@@ -322,11 +324,11 @@ few rendered items so the window is non-empty):
 ## Agent delegation
 
 One agent, sequential (Steps 1→5); roughly a day of work. It can run
-**concurrently with VOTING.md Agent A** in separate worktrees: the only
+**concurrently with docs/plans/voting.md Agent A** in separate worktrees: the only
 shared files are `server.py` (distinct regions: idle in `Station`/the
 program+heartbeat handlers vs. new routes at the end of
 `_add_public_routes`), `config.py`/`config.yaml` (distinct sections) and
-`RADIO.md`. The integrator (VOTING.md Agent E) rebases and resolves.
+`RADIO.md`. The integrator (docs/plans/voting.md Agent E) rebases and resolves.
 
 ## Rollback
 

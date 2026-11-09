@@ -67,11 +67,11 @@ def _seed(cfg: Config, store: Store, tmp: Path) -> None:
         sid = store.add_item(type_="song", media_path=str(f), duration_s=1.5 + (i % 3) * 0.5,
                              genre=genres[i % len(genres)], evergreen=True, fresh=True,
                              title=f"Song {i}", artist="The Fakes")
-        # cover art (ALBUM_ART.md Step 8): every song has one, served locally
+        # cover art (docs/shipped/album-art.md Step 8): every song has one, served locally
         art = lib / f"art_{i}.png"
         art.write_bytes(encode_png(48, 48, color=(20 + i, 140, 90)))
         store.set_art(sid, str(art), {"scene": "e2e", "seed": i})
-    # one short SFX stinger that rides on talk clips (SFX.md §7.4): exercises
+    # one short SFX stinger that rides on talk clips (docs/systems/sfx.md §7.4): exercises
     # the client's overlay path without touching the host joins
     sfx = lib / "sfx_0.mp3"
     _make_audio(sfx, 0.5)
@@ -101,7 +101,7 @@ def _load_cfg() -> tuple[Config, Path]:
 
 
 def _seed_requests(cfg: Config, store: Store) -> None:
-    """VOTING.md Step 7: a real queue board — 12 free requests plus one paid
+    """docs/plans/voting.md Step 7: a real queue board — 12 free requests plus one paid
     priority row (paid rows are not votable, V5) — and 5 aired requests so the
     AIRED REQUESTS table keeps its prep-time coverage (cosmetic.spec.ts)."""
     # Aired first (low ids) so a later airing of a queue row still lands in
@@ -154,7 +154,7 @@ def build_app() -> FastAPI:
     app.state.store = store
     app.state.sched = sched
 
-    # ---- THE SHEEP PEN (SHEEP_PEN.md §12 e2e): the real routes over the async
+    # ---- THE SHEEP PEN (docs/plans/sheep-pen-brief.md §12 e2e): the real routes over the async
     # fake Valkey, with fakes for Layer B and Giles. ----
     chat_clock = Clock()
     chat_client = FakeAsyncRedis(lambda: time.time())
@@ -281,7 +281,7 @@ def build_app() -> FastAPI:
                 headers={"Cache-Control": "public, max-age=1"})
 
     def _rating_state():
-        """e2e mirror of Station._public_rating (VOTING.md V10)."""
+        """e2e mirror of Station._public_rating (docs/plans/voting.md V10)."""
         if not cfg.ratings.enabled:
             return None
         seq, _ = sched.on_air()
@@ -375,7 +375,7 @@ def build_app() -> FastAPI:
 
     @app.post("/api/paid-requests")
     async def submit_paid_request(payload: dict):
-        """PROMPT_UPGRADE.md Step 5: the three-box shape the real route takes,
+        """docs/shipped/prompt-upgrade.md Step 5: the three-box shape the real route takes,
         validated the same way, but nothing is stored and payment is a fake."""
         lyrics = str(payload.get("lyrics") or "").strip()
         music = str(payload.get("music") or "").strip()
@@ -411,14 +411,14 @@ def build_app() -> FastAPI:
     @app.post("/api/test/air/{request_id}")
     async def test_air(request_id: int):
         """Test-only: mark a request aired so the spec can watch the row lose
-        its vote buttons on the next board poll (VOTING.md V4)."""
+        its vote buttons on the next board poll (docs/plans/voting.md V4)."""
         store.mark_request_aired(request_id)
         return {"ok": True}
 
     @app.post("/api/test/splice")
     async def splice():
         """Test-only: submit a rendered request and let the scheduler splice it
-        into the next song slot (revision-aware client reset, TUI.md §5)."""
+        into the next song slot (revision-aware client reset, docs/systems/console.md §5)."""
         lib = tmp / "library"
         song_f = lib / "req_song.mp3"
         intro_f = lib / "req_intro.mp3"

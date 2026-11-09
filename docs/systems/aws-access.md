@@ -1,4 +1,6 @@
-# AWS_MCP_USAGE.md — how to look at AWS from this repo
+# AWS access from this repo
+
+> *Formerly `AWS_MCP_USAGE.md`.*
 
 For any agent (human or model) working in this checkout that needs to read
 or change something in the station's AWS account. Written 2026-11-07 after a
@@ -9,8 +11,8 @@ file is only about *access*.
 
 ## 0. Decide first: do you need AWS at all?
 
-Usually not. Planning documents in this repo (SHEEP_PEN.md §0.4,
-SCALABILITY.md, docs/backends.md §9, §12) record the deployed state with
+Usually not. Planning documents in this repo (docs/plans/sheep-pen-brief.md §0.4,
+docs/plans/scalability.md, docs/backends.md §9, §12) record the deployed state with
 dates. Trust the dated record for planning. Call AWS only to confirm a fact
 before changing it, or to inspect a live failure.
 

@@ -1,4 +1,4 @@
-"""One-shot station.db -> Postgres copy (SCALABILITY.md Step 2; RADIO §14).
+"""One-shot station.db -> Postgres copy (docs/plans/scalability.md Step 2; RADIO §14).
 
     make pg-migrate                               # dry run: full copy in a transaction, rolled back
     make pg-migrate PG_MIGRATE_ARGS="--apply"     # commit

@@ -1,4 +1,4 @@
-/* Pilgrim Dot Farm — request-queue voting (VOTING.md Step 6).
+/* Pilgrim Dot Farm — request-queue voting (docs/plans/voting.md Step 6).
    Builds the ↑ score ↓ cell for one queue row; requests.js owns the table.
    All DOM is created with createElement/textContent — listener text never
    becomes HTML. Own votes are remembered in localStorage and confirmed by the

@@ -102,7 +102,7 @@ else
     fail "7 POST /api/requests: status=$code [$ctype]"
 fi
 
-# 7b. Community voting routes are proxied, not edge-404ed (VOTING.md §2):
+# 7b. Community voting routes are proxied, not edge-404ed (docs/plans/voting.md §2):
 #     a vote on an unknown id reaches the origin and returns its 404 JSON,
 #     no-store (a POST is never cached).
 code=$(curl -sS -D "$TMP/vh" -o "$TMP/vb" -w '%{http_code}' \

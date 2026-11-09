@@ -1,4 +1,4 @@
-"""Cover-art storage (ALBUM_ART.md Step 4): files, migration and queries."""
+"""Cover-art storage (docs/shipped/album-art.md Step 4): files, migration and queries."""
 from __future__ import annotations
 
 import subprocess

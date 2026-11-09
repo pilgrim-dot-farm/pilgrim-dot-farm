@@ -1,4 +1,4 @@
-"""Scene prompt, text sanitising and the FLUX template (ALBUM_ART.md Step 3)."""
+"""Scene prompt, text sanitising and the FLUX template (docs/shipped/album-art.md Step 3)."""
 from __future__ import annotations
 
 from pathlib import Path

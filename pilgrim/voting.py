@@ -1,5 +1,5 @@
 """Community voting: request-queue votes and five-turkey song ratings
-(VOTING.md §2, RADIO §11, §14).
+(docs/plans/voting.md §2, RADIO §11, §14).
 
 Shared by `pilgrim/server.py` (both apps) and the e2e server, so the window
 check, the payload models and the service functions exist exactly once. No
@@ -20,7 +20,7 @@ from pilgrim.store import Store
 
 log = logging.getLogger("radio.voting")
 
-# A per-browser random id (VOTING.md V1): 32 lowercase hex chars from
+# A per-browser random id (docs/plans/voting.md V1): 32 lowercase hex chars from
 # crypto.getRandomValues. Client-supplied and indicative only; the canonical
 # client IP is stored alongside it for the abuse cap (V3).
 VOTER_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -40,7 +40,7 @@ class RatingIn(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Rating window (VOTING.md V8, §3): server-authoritative, pure over scheduler
+# Rating window (docs/plans/voting.md V8, §3): server-authoritative, pure over scheduler
 # state. The browser only hides the control; the server decides.
 # --------------------------------------------------------------------------- #
 def rating_window(scheduler: Scheduler, epoch: str, seq: int,
@@ -53,7 +53,7 @@ def rating_window(scheduler: Scheduler, epoch: str, seq: int,
     the song ended). Anything else — future seq, older seq, intro, non-song —
     is closed.
 
-    A frozen station (IDLE.md) has no listeners by definition, so its rating
+    A frozen station (docs/plans/idle.md) has no listeners by definition, so its rating
     window is closed: a stale tab must not rate an airing that ended hours ago.
     """
     if not epoch or epoch != scheduler.epoch or scheduler.frozen:
@@ -86,7 +86,7 @@ def rating_window(scheduler: Scheduler, epoch: str, seq: int,
 # --------------------------------------------------------------------------- #
 def cast_vote(store: Store, cfg: Config, request_id: int, voter_id: str,
               value: int, ip: str | None) -> tuple[int, dict]:
-    """POST /api/requests/{id}/vote (VOTING.md §2)."""
+    """POST /api/requests/{id}/vote (docs/plans/voting.md §2)."""
     res = store.cast_request_vote(
         request_id, voter_id, ip, value,
         max_voters_per_ip=cfg.voting.max_voters_per_ip)
@@ -108,7 +108,7 @@ def cast_vote(store: Store, cfg: Config, request_id: int, voter_id: str,
 
 def cast_rating(store: Store, cfg: Config, scheduler: Scheduler,
                 payload: RatingIn, ip: str | None) -> tuple[int, dict]:
-    """POST /api/station/rating (VOTING.md §2, §3).
+    """POST /api/station/rating (docs/plans/voting.md §2, §3).
 
     The window check and the insert run in the same event-loop turn with no
     await between them, and the scheduler loop runs on the same loop, so the

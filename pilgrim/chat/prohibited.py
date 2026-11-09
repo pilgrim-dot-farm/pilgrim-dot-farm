@@ -1,11 +1,11 @@
-"""Obscured prohibited terms and reserved display names (SHEEP_PEN.md §0.6.2).
+"""Obscured prohibited terms and reserved display names (docs/plans/sheep-pen-brief.md §0.6.2).
 
 The repo never contains a plaintext prohibited term or reserved-name literal.
 Entries are SHA-256 hex digests of the *normalized* form (NFKC → casefold →
 whitespace-collapsed). Matching hashes a candidate token / bigram / trigram and
 looks it up in the set — never a substring search.
 
-Accepted limitation (SHEEP_PEN.md §0.6.2): matching is token-exact, so
+Accepted limitation (docs/plans/sheep-pen-brief.md §0.6.2): matching is token-exact, so
 leetspeak and homoglyph evasions fall to Layer B, and a dictionary attack can
 recover the list. The goal is no plaintext in the repo and logs, not secrecy.
 
@@ -35,7 +35,7 @@ PROHIBITED_DIGESTS: frozenset[str] = frozenset({
     "cc02032349c833ac5e97bac094560ed40e09acf34cb1978ab7a9840b9bf15b4d",
 })
 
-# Station characters and operator names (SHEEP_PEN.md §0.6.1): Giles, the DJ,
+# Station characters and operator names (docs/plans/sheep-pen-brief.md §0.6.1): Giles, the DJ,
 # operator/admin/moderator/system. Matched on the whole normalized display name.
 RESERVED_NAME_DIGESTS: frozenset[str] = frozenset({
     "a0b0f4a525b340639c00b5275ddfe98a792bb6d6b5886c1a10f31259e935ed43",

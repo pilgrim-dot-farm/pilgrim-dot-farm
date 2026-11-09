@@ -271,13 +271,13 @@ def run(hours=24):
                     fails.append("time_check spoke a different bucket than it aired in")
         t_cursor += dur
 
-    # field reports are comic: never next to news (SFX.md §4.2)
+    # field reports are comic: never next to news (docs/systems/sfx.md §4.2)
     for a, b in zip(types, types[1:], strict=False):
         if {a, b} == {"field_report", "news"} or a == b == "field_report":
             fails.append("field_report adjacent to news/field_report")
             break
 
-    # ---- SFX policy (SFX.md §0, §7.5) ----
+    # ---- SFX policy (docs/systems/sfx.md §0, §7.5) ----
     start = 0.0
     stinger_starts: list[float] = []
     joke_chances = jokes_aired = 0

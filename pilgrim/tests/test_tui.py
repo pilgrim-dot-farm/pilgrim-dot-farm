@@ -1,4 +1,4 @@
-"""TUI tests (TUI.md §8; RADIO §15): Textual headless `App.run_test()` + Pilot
+"""TUI tests (docs/systems/console.md §8; RADIO §15): Textual headless `App.run_test()` + Pilot
 with a fake HTTP transport — no network, no server. Milestone 2 (read-only
 console): rendering, client+server sort rules, keyboard + header sorting,
 search/focus, Unicode + duplicate/missing names, reconnect/stale state,
@@ -37,7 +37,7 @@ class FakeDjClient:
         self.last_q: str | None = None
         self.last_sort: str | None = None
         self.last_direction: str | None = None
-        # character + phrase (TUI.md §6)
+        # character + phrase (docs/systems/console.md §6)
         self.character_info = CharacterInfo(
             character_id="dj_operator", name="Jimmany", setup_complete=True,
             voice="am_justin", available_voices=["am_adam"])

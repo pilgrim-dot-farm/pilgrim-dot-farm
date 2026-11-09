@@ -1,11 +1,17 @@
-# PAYMENT.md — Paid priority requests ("PAID REQUE$T")
+# Payments — paid priority requests ("PAID REQUE$T")
+
+> *Formerly `PAYMENT.md`.*
+
+> **Status: shipped** (Steps 0–12b). The single paid text box it describes is
+> superseded by docs/shipped/prompt-upgrade.md (three boxes: lyrics, musical
+> direction, cover art).
 
 Work plan for a coding agent. It adds a **paid priority request** to the
 existing REQUEST LINE pane on https://pilgrim.farm, paid through **Stripe
 Embedded Checkout**, so the listener never leaves the page.
 
 Read this whole file before Step 1. Then read, in order: `AGENTS.md`,
-`RADIO.md` §5.2, §6.2, §9.1, §11, §12, §14, and `SPLIT_PLAN.md` §0, Step 5,
+`RADIO.md` §5.2, §6.2, §9.1, §11, §12, §14, and `docs/shipped/split.md` §0, Step 5,
 Step 6 and Step 7. `RADIO.md` is still the source of truth. If this file and
 RADIO.md disagree, stop and report the conflict.
 
@@ -119,7 +125,7 @@ Key facts:
 | Disclaimer under the heading | `Help us pay Amazon Web Services and Detroit Edison.` in cyan (`.pay-note`) |
 | Placement | Inside the existing REQUEST LINE pane, same page, no redirect |
 | Queues | Two FIFO queues: priority (paid) and free. Priority always first. |
-| Paid input | Multi-line prompt for the music (free stays single-line). **Superseded by PROMPT_UPGRADE.md (three boxes), 2026-11.** |
+| Paid input | Multi-line prompt for the music (free stays single-line). **Superseded by docs/shipped/prompt-upgrade.md (three boxes), 2026-11.** |
 | Price | Existing Stripe price: preset $3.50, min $3.00, max $67.69, USD |
 | Paid board label | Generated one-line summary of the full prompt (LLM, ≤160 chars), stored in `requests.summary`. Fallback: first non-tag line (never `[intro]`/`[verse]`). |
 | Paid marker on the board | Queue number `#N` first, then the cornucopia icon (`pilgrim/web/img/cornucopia.png`) at one line high, then the request text. No `$` badge, no amount. |
@@ -134,8 +140,8 @@ Key facts:
 | Stripe integration | Embedded Checkout (`ui_mode=embedded_page`, `redirect_on_completion=never`, no `return_url`), API version `2026-10-28.endive`; not Payment Element, not Payment Links |
 | Managed Payments | **Off** per session (`managed_payments[enabled]=false`): the product tax code is ineligible and Pilgrim Dot Farm LLC stays merchant of record. Turning it on is an operator decision (needs an eligible tax code). Recommended: also switch the account default off in Dashboard → Settings → Managed Payments, so no future product silently becomes merchant-of-record. |
 | HTTP to Stripe | `httpx.AsyncClient` (form-encoded), webhook check with stdlib `hmac`. **No `stripe` Python package.** This matches AGENTS §3 (httpx, explicit timeouts) and keeps the fake simple. |
-| Paid prompt limit | 3600 characters, 72 lines. **Superseded by PROMPT_UPGRADE.md (three boxes: 8000 composed, 4000/3000/800 per box), 2026-11.** |
-| Paid text path | Goes through the song **brief** LLM like a free request (style lock, validation, QC all apply), with a stronger "honour the listener's details" instruction. It is **not** sent raw to MiniMax. **Superseded by PROMPT_UPGRADE.md (lyrics and music boxes reach the brief labelled; art goes to the scene writer), 2026-11.** |
+| Paid prompt limit | 3600 characters, 72 lines. **Superseded by docs/shipped/prompt-upgrade.md (three boxes: 8000 composed, 4000/3000/800 per box), 2026-11.** |
+| Paid text path | Goes through the song **brief** LLM like a free request (style lock, validation, QC all apply), with a stronger "honour the listener's details" instruction. It is **not** sent raw to MiniMax. **Superseded by docs/shipped/prompt-upgrade.md (lyrics and music boxes reach the brief labelled; art goes to the scene writer), 2026-11.** |
 | Paid song length | Never shortened by the "≥ 3 queued → short song" backlog rule |
 | Production attempts | Paid: 5, free: 3 (unchanged) |
 | Failed paid request | Marked `failed`, logged as `payment.refund_due`, listed on an admin route. **No automatic refund.** The operator refunds in the Stripe Dashboard. |
@@ -158,7 +164,7 @@ Key facts:
 | Webhook URL (live) | `https://pilgrim.farm/api/stripe/webhook` |
 | Live webhook endpoint | `we_1UWU1pKOiB5HDXLdhsCpnggq` (created 2026-10-31, `enabled`, `api_version: null` = account default) |
 | New asset | `pilgrim/web/img/cornucopia.png` — **Cornucopia LQ** by OpenClipart, **CC0 1.0**, via Wikimedia Commons; cropped to its alpha box and downscaled to 160×125 PNG-8 (7.6 KB, transparent). The original `thanksgiving-png-44560.png` is *personal use only* and is not used. |
-| Asset attribution | "Cornucopia LQ" by OpenClipart, CC0 1.0, <https://commons.wikimedia.org/wiki/File:Cornucopia_LQ.svg> — credited in the CREDITS pane, RADIO §9.1 and `MODELS.md` (CC0 does not require it; we credit anyway) |
+| Asset attribution | "Cornucopia LQ" by OpenClipart, CC0 1.0, <https://commons.wikimedia.org/wiki/File:Cornucopia_LQ.svg> — credited in the CREDITS pane, RADIO §9.1 and `docs/models.md` (CC0 does not require it; we credit anyway) |
 
 ### 0.7 Working agreement
 
@@ -169,7 +175,7 @@ Key facts:
 - Stop and ask (AGENTS §9) when Stripe answers differently from what this
   file or `docs/backends.md` says, or when a step seems to need a hard-rule
   break.
-- `AGENTS.md` currently points at `SPLIT_PLAN.md`. Do not start this plan
+- `AGENTS.md` currently points at `docs/shipped/split.md`. Do not start this plan
   until the operator changes that line to point here.
 
 ---
@@ -502,7 +508,7 @@ The queue order is:
 ORDER BY priority DESC, COALESCE(paid_at, created_at) ASC, id ASC
 ```
 
-> **Superseded by VOTING.md / RADIO §14.** The order is now `priority DESC`,
+> **Superseded by docs/plans/voting.md / RADIO §14.** The order is now `priority DESC`,
 > then in-flight (`producing`/`ready`) by claim time, then free `queued` by
 > vote score DESC, then `COALESCE(paid_at, claimed_at, created_at)`, `id`.
 > With no votes it is identical to the order below, so the paid-priority
@@ -1010,7 +1016,7 @@ only" note now says the request pane also hosts the paid flow.
 `RADIO.md` §11: board item shapes gain `paid` and `wait_s`, recent limit 5.
 `RADIO.md` §12: `requests.queue_cap: 20`.
 `RADIO.md` §14: `aired_at`, wait-time derivation, display limits.
-`MODELS.md` gains a one-line asset credit under the credits section.
+`docs/models.md` gains a one-line asset credit under the credits section.
 
 **Checks:** `make lint`, `make test`, `make sim`, `make e2e`.
 
@@ -1238,7 +1244,7 @@ lyric sheet, ~1,500 tokens, always fits the 4,096 prompt context).
 - [ ] Board and status routes leak no amounts, IDs or secrets (tests assert
       key sets).
 - [ ] Priority queue rows carry the cornucopia icon (1 em, leading, alt
-      text); `CREDITS` pane and `MODELS.md` carry the asset attribution.
+      text); `CREDITS` pane and `docs/models.md` carry the asset attribution.
 - [ ] `make lint`, `make test`, `make sim`, `make e2e`, `make deploy-check`,
       `make split-smoke`, `make e2e-split` pass; `make pay-smoke` output
       attached.

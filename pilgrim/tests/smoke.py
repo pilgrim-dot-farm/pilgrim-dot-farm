@@ -81,7 +81,7 @@ def probe() -> int:
     print(f"{'mcp(time)':10s} {cfg.hosts.mcp:45s} {'OK' if ok else 'FAIL'} ({why})")
     if not ok:
         failures.append(f"mcp {why}")
-    # Brave Search (BRAVE.md): one real 1-result news query, the cheapest
+    # Brave Search (docs/systems/search.md): one real 1-result news query, the cheapest
     # call that proves the key, the plan and the response shape together.
     from pilgrim.pipelines.brave import BraveSearch
 

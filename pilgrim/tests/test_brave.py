@@ -1,4 +1,4 @@
-"""BRAVE.md Step 7: the Brave Search client against the fake transport.
+"""docs/systems/search.md Step 7: the Brave Search client against the fake transport.
 
 Shapes follow docs/backends.md §11 (observed 2026-11-04). Nothing here
 touches the network (AGENTS §1.2): every client gets `FakeBrave.transport`,
@@ -138,7 +138,7 @@ def test_news_pipeline_feeds_context_to_the_anchor(cfg):
 
 
 def test_news_pipeline_degraded_search_still_writes_a_bulletin(cfg):
-    """Operator decision (BRAVE.md §0): invented news beats no news."""
+    """Operator decision (docs/systems/search.md §0): invented news beats no news."""
     llm = FakeLLM(responses={"Search context": {
         "headlines": ["h1"], "gravity": "normal", "text": "made up"}})
     seen: list[str] = []

@@ -1,4 +1,4 @@
-"""Operator authentication for /api/admin/dj/* (TUI.md §4, RADIO.md §11).
+"""Operator authentication for /api/admin/dj/* (docs/systems/console.md §4, RADIO.md §11).
 
 A dedicated bearer token from $PILGRIM_DJ_TOKEN (env, or a line in the
 repo-root .env), never `LITELLM_TOKEN`. Missing or wrong credentials disable DJ
@@ -51,7 +51,7 @@ def check_dj_authorized(headers: Mapping[str, str]) -> None:
     """Raise HTTPException when the operator token is missing or wrong.
 
     - token not configured => 403 `dj_disabled` (mutations disabled until the
-      access setup is complete; TUI.md §7)
+      access setup is complete; docs/systems/console.md §7)
     - missing/malformed/wrong bearer under a configured token => 401
     """
     expected = load_dj_token()

@@ -43,9 +43,9 @@ e2e-split:
 split-smoke:
 	bash pilgrim/deploy/local/smoke.sh
 
-# --- containers (SCALABILITY.md Step 1). `image` builds the one deployable
+# --- containers (docs/plans/scalability.md Step 1). `image` builds the one deployable
 # image, the Fargate web tier (pilgrim:web). The station stays native on the
-# M5. Fargate runs ARM64 (SCALABILITY.md §6), native on the M5; an x86 host
+# M5. Fargate runs ARM64 (docs/plans/scalability.md §6), native on the M5; an x86 host
 # needs buildx + QEMU; PLATFORM= (empty) builds for the host. `image-smoke`
 # builds the test-only `smoke` stage (web + ffmpeg) and runs the FAKES-ONLY e2e
 # server from it, checking health/programme/site (no real backends).
@@ -62,7 +62,7 @@ image-smoke:
 	$(DOCKER) build $(DOCKER_PLATFORM) --target smoke -t $(IMAGE):smoke .
 	IMAGE=$(IMAGE) DOCKER=$(DOCKER) bash pilgrim/deploy/container/smoke.sh
 
-# --- Postgres store (SCALABILITY.md Step 2). pg-test runs the WHOLE unit suite
+# --- Postgres store (docs/plans/scalability.md Step 2). pg-test runs the WHOLE unit suite
 # against a throwaway postgres container (fakes only; the DB is local), so the
 # engine-neutral store is proven on both engines. Extra pytest args pass through:
 #   make pg-test PG_TEST_ARGS="pilgrim/tests/test_requests.py -x"
@@ -95,7 +95,7 @@ run:
 	PATH="$(HOME)/bin:$(PATH)" LITELLM_TOKEN=$$(grep LITELLM_TOKEN .env | cut -d= -f2) \
 		$(PY) -m pilgrim.server   # public + admin listeners from config.yaml
 
-# The Fargate web tier, locally (SCALABILITY.md Step 5). Needs REDIS_URL (a
+# The Fargate web tier, locally (docs/plans/scalability.md Step 5). Needs REDIS_URL (a
 # station publishing to it) and optionally DATABASE_URL in the env or .env.
 web:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.web_app
@@ -120,7 +120,7 @@ smoke:
 media-smoke:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.media_smoke
 
-# Cover-art backfill (ALBUM_ART.md Step 9). Dry run by default; the live
+# Cover-art backfill (docs/shipped/album-art.md Step 9). Dry run by default; the live
 # worker renders on its own, this is for deliberate/targeted runs:
 #   make art-backfill ART_ARGS="--apply --limit 20"
 #   make art-backfill ART_ARGS="--item 132 --force --seed 7"
@@ -128,12 +128,12 @@ art-backfill:
 	PATH="$(HOME)/bin:$(PATH)" LITELLM_TOKEN=$$(grep LITELLM_TOKEN .env | cut -d= -f2) \
 		$(PY) -m pilgrim.tools.art_backfill $(ART_ARGS)
 
-# One real FLUX render through S3 + CloudFront (ALBUM_ART.md Step 10).
+# One real FLUX render through S3 + CloudFront (docs/shipped/album-art.md Step 10).
 # Only when asked: ~40 s of GPU and one S3 object.
 art-smoke:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.art_smoke
 
-# Instagram Reel builder (ALBUM_ART.md Step 11; ffmpeg only, never posts):
+# Instagram Reel builder (docs/shipped/album-art.md Step 11; ffmpeg only, never posts):
 #   make reel REEL_ARGS="--item 132 --start 0 --duration 60"
 reel:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.make_reel $(REEL_ARGS)

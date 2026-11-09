@@ -1,7 +1,7 @@
 # Station Announcements — operator messages (2026-11-07)
 
 Operator-supplied messages injected through the DJ console
-(`POST /api/admin/dj/phrases`, TUI.md §6). A phrase is spoken **verbatim**: no
+(`POST /api/admin/dj/phrases`, docs/systems/console.md §6). A phrase is spoken **verbatim**: no
 LLM rewrite. The server prepends the administrator sign-on
 (`dj.phrase_prefix` = "This is the administrator,") unless the message already
 opens with it, and one phrase is capped at `dj.phrase_max_chars` (280

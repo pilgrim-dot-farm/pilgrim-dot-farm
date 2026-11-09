@@ -1,4 +1,4 @@
-"""Operator-phrase API + scheduling (RADIO.md §11, §6.3; TUI.md §6). Fakes only:
+"""Operator-phrase API + scheduling (RADIO.md §11, §6.3; docs/systems/console.md §6). Fakes only:
 rendering uses FakeKokoro + the real (ffmpeg) normalize path; no LLM/news/song
 backend is ever contacted (AGENTS rule 2)."""
 from __future__ import annotations
@@ -144,7 +144,7 @@ def test_place_phrase_deferred_adjacent_dj_talk(cfg, tmp_env):
 
 
 def test_place_phrase_tail_only_never_mid_window(cfg, tmp_env):
-    """Client-visibility rule (TUI.md §9.2): legacy clients merge fetched rows
+    """Client-visibility rule (docs/systems/console.md §9.2): legacy clients merge fetched rows
     by seq only, so a splice inside rows they already fetched is never heard
     (and shifted rows can double-play). Placement is therefore tail-only: a
     mid-window legal slot must NOT be used, and no later row's seq may shift."""
@@ -315,7 +315,7 @@ def test_character_voice_must_be_unused(base_config):
 
 
 def test_character_voice_may_be_unassigned(base_config):
-    """An empty voice is the documented setup state (TUI.md §6), not an error."""
+    """An empty voice is the documented setup state (docs/systems/console.md §6), not an error."""
     from pilgrim.config import Config
 
     raw = base_config.model_dump()

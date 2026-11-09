@@ -1,4 +1,10 @@
-# SPLIT_PLAN.md — split the station (origin) from the site (edges)
+# Split plan — split the station (origin) from the site (edges)
+
+> *Formerly `SPLIT_PLAN.md`.*
+
+> **Status (2026-11-08): complete.** Steps 1–10 shipped; this file is kept as
+> the reference for the edge/gateway/origin layout. The "plan only" sentence
+> below is the original 2026-10-30 text, kept as history.
 
 Operator, 2026-10-30: "What we mainly need is to separate what goes into
 creating the station audio from the hosting of the site."
@@ -219,7 +225,7 @@ call. The admin app keeps the full response.
   scheduler keeps the committed window full relative to that playhead" with
   the true behaviour (playhead on the origin clock; heartbeats feed the
   listener count and airplay log). Report this as a doc correction.
-- TUI.md: the console connects to the admin listener.
+- docs/systems/console.md: the console connects to the admin listener.
 - README.md: `make run` now starts both listeners; list both ports.
 
 ---

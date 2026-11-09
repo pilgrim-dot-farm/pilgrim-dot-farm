@@ -1,4 +1,4 @@
-"""art-smoke + reel tools (ALBUM_ART.md Steps 10-11), fakes only.
+"""art-smoke + reel tools (docs/shipped/album-art.md Steps 10-11), fakes only.
 
 The reel test runs real ffmpeg over tiny generated inputs (ffmpeg is a CLI
 tool, not a backend); the art-smoke test uses FakeFlux + FakeS3 + a fake

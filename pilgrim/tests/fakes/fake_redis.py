@@ -104,7 +104,7 @@ class _FakePipeline:
 
 
 # --------------------------------------------------------------------------- #
-# Async slice used by the Sheep Pen (SHEEP_PEN.md §0.1: FakeRedis has no
+# Async slice used by the Sheep Pen (docs/plans/sheep-pen-brief.md §0.1: FakeRedis has no
 # streams/pub-sub/INCR/EXPIRE). Mirrors `redis.asyncio.Redis` enough for
 # `pilgrim.chat.redis_store.ChatStore` and `ChatHub`; TTLs use the injected
 # clock, Pub/Sub is one asyncio.Queue per subscriber per channel, `eval`

@@ -1,4 +1,4 @@
-# Pilgrim Dot Farm — the Fargate web image (SCALABILITY.md Step 1).
+# Pilgrim Dot Farm — the Fargate web image (docs/plans/scalability.md Step 1).
 #
 #   docker build --target web -t pilgrim:web .      # the deployable image
 #   docker build --target smoke -t pilgrim:smoke .  # test only: + ffmpeg for the fakes e2e server
@@ -60,7 +60,7 @@ RUN apt-get update \
 USER pilgrim
 
 
-# --- web: the Fargate front-end and the default target (SCALABILITY.md
+# --- web: the Fargate front-end and the default target (docs/plans/scalability.md
 # Step 5): the public API + static site from Valkey and Postgres only.
 FROM base AS web
 CMD ["python", "-m", "pilgrim.web_app"]

@@ -1,5 +1,9 @@
 # CGM — one sound per animal, code-enforced, no re-generation
 
+> *Formerly `future_plans/CGM.md`.*
+
+> **Backlog.** Not scheduled. Kept for the design reasoning.
+
 > **2026-10-02.** Work plan for fixing SFX variety and guaranteeing that a
 > mentioned farm animal is heard. Supersedes the earlier "multi-variant /
 > palette expansion" ideas. RADIO.md §4/§5.2/§6.1/§11/§12/§15 stay the
@@ -25,7 +29,7 @@
 
 1. **The SFX model is unloaded while DeepSeek runs.** `:8000` refuses
    connections (exit 56); `server.log` 23:48–23:56 shows `sfx.backend_retry …
-   ReadError` → `sfx.failed` for chicken/horse/cow/wind_bed. Per MODELS.md the
+   ReadError` → `sfx.failed` for chicken/horse/cow/wind_bed. Per docs/models.md the
    MOSS-SoundEffect CUDA box and the DeepSeek dev model don't share VRAM,
    so a downed `:8000` while DeepSeek is busy is **expected, not a fault** —
    everything produced meanwhile airs **dry** (by design, rule 1). The retry
@@ -56,7 +60,7 @@ Ordered; each step is small and independently testable against fakes
 - Flip the 10 animal cues in `config.yaml` from contextual to
   `evergreen: true` with fixed seeds.
 - **Nothing is rendered now.** The MOSS model is deliberately unloaded while
-  DeepSeek is busy (shared box, MODELS.md). The existing `sfx_loop` already
+  DeepSeek is busy (shared box, docs/models.md). The existing `sfx_loop` already
   tops up one missing stock cue per idle step, so the five absent animals
   (horse, pig, duck, turkey, donkey) fill themselves in ~2 min of backend
   uptime once MOSS is loaded again — no scheduled job, no operator step.
@@ -95,7 +99,7 @@ Ordered; each step is small and independently testable against fakes
 - Pure `animal_mentions(text) -> list[{cue, after_sentence}]`: word-boundary
   scan over the same sentence split the cue parser uses; first mention of each
   animal wins; multiple mentions of the same animal in one clip = **one**
-  stinger (sparse reads funnier — SFX.md §0).
+  stinger (sparse reads funnier — docs/systems/sfx.md §0).
 - **Backstop in `producer._attach_sfx`** (post-render, where text + duration
   are final): for every mentioned animal with no cue of its own, add
   `{cue, after_sentence}`; animals outrank non-animal cues at the 3-cue cap

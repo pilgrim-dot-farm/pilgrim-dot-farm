@@ -14,11 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 ROOT = Path(__file__).resolve().parent
 
-# Stripe secrets (PAYMENT.md Step 0.8). All three must be present or paid
+# Stripe secrets (docs/shipped/payments.md Step 0.8). All three must be present or paid
 # requests stay closed (Payments.active).
 STRIPE_ENV_VARS = ("STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
                    "STRIPE_WEBHOOK_SECRET")
-# Operator comp for paid requests (PAYMENT.md Step 12b): a prompt whose first
+# Operator comp for paid requests (docs/shipped/payments.md Step 12b): a prompt whose first
 # line is exactly this secret skips Stripe. Unset/empty = feature off.
 PAID_OVERRIDE_ENV = "PAID_OVERRIDE_TOKEN"
 
@@ -102,7 +102,7 @@ class Hosts(BaseModel):
     kokoro: str
     litellm: str
     mcp: str  # LiteLLM MCP (Streamable HTTP): the DJ's time tool only (docs/backends.md §5)
-    brave: str = "https://api.search.brave.com"  # Brave Search API (BRAVE.md; docs/backends.md §11)
+    brave: str = "https://api.search.brave.com"  # Brave Search API (docs/systems/search.md)
     sfx: str = "http://127.0.0.1:8000"  # MOSS-SoundEffect v2.0 (docs/backends.md §7)
     flux: str = "http://127.0.0.1:8084"  # FLUX 3 Image Klein, cover art (docs/backends.md §10)
 
@@ -113,9 +113,9 @@ class Models(BaseModel):
     dj_talk: str
     commercials: str
     liners: str
-    field_report: str = "qwen38"  # field reporter copy (SFX.md §4.2)
-    art_scene: str = "qwen38"  # cover-art scene writer (ALBUM_ART.md Step 3)
-    # Sheep Pen chat (SHEEP_PEN.md): Layer B review runs on the reasoning model
+    field_report: str = "qwen38"  # field reporter copy (docs/systems/sfx.md §4.2)
+    art_scene: str = "qwen38"  # cover-art scene writer (docs/shipped/album-art.md Step 3)
+    # Sheep Pen chat (docs/plans/sheep-pen-brief.md): Layer B review runs on the reasoning model
     # the station already uses for commercials/liners; Giles files text only.
     chat_moderation: str = "Ornith-1.5-9B"
     chat_giles: str = "qwen38"
@@ -140,7 +140,7 @@ class Voices(BaseModel):
     news: str
     commercials: str
     liners: str
-    field_reporter: str = "bm_lewis"  # British field reporter (SFX.md §4.2, user pick)
+    field_reporter: str = "bm_lewis"  # British field reporter (docs/systems/sfx.md §4.2, user pick)
     speed: float = 1.0
 
 
@@ -198,7 +198,7 @@ class Inventory(BaseModel):
     liners_per_bucket: int = 4
     liner_buckets_s: list[int] = Field(default_factory=lambda: [3, 5, 10, 15, 30])
     dj_talk_min: int = 2
-    field_reports_min: int = 1  # unaired field reports kept ready (SFX.md §4.2)
+    field_reports_min: int = 1  # unaired field reports kept ready (docs/systems/sfx.md §4.2)
     station_ids_min: int = 3  # emergency station IDs: words between songs from cold start
     promos_min: int = 4  # ready promo clips (campaign or request-line)
 
@@ -362,7 +362,7 @@ class News(BaseModel):
     refresh_s: int = 1800
     max_searches: int = 3
     budget_s: int = 60
-    results: int = 8          # Brave news results handed to the anchor (BRAVE.md)
+    results: int = 8          # Brave news results handed to the anchor (docs/systems/search.md)
     freshness: str = "pd"     # Brave freshness: pd/pw/pm/py or a date range
 
     @model_validator(mode="after")
@@ -373,7 +373,7 @@ class News(BaseModel):
 
 
 class Search(BaseModel):
-    """Brave Search API client limits (BRAVE.md; docs/backends.md §11). Shared
+    """Brave Search API client limits (docs/systems/search.md; docs/backends.md §11). Shared
     by the news bulletin and the copied-lyrics screen."""
     timeout_s: float = 15.0   # per HTTP call
     retries: int = 1          # extra attempts on 429/5xx/transport errors
@@ -451,7 +451,7 @@ class Requests(BaseModel):
 
 
 class Idle(BaseModel):
-    """Idle policy (IDLE.md, RADIO §3, §5.3, §6.1).
+    """Idle policy (docs/plans/idle.md, RADIO §3, §5.3, §6.1).
 
     With no listener heartbeats for `after_s`, the playhead freezes with the
     already-rendered committed window intact and the producers pause (listener
@@ -474,7 +474,7 @@ class Idle(BaseModel):
 
 
 class Cache(BaseModel):
-    """Hot state in Valkey (SCALABILITY.md Step 3; RADIO §14 "Hot state").
+    """Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §14 "Hot state").
 
     Selected by the environment (`REDIS_URL`, RADIO §12), tuned here. The
     station publishes programme/state/health/alive every `publish_s` from its
@@ -496,7 +496,7 @@ class Cache(BaseModel):
 
 
 class Voting(BaseModel):
-    """Community request-queue votes (VOTING.md, RADIO §11, §14).
+    """Community request-queue votes (docs/plans/voting.md, RADIO §11, §14).
 
     Votes decide which *free* request is written next; paid requests stay ahead
     of every free one, work already in flight is never reordered, and a free
@@ -516,7 +516,7 @@ class Voting(BaseModel):
 
 
 class Ratings(BaseModel):
-    """Five-turkey song ratings (VOTING.md, RADIO §9.1, §11, §14).
+    """Five-turkey song ratings (docs/plans/voting.md, RADIO §9.1, §11, §14).
 
     One rating per (epoch, seq, voter): an airing identity, not the item. The
     window is server-authoritative (`voting.rating_window`), with `grace_s` for
@@ -525,7 +525,7 @@ class Ratings(BaseModel):
     per_client_per_10min: int = 60
     max_voters_per_ip: int = 3
     grace_s: float = 5.0             # a rating may land this long after the song ended
-    # VOTING.md Step 8 (ships off): let ratings weight the recycled-song draw.
+    # docs/plans/voting.md Step 8 (ships off): let ratings weight the recycled-song draw.
     rotation_weight: bool = False
     rotation_min_votes: int = 5
 
@@ -541,8 +541,8 @@ class Ratings(BaseModel):
 
 
 class CopyrightCheck(BaseModel):
-    """Web screen for copied lyrics in paid prompts (PAYMENT.md Step 12b).
-    Deterministic text matching against Brave web-search snippets (BRAVE.md);
+    """Web screen for copied lyrics in paid prompts (docs/shipped/payments.md Step 12b).
+    Deterministic text matching against Brave web-search snippets (docs/systems/search.md);
     no LLM decides."""
     enabled: bool = True
     max_probes: int = 4        # lyric lines searched per request
@@ -562,7 +562,7 @@ class CopyrightCheck(BaseModel):
 
 
 class PaidParts(BaseModel):
-    """Per-box character limits for the three-box paid form (PROMPT_UPGRADE.md)."""
+    """Per-box character limits for the three-box paid form (docs/shipped/prompt-upgrade.md)."""
     lyrics_max: int = 4000
     music_max: int = 3000
     art_max: int = 800
@@ -575,7 +575,7 @@ class PaidParts(BaseModel):
 
 
 class Payments(BaseModel):
-    """Stripe paid priority requests (PAYMENT.md §2.1). Off by default so every
+    """Stripe paid priority requests (docs/shipped/payments.md §2.1). Off by default so every
     existing test and deployment behaves exactly as before."""
     enabled: bool = False
     api_base: str = "https://api.stripe.com"
@@ -592,7 +592,7 @@ class Payments(BaseModel):
     reconcile_after_s: int = 10
     reconcile_min_interval_s: int = 5
     abandon_after_s: int = 86400
-    paid_max_length: int = 8000  # the composed three-part text (PROMPT_UPGRADE.md)
+    paid_max_length: int = 8000  # the composed three-part text (docs/shipped/prompt-upgrade.md)
     paid_max_lines: int = 200
     parts: PaidParts = Field(default_factory=PaidParts)
     per_client_per_10min: int = 6
@@ -674,13 +674,13 @@ class Logging(BaseModel):
     file: str = "station.log"
     max_bytes: int = 10485760  # 10 MB
     backups: int = 5
-    # SHEEP_PEN.md §0.5.5: the container overlay selects JSON so Logs Insights
+    # docs/plans/sheep-pen-brief.md §0.5.5: the container overlay selects JSON so Logs Insights
     # can query the web tier; the Mac keeps the greppable text default.
     format: Literal["text", "json"] = "text"
 
 
 class DjCharacter(BaseModel):
-    """Operator-only character (TUI.md §6, §10; RADIO.md §12).
+    """Operator-only character (docs/systems/console.md §6, §10; RADIO.md §12).
 
     The operator picks the name and **listens before choosing the voice** (a
     human decision, AGENTS §9); empty until then. No random-selector weight and
@@ -692,7 +692,7 @@ class DjCharacter(BaseModel):
 
 
 class Dj(BaseModel):
-    """DJ console (TUI.md §7, RADIO.md §12). `enabled` gates the control
+    """DJ console (docs/systems/console.md §7, RADIO.md §12). `enabled` gates the control
     mutations; read-only console endpoints are available behind the operator
     token once access setup is complete."""
     enabled: bool = False
@@ -712,7 +712,7 @@ class Dj(BaseModel):
 
 
 class Art(BaseModel):
-    """Cover art per song (ALBUM_ART.md; RADIO §12, §8.4, §14). The FLUX
+    """Cover art per song (docs/shipped/album-art.md; RADIO §12, §8.4, §14). The FLUX
     server is single-flight and blocks while it renders, so every value here
     is a back-off knob, not a throughput knob."""
     enabled: bool = True
@@ -796,7 +796,7 @@ class Host(BaseModel):
 class Talk(BaseModel):
     """Contextual talk settings (OVERHAUL 5.3, ANNOUNCER_OVERHAUL)."""
     time_mention_ttl_s: int = 900  # DJ clips that mention the time expire after this
-    field_reporter_name: str = "Giles"  # placeholder until the user names him (SFX.md §10)
+    field_reporter_name: str = "Giles"  # placeholder until named (docs/systems/sfx.md §10)
     hosts: list[Host] = Field(default_factory=list)
     # Time checks are code-written and targeted at quarter marks (operator pick:
     # top, quarter past, bottom, quarter til). A check airs only inside the
@@ -829,7 +829,7 @@ class Talk(BaseModel):
 
 
 class SfxCue(BaseModel):
-    """One curated sound effect (SFX.md §6). `evergreen` cues are rendered once
+    """One curated sound effect (docs/systems/sfx.md §6). `evergreen` cues are rendered once
     into a recycled stock pool; contextual cues are rendered fresh for the host
     clip that calls for them. Prompts are a lottery, so only `approved` cues
     (picked by ear) are ever rendered or aired."""
@@ -841,7 +841,7 @@ class SfxCue(BaseModel):
 
 
 class Sfx(BaseModel):
-    """Sound-effect overlays on non-news talk (SFX.md §0, §7)."""
+    """Sound-effect overlays on non-news talk (docs/systems/sfx.md §0, §7)."""
     enabled: bool = True
     model: str = "moss-soundeffect-v2.0"
     steps: int = 100  # flow-match solver steps (`num_inference_steps`)
@@ -850,7 +850,7 @@ class Sfx(BaseModel):
     negative_prompt: str = ""
     max_seconds: float = 30.0  # backend hard cap per request
     timeout_s: float = 180.0
-    stinger_gain: float = 0.5  # undecided by ear (SFX.md §10.3): a knob, not baked in
+    stinger_gain: float = 0.5  # undecided by ear (docs/systems/sfx.md §10.3): a knob, not baked in
     bed_gain: float = 0.15
     host_duck: float = 0.7  # host gain under a stinger, so the sum doesn't clip
     bed_cue: str = "wind_bed"  # ambience under every field report
@@ -864,7 +864,7 @@ class Sfx(BaseModel):
 
 
 class Chat(BaseModel):
-    """The Sheep Pen (SHEEP_PEN.md; RADIO §11, §12, §14).
+    """The Sheep Pen (docs/plans/sheep-pen-brief.md; RADIO §11, §12, §14).
 
     One shared room on the Fargate web tier: WebSockets + Valkey Pub/Sub for
     live delivery, Streams for history/replay, Postgres for the durable audit
@@ -914,7 +914,7 @@ class Chat(BaseModel):
     giles_min_messages: int = 6
     giles_cooldown_s: float = 900.0
     giles_max_chars: int = 400
-    retention_days: int = 7        # SHEEP_PEN.md §0.6.4: fixed at 7
+    retention_days: int = 7        # docs/plans/sheep-pen-brief.md §0.6.4: fixed at 7
     audit_log_group: str = "/aws/pilgrim/chat-audit"
 
     @model_validator(mode="after")
@@ -928,8 +928,8 @@ class Chat(BaseModel):
         if self.resync_s <= 0 or self.review_interval_s <= 0 or self.giles_interval_s <= 0:
             raise ValueError("chat.resync_s/review_interval_s/giles_interval_s must be > 0")
         if self.retention_days != 7:
-            raise ValueError("chat.retention_days is fixed at 7 (SHEEP_PEN.md §0.6.4; "
-                             "keep it equal to the terraform chat_log_retention_days)")
+            raise ValueError("chat.retention_days is fixed at 7 (docs/plans/sheep-pen-brief.md "
+                             "§0.6.4; keep it equal to the terraform chat_log_retention_days)")
         if not self.ban_ladder_s or any(int(s) <= 0 for s in self.ban_ladder_s):
             raise ValueError("chat.ban_ladder_s must be a non-empty list of positive seconds")
         if self.spam_offense_limit < 1 or self.spam_offense_window_s < 1:
@@ -987,7 +987,7 @@ class Config(BaseModel):
     @model_validator(mode="after")
     def _validate_idle(self) -> Config:
         """A healthy listener must not be declared absent before its in-memory
-        entry expires (IDLE.md Step 1): otherwise a player still inside
+        entry expires (docs/plans/idle.md Step 1): otherwise a player still inside
         `visitors.listener_timeout_s` could be idle while it is audible."""
         if self.idle.after_s < self.visitors.listener_timeout_s:
             raise ValueError(
@@ -1002,7 +1002,7 @@ class Config(BaseModel):
         load time instead of discovering it when a phrase renders.
 
         An empty `dj.character.voice` is allowed — it means "not assigned yet"
-        and keeps the console in setup state (TUI.md §6)."""
+        and keeps the console in setup state (docs/systems/console.md §6)."""
         voice = self.dj.character.voice
         if not voice:
             return self
@@ -1061,7 +1061,7 @@ def _overlay_path() -> Path | None:
 
 def load_config(path: Path | None = None, overlay: Path | None = None) -> Config:
     """config.yaml, with an optional overlay deep-merged on top
-    (SCALABILITY.md Step 1).
+    (docs/plans/scalability.md Step 1).
 
     The overlay is `overlay`, else the file named by $PILGRIM_CONFIG_OVERLAY
     (unset or empty = none). It lets a container change binds, ports and data
@@ -1127,7 +1127,7 @@ def load_api_key(env_file: Path | None = None) -> str:
 
 
 def load_brave_key(env_file: Path | None = None) -> str:
-    """Brave Search API key (BRAVE.md §2): $BRAVE_SEARCH_KEY, else the .env line."""
+    """Brave Search API key (docs/systems/search.md §2): $BRAVE_SEARCH_KEY, else the .env line."""
     return load_secret("BRAVE_SEARCH_KEY", env_file)
 
 

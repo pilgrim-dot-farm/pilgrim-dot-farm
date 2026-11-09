@@ -1,4 +1,4 @@
-/* Pilgrim Dot Farm — per-browser voter id (VOTING.md V1).
+/* Pilgrim Dot Farm — per-browser voter id (docs/plans/voting.md V1).
    One random 32-hex id in localStorage, generated once. It is indicative only:
    the server stores it with the canonical client IP and caps distinct ids per
    IP per target (V3). No accounts, no PII. Storage can throw (private mode), so

@@ -1,8 +1,8 @@
-"""Copied-lyrics screen for paid requests (PAYMENT.md Step 12b).
+"""Copied-lyrics screen for paid requests (docs/shipped/payments.md Step 12b).
 
 A paid prompt can carry many lines of lyrics. Before a Checkout Session is
 created, a few of its most distinctive lines are searched as exact phrases
-through Brave web search (BRAVE.md), and the result snippets are compared
+through Brave web search (docs/systems/search.md), and the result snippets are compared
 word by word. The
 decision is deterministic text matching; no LLM sees the snippets (web text
 can carry prompt injection) and none makes the call.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Container smoke (SCALABILITY.md Step 1): run the FAKES-ONLY e2e server from
+# Container smoke (docs/plans/scalability.md Step 1): run the FAKES-ONLY e2e server from
 # the test-only `smoke` stage (the web image + ffmpeg), then check health, a
 # playable programme and the static site through the published port. No real backend is contacted (AGENTS §1.2):
 # pilgrim.tests.e2e.e2e_server seeds tone MP3s into a temp library.

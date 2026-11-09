@@ -1,4 +1,4 @@
-"""In-memory stand-in for the FLUX 3 server (AGENTS §1.2, ALBUM_ART.md Step 2).
+"""In-memory stand-in for the FLUX 3 server (AGENTS §1.2, docs/shipped/album-art.md Step 2).
 
 Wired in as an `httpx.MockTransport`, so the real `FluxClient` parsing and
 validation run against it. Renders a tiny valid PNG of whatever size the

@@ -1,4 +1,4 @@
-"""SFX overlays + field reporter (SFX.md). Fakes only (AGENTS rule 2); ffmpeg
+"""SFX overlays + field reporter (docs/systems/sfx.md). Fakes only (AGENTS rule 2); ffmpeg
 via the `make test` PATH for the render/normalize path."""
 from __future__ import annotations
 

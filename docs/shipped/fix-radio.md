@@ -1,4 +1,9 @@
-# FIX_RADIO.md — Option A: request priority without starving the song rotation
+# Fix radio — Option A: request priority without starving the song rotation
+
+> *Formerly `FIX_RADIO.md`.*
+
+> **Status: shipped.** `playout.request_hold_max_s` defaults to `0` (no hold);
+> a ready request splices into the next song slot (RADIO §5.2).
 
 Operator decision (2026-10-31): take **Option A** — stop blocking stock songs
 while a listener request is pending. The splice already makes a ready request
@@ -171,7 +176,7 @@ b. **FIFO splice guard.** If a committed pending request song is still in the
 
 - **Client cutovers become more frequent.** Splices now routinely cut in front
   of committed stock songs the client already fetched. Same mechanism as today
-  (revision bump → cancel future sources → refetch snapshot, TUI.md §5/§9.2,
+  (revision bump → cancel future sources → refetch snapshot, docs/systems/console.md §5/§9.2,
   verified in the 2026-10-28 work); no API change.
 - **Pushed-back stock carries a stale `commit_song_air`** until step 9a lands:
   bounded skew of a few minutes (a splice inserts ~3–4 min of audio).

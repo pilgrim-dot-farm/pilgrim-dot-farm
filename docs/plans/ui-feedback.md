@@ -1,5 +1,10 @@
 # UI Feedback
 
+> *Formerly `UI_REFACTOR_FEEDBACK.md`.*
+
+> **Living log.** Appended per operator review round. The plan these notes feed
+> is docs/plans/ui-refactor.md.
+
 ## Mobile
 * Play/stop button diameter should be reduced 4 px (collides with top/bottom)
 * Strange behavior showing and then hiding the keyboard (extra height added to bottom, some purple some white)

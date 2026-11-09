@@ -1,4 +1,4 @@
-"""PAYMENT.md Step 12c: payer-supplied MiniMax input used as written."""
+"""docs/shipped/payments.md Step 12c: payer-supplied MiniMax input used as written."""
 from __future__ import annotations
 
 import asyncio

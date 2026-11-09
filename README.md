@@ -45,7 +45,7 @@ come from the `station` block in `pilgrim/config.yaml`.
 
 ## Containers
 
-`SCALABILITY.md` moves the public side into the VPC (ECS Fargate behind the
+`docs/plans/scalability.md` moves the public side into the VPC (ECS Fargate behind the
 ALB, RDS Postgres, ElastiCache Valkey) while the Mac stays the origin. Step 1
 is the image: `make image` builds `pilgrim:web` (the front-end; the station
 stays native on the M5) from the `Dockerfile`; `make image-smoke` runs the
@@ -74,7 +74,7 @@ The words are never rewritten by an LLM: the server runs the mandatory TTS
 cleanup, prepends the sign-on "This is the administrator," when the message
 does not already open with it (set `dj.phrase_prefix` to change it; empty
 disables it), renders the clip in the character's voice, and appends it at the
-next legal boundary (RADIO.md §4, §11, TUI.md §6). The script reads the admin
+next legal boundary (RADIO.md §4, §11, docs/systems/console.md §6). The script reads the admin
 listener address from `pilgrim/config.yaml`; override with
 `PILGRIM_STATION_URL`.
 
@@ -134,7 +134,7 @@ All application code, prompts, the station bible, and tests live under
 
 Keep credentials in environment variables or the git-ignored `.env` file.
 `LITELLM_TOKEN` authenticates LLM, moderation, and the DJ time-tool requests.
-`BRAVE_SEARCH_KEY` is the Brave Search API key (BRAVE.md): the news bulletin
+`BRAVE_SEARCH_KEY` is the Brave Search API key (docs/systems/search.md): the news bulletin
 and the copied-lyrics screen send it as `X-Subscription-Token`. Without it
 the station still runs: news is model-written and the copyright screen
 reports `unchecked`. Origin `.env` only; never logged.
@@ -149,7 +149,7 @@ from `~/.aws/credentials` on the M5. Don't point it at an `aws login`
 profile: those sessions expire and need `botocore[crt]`. Never put AWS keys in
 the repo or `.env`.
 
-Stripe (PAYMENT.md Step 0.8) — all three must be set, and `payments.enabled`
+Stripe (docs/shipped/payments.md Step 0.8) — all three must be set, and `payments.enabled`
 must be true, or paid requests are closed. Each is read from the environment
 first, then from the repo-root `.env` (`config.stripe_env`), so restarting the
 origin with `python -m pilgrim.server` does not silently close payments.
@@ -166,7 +166,7 @@ disables it (the test suite does this so a live `.env` can never leak in).
   (endpoint → Signing secret → Reveal), or the value `stripe listen` prints.
   Server only; used to verify `Stripe-Signature`.
 
-- `DATABASE_URL` — Postgres store (SCALABILITY.md Step 2, RADIO §12/§14):
+- `DATABASE_URL` — Postgres store (docs/plans/scalability.md Step 2, RADIO §12/§14):
   `postgresql://pilgrim@<rds-host>:5432/pilgrim?sslmode=require`, no password
   in it. Unset = the SQLite file. The password comes from
   `DB_PASS_SECRET_ARN` (Secrets Manager JSON `{username, password}`, read with
@@ -174,11 +174,11 @@ disables it (the test suite does this so a live `.env` can never leak in).
   `DATABASE_PASSWORD`. `make pg-test` runs the unit suite against a throwaway
   Postgres container; `make pg-migrate` copies `station.db` in (dry run
   unless `PG_MIGRATE_ARGS="--apply"`).
-- `REDIS_URL` — Valkey hot state (SCALABILITY.md Step 3, RADIO §14):
+- `REDIS_URL` — Valkey hot state (docs/plans/scalability.md Step 3, RADIO §14):
   `rediss://<cache-host>:6379` (TLS, no password). Set, the station publishes
   programme/state/health/liveness every second and counts the web tier's
   heartbeat keys; unset, nothing changes. Tuned by `cache:` in config.yaml.
-- `PAID_OVERRIDE_TOKEN` — operator comp for paid requests (PAYMENT.md Step
+- `PAID_OVERRIDE_TOKEN` — operator comp for paid requests (docs/shipped/payments.md Step
   12b). A paid prompt whose **first line** is exactly this value skips Stripe
   (moderation and the copyright screen still run) and joins the priority queue
   with `comped=1`, amount 0. Unset, empty or shorter than 24 characters = off.

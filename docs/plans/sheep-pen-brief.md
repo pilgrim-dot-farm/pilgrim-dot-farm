@@ -1,11 +1,15 @@
 
-# Pilgrim Dot Farm — Sheep Pen Chat Feature
+# Pilgrim Dot Farm — Sheep Pen Chat Feature (brief)
+
+> *Formerly `SHEEP_PEN.md`.*
+
+> **Status:** the executable plan is docs/plans/sheep-pen-plan.md.
 
 > **How to use this document (read first).** This file is the **brief** and
 > the starting point for the Sheep Pen work. It is not the plan, and you do
-> not rewrite it. Your deliverable is a new file, `SHEEP_PEN_PLAN.md`, at the
-> repo root, in the shape of the existing work plans (`VOTING.md`,
-> `IDLE.md`): a short "read this first" section, then numbered **Steps**
+> not rewrite it. Your deliverable is the plan, `docs/plans/sheep-pen-plan.md`, in the shape
+> of the existing work plans (`docs/plans/voting.md`,
+> `docs/plans/idle.md`): a short "read this first" section, then numbered **Steps**
 > each ending with a *Done when* line, the AGENTS.md §7 checks, a commit
 > citing RADIO.md sections, and the §8 report; then "Verification commands",
 > "Rollback" and "Open questions for the operator". Add one line for it to
@@ -21,7 +25,7 @@
 > `SHEEP_PEN §x.y`.
 >
 > Do not implement anything while writing the plan. Do not call AWS; §0.4
-> already records the deployed state, and `AWS_MCP_USAGE.md` explains the
+> already records the deployed state, and `docs/systems/aws-access.md` explains the
 > access paths if an implementation step later needs one. Keep Playwright
 > MCP use to what §12 describes. If a section of this brief cannot be
 > satisfied without breaking an AGENTS.md hard rule, say so in the plan's
@@ -71,7 +75,7 @@ than silently overriding the specification. Do cite these facts.
 | LLM client | `LLM.chat_json(model, system, user, max_tokens)` / `chat_text`; SSE streaming; `temperature` is hardcoded `0.8` (add a parameter for moderation). No tool-calling / function-calling code path exists anywhere in the repo | `pilgrim/pipelines/llm.py` |
 | Request moderation (reference pattern) | `Moderation.moderate(text)`: system = template only, untrusted text JSON-escaped into the user turn as `<request>…</request>` DATA, strict boolean check, retry once, **fail closed** | `pilgrim/pipelines/moderation.py`, `pilgrim/prompts/moderation.md` |
 | Deterministic prefilter (reference) | `prefilter(text)`: http/www, bare domains with a TLD list, spelled-out "dot com", emails, 7+ digit phone runs, `@handles` | `pilgrim/pipelines/request_filter.py` |
-| Rate limiting today | `_make_rate_limiter` is an **in-memory per-process** deque keyed on canonical IP. It does not survive scale-out (SCALABILITY.md Step 5 notes this as a known gap) | `pilgrim/server.py:971` |
+| Rate limiting today | `_make_rate_limiter` is an **in-memory per-process** deque keyed on canonical IP. It does not survive scale-out (docs/plans/scalability.md Step 5 notes this as a known gap) | `pilgrim/server.py:971` |
 | Logging | `logging_setup.py` emits **text** `key=value` lines, not JSON. The container's stdout is shipped by the `awslogs` driver to log group `/aws/ecs/pg-app/app` (retention 7 days, hardcoded in `ecs.tf`). A JSON formatter does not exist yet | `pilgrim/logging_setup.py` |
 | Store / schema | One engine-neutral `Store` (`CREATE TABLE IF NOT EXISTS …` in SQLite flavour, rewritten for Postgres by `PostgresConn`). New tables go in `Store`'s schema block; never branch on engine | `pilgrim/store.py:203`, `pilgrim/db.py` |
 | Config | `pilgrim/config.yaml` + pydantic models in `pilgrim/config.py`; container overlay deep-merges `deploy/container/overlay.yaml`. A new `chat:` block needs a `Chat` model and a `Config.chat` field | `pilgrim/config.py` |
@@ -140,7 +144,7 @@ that contract. The moderation worker reaches LiteLLM directly from the Mac
   `enable_autoscaling = false`, cpu 1024 / mem 2048, ARM64, platform 1.4.0,
   private subnets with NAT egress, `enable_execute_command = false`). The EC2
   nginx edge in `pilgrim/deploy/edge/` is **not** in this path and has no
-  WebSocket `Upgrade` handling; do not modify it. SCALABILITY.md Step 9
+  WebSocket `Upgrade` handling; do not modify it. docs/plans/scalability.md Step 9
   retires it.
 - **WebSocket implications:** ALB passes WebSockets on HTTP/HTTPS listeners
   with no config change. The ALB idle timeout is 300 s and Cloudflare closes
@@ -407,7 +411,7 @@ The following were verified through a brief inspection of the public repository:
 
 - `AGENTS.md` establishes mandatory development rules.
 - `RADIO.md` is the authoritative station specification.
-- `SCALABILITY.md` documents the migration to ECS Fargate, RDS PostgreSQL, and ElastiCache Valkey.
+- `docs/plans/scalability.md` documents the migration to ECS Fargate, RDS PostgreSQL, and ElastiCache Valkey.
 - `pilgrim/web_app.py` is the Fargate web entry point.
 - `pilgrim/hotstate.py` provides existing Valkey-backed state.
 - `pilgrim/config.yaml` governs backend addresses, models, and configuration.
@@ -1150,7 +1154,7 @@ unless included in the implementation's approved live smoke scope.
 
 Before creating the implementation plan:
 
-1. Read `AGENTS.md`, `RADIO.md`, and `SCALABILITY.md`.
+1. Read `AGENTS.md`, `RADIO.md`, and `docs/plans/scalability.md`.
 2. Inspect the current `pilgrim/web_app.py`.
 3. Inspect `pilgrim/hotstate.py`.
 4. Inspect current frontend HTML/CSS/JavaScript.

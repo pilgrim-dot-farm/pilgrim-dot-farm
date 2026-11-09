@@ -1,5 +1,5 @@
-/* Pilgrim Dot Farm — PAID REQUE$T (PAYMENT.md §8.3, Step 12b;
-   PROMPT_UPGRADE.md Step 5, RADIO §9.1).
+/* Pilgrim Dot Farm — PAID REQUE$T (docs/shipped/payments.md §8.3, Step 12b;
+   docs/shipped/prompt-upgrade.md Step 5, RADIO §9.1).
    Three creative departments (lyrics, musical direction, cover art) posted as
    {lyrics, music, art}. Submit -> the station checks the composed request in
    stages (DJ prefilter, content moderation, copied-lyrics screen) while this

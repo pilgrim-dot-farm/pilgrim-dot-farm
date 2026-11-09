@@ -446,7 +446,7 @@ def test_pending_request_holds_window_and_takes_next_slot(cfg, tmp_env):
 def test_ready_request_splices_ahead_of_committed_songs(cfg, tmp_env):
     """A ready request is spliced into the next song slot ahead of already-
     committed stock songs, its intro lands immediately before it, and the
-    programme revision bumps so revision-aware clients refetch (TUI.md §5)."""
+    programme revision bumps so revision-aware clients refetch (docs/systems/console.md §5)."""
     _, store, _ = tmp_env
     seed_pool(store, cfg, n_song=20, n_liner=20, n_com=20, n_dj=6)
     clock = SimClock()
@@ -896,7 +896,7 @@ def test_place_song_next_rejects_non_songs_and_missing_files(tmp_env, cfg):
 
 
 # --------------------------------------------------------------------------- #
-# IDLE.md Step 2: freeze/thaw mechanics. The sim never freezes (no Station);
+# docs/plans/idle.md Step 2: freeze/thaw mechanics. The sim never freezes (no Station);
 # these drive the explicit calls.
 # --------------------------------------------------------------------------- #
 

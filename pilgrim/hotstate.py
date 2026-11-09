@@ -1,4 +1,4 @@
-"""Hot state in Valkey (SCALABILITY.md Step 3; RADIO §3, §14 "Hot state").
+"""Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §3, §14 "Hot state").
 
 The station publishes what the browser polls every 1–5 s so the web tier
 never needs the origin or Postgres for them: the committed programme (with

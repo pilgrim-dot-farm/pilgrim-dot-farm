@@ -1,4 +1,4 @@
-"""The Fargate web tier (SCALABILITY.md Step 5; RADIO §11 "Web tier").
+"""The Fargate web tier (docs/plans/scalability.md Step 5; RADIO §11 "Web tier").
 
 `python -m pilgrim.web_app` serves the static site and the public API from
 Valkey and Postgres only. It never reaches the Mac: the programme, state,
@@ -20,7 +20,7 @@ client IP from `CF-Connecting-IP` behind the ALB (RADIO §14).
 Required environment: `REDIS_URL` (the station's hot state) and, in
 production, `DATABASE_URL` + `DB_PASS_SECRET_ARN` (RADIO §12). Optional:
 `LITELLM_TOKEN` (moderation, paid summaries), `BRAVE_SEARCH_KEY` (copied-lyrics
-screen), the Stripe keys and `PAID_OVERRIDE_TOKEN` (PAYMENT.md); any of those
+screen), the Stripe keys and `PAID_OVERRIDE_TOKEN` (docs/shipped/payments.md); any of those
 may instead arrive through `STRIPE_SECRET_ARN`, a Secrets Manager JSON whose
 allow-listed keys are exported into the environment at start
 (`pilgrim/aws_secrets.py`).
@@ -76,10 +76,10 @@ class CachedScheduler:
     """The slice of `Scheduler` that `voting.rating_window` reads, rebuilt from
     the published `state` and `program` documents. `on_air()` is the station's
     snapshot (up to one publish tick old), which the rating grace already
-    tolerates (VOTING.md V8). `_cum` and `position()` mean what they mean on
+    tolerates (docs/plans/voting.md V8). `_cum` and `position()` mean what they mean on
     `Scheduler`, in program-seconds counted from the first published row, so
     the grace branch (`position() - _cum[idx] <= grace_s`) is the published
-    offset into the on-air row (FIX_RATINGS.md Step 1).
+    offset into the on-air row (docs/plans/ratings.md Step 1).
 
     The published `items` start at the on-air row; the station also publishes
     `prev`, the row that just ended, and it goes first here. Without it the
@@ -189,7 +189,7 @@ class WebStation(PublicSurface):
 
     # ------------------------------------------------------------ programme
     def wake(self, reason: str) -> None:
-        """IDLE.md through the cache: a frozen station gets the `wake` key and
+        """docs/plans/idle.md through the cache: a frozen station gets the `wake` key and
         thaws on its next tick (RADIO §3). Not frozen: nothing to write."""
         try:
             state = self.hot.read("state")
@@ -267,7 +267,7 @@ def create_web_app(cfg: Config, station: WebStation) -> FastAPI:
                             headers={"Cache-Control": "no-store"})
 
     _add_public_routes(app, station, _web_health)
-    # The Sheep Pen (SHEEP_PEN.md §0.7.2): registered before the HTTP-only
+    # The Sheep Pen (docs/plans/sheep-pen-brief.md §0.7.2): registered before the HTTP-only
     # 404 catch-all so the WebSocket route is reachable.
     if cfg.chat.enabled and station.chat_cache is not None and station.chat_hub is not None:
         register_chat_routes(app, station, station.db, station.chat_cache,
@@ -281,7 +281,7 @@ def create_web_app(cfg: Config, station: WebStation) -> FastAPI:
     @app.on_event("shutdown")
     async def _chat_stop() -> None:
         # SIGTERM/ECS stop: close every socket with 1012; clients reconnect
-        # with jitter and replay from last_id (SHEEP_PEN.md §0.7.7).
+        # with jitter and replay from last_id (docs/plans/sheep-pen-brief.md §0.7.7).
         if station.chat_hub is not None:
             await station.chat_hub.stop()
         if station.chat_cache is not None:

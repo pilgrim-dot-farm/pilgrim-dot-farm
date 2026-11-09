@@ -1,4 +1,4 @@
-"""Store.get_item read-through cache (SCALABILITY.md Step 2 follow-up): every
+"""Store.get_item read-through cache (docs/plans/scalability.md Step 2 follow-up): every
 write to `items` invalidates it, so no reader ever sees a stale flag."""
 from __future__ import annotations
 

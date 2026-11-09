@@ -53,7 +53,7 @@ export default defineConfig({
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /mobile\.spec\.ts/ },
-    // UI_REFACTOR.md D1: one standard phone, Chromium with iPhone 14 metrics
+    // docs/plans/ui-refactor.md D1: one standard phone, Chromium with iPhone 14 metrics
     // (390x664, 3x, mobile UA, touch). Real Safari/Android = operator check.
     { name: "phone", use: { ...devices["iPhone 14"], browserName: "chromium", channel },
       testMatch: /mobile\.spec\.ts/ },

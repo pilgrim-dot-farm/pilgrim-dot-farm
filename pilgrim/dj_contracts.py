@@ -1,13 +1,13 @@
-"""Typed DJ-console contracts (TUI.md §4; RADIO.md §11).
+"""Typed DJ-console contracts (docs/systems/console.md §4; RADIO.md §11).
 
 Pydantic request/response models for the two public revision-aware endpoints
 and the authenticated ``/api/admin/dj/*`` routes. These are pure data models —
 no route, scheduler, or server behavior lives here — so the module is
 importable anywhere, including by the Textual console client, which must never
 import ``Station``, open ``station.db``, or touch library paths (RADIO §3,
-TUI.md §3).
+docs/systems/console.md §3).
 
-Response schemas used to be empty ``{}`` in OpenAPI (TUI.md §1); every route
+Response schemas used to be empty ``{}`` in OpenAPI (docs/systems/console.md §1); every route
 these serve must return one of these concrete models so a generated client is
 typed. Plain-string enums are spelled with ``Literal`` so OpenAPI stays
 explicit and a wrong status fails static analysis.
@@ -120,7 +120,7 @@ class HeartbeatIn(BaseModel):
 # Operator command surface
 # --------------------------------------------------------------------------- #
 class DjCommandRequest(BaseModel):
-    """Common optimistic-concurrency fields on every DJ mutation (TUI.md §4)."""
+    """Common optimistic-concurrency fields on every DJ mutation (docs/systems/console.md §4)."""
 
     command_id: str = Field(..., min_length=1, max_length=64)
     expected_epoch: str
@@ -185,7 +185,7 @@ class DjUpcomingItem(BaseModel):
 
 
 class DjState(BaseModel):
-    """GET /api/admin/dj/state; computed without backend probes (TUI.md §4)."""
+    """GET /api/admin/dj/state; computed without backend probes (docs/systems/console.md §4)."""
 
     epoch: str
     revision: int
@@ -214,7 +214,7 @@ class DjSongPage(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Character + phrases (TUI.md §4, §6)
+# Character + phrases (docs/systems/console.md §4, §6)
 # --------------------------------------------------------------------------- #
 class CharacterInfo(BaseModel):
     character_id: str

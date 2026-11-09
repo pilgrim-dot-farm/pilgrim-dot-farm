@@ -1,5 +1,5 @@
 """Minimal MCP (Streamable HTTP) client for the LiteLLM MCP server
-(`hosts.mcp`, docs/backends.md §5). Since BRAVE.md the station uses it for one
+(`hosts.mcp`, docs/backends.md §5). Since docs/systems/search.md the station uses it for one
 tool only: the DJ's `time-get_current_time` (pipelines/clocktime.py). Web
 search is the Brave Search API in pipelines/brave.py; searxng is retired.
 
