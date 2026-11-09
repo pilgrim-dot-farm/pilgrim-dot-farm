@@ -268,6 +268,23 @@ test("aired requests table shows up to five with a prep time", async ({ page }) 
   await page.click('#nav-mobile [data-go="requests"]');
   await expect(airedTable.getByRole("columnheader", { name: "Prep Time" }))
     .toBeVisible();
+  // Prep Time is right-aligned, header and value (feedback 2026-11-08)
+  const prepAlign = await airedTable.evaluate((table) => ({
+    header: getComputedStyle(table.querySelector("thead .c-time")!).textAlign,
+    cell: getComputedStyle(table.querySelector("td.req-wait")!).textAlign,
+  }));
+  expect(prepAlign.header).toBe("right");
+  expect(prepAlign.cell).toBe("right");
+  // the AIRED REQUESTS table header row is flush with the pink section rule
+  const flush = await page.evaluate(() => {
+    const heads = document.querySelectorAll('[data-win="requests"] .req-list-head');
+    const head = heads[heads.length - 1] as HTMLElement;
+    const table = head.nextElementSibling as HTMLElement;
+    const hb = head.getBoundingClientRect();
+    const th = table.querySelector("thead th")!.getBoundingClientRect();
+    return { gap: th.top - hb.bottom };
+  });
+  expect(flush.gap).toBeLessThanOrEqual(1);
   const prep = await airedTable.evaluate((table) => {
     const ths = Array.from(table.querySelectorAll("thead th"));
     const time = ths[2];
@@ -306,12 +323,16 @@ test("aired requests table shows up to five with a prep time", async ({ page }) 
   expect(prep.width).toBeGreaterThanOrEqual(3 * prep.ch);
   expect(prep.minOneLine).toBe(true);
   expect(prep.overflow).toBeLessThanOrEqual(1);
-  // the queue table's Status header is still hidden on mobile (#req-queue is
-  // the tbody, so the header is found from the table, not from the id)
+  // all queue columns stay visible on mobile (feedback 2026-11-08): Vote /
+  // Request / Status; the old inline status fallback is gone.
   const queueStatus = await page.$eval(
     ".req-table:not(.req-table-aired) thead .c-time",
                                         el => getComputedStyle(el).display);
-  expect(queueStatus).toBe("none");
+  expect(queueStatus).toBe("table-cell");
+  await expect(page.locator(".req-item .req-status").first()).toBeVisible();
+  await expect(page.locator(".req-item .req-status-inline")).toHaveCount(0);
+  // a paid row (not votable) shows an em dash, not an empty vote cell
+  await expect(page.locator(".req-item .req-vote.req-dash").first()).toHaveText("—");
 });
 
 test("a failed visitor counter never breaks PLAY or request submission", async ({ page }) => {

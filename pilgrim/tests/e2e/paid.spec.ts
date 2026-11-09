@@ -47,6 +47,15 @@ test("the panel shows the three numbered departments, collapsed help and the CTA
   await expect(page.locator("label[for=pay-lyrics]")).toContainText("LYRICS");
   await expect(page.locator("label[for=pay-music]")).toContainText("MUSICAL DIRECTION");
   await expect(page.locator("label[for=pay-art]")).toContainText("COVER ART");
+  // PROMO CODE matches the optional COVER ART heading, and its one-line
+  // description is the short version (feedback 2026-11-08)
+  await expect(page.locator("label[for=pay-promo]")).toContainText("PROMO CODE (Optional)");
+  await expect(page.locator(".pay-field-promo .pay-help"))
+    .toHaveText("Got a code? Ride for free!");
+  // no example text in the priority boxes (too much reading)
+  for (const id of ["#pay-lyrics", "#pay-music", "#pay-art"]) {
+    await expect(page.locator(id)).not.toHaveAttribute("placeholder", /./);
+  }
 
   const help = page.locator("#pay-panel .pay-advanced");
   await expect(help).not.toHaveAttribute("open", "");
@@ -147,6 +156,36 @@ test("the priority textareas use the description font size", async ({ page }) =>
       .map((t) => parseFloat(getComputedStyle(t).fontSize)).concat(help);
   });
   for (const s of sizes) expect(s).toBe(13);
+});
+
+test("a spent promo code says it is all used up", async ({ page }) => {
+  await openPanel(page);
+  await page.fill("#pay-promo", "SPENT-CODE");
+  await page.click("#pay-promo-apply");
+  await expect(page.locator("#pay-promo-msg"))
+    .toHaveText("That code is all used up.");
+  await expect(page.locator("#pay-promo-msg")).toHaveClass(/err/);
+});
+
+test("a live promo code applies and spends its use on submit", async ({ page }) => {
+  await openPanel(page);
+  await page.fill("#pay-promo", "RIDE-FREE");
+  await page.click("#pay-promo-apply");
+  await expect(page.locator("#pay-promo-msg"))
+    .toHaveText("Success! This one's on us");
+  await page.fill("#pay-lyrics", LYRICS);
+  await page.fill("#pay-music", MUSIC);
+  const [request] = await Promise.all([
+    page.waitForRequest((r) => r.url().includes("/api/paid-requests")
+      && r.method() === "POST"),
+    page.click("#pay-go"),
+  ]);
+  const body = request.postDataJSON() as Record<string, string>;
+  expect(body.promo).toBe("RIDE-FREE");
+  expect(body.voter_id).toMatch(/^[0-9a-f]{32}$/);
+  // the fake e2e server still rejects the request, but the use was spent
+  await expect(page.locator("#pay-msg")).toContainText(
+    "e2e: payments are a fake here");
 });
 
 test("promo code: two wrong tries grey it out; a valid code goes green", async ({ page }) => {

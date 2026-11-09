@@ -3,7 +3,7 @@ PY := $(VENV)/bin/python
 BIN := $(VENV)/bin
 FFMPEG := $(HOME)/bin/ffmpeg
 
-.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel due-backfill image image-smoke pg-test pg-migrate
+.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel due-backfill image image-smoke pg-test pg-migrate promo-codes
 
 # --- setup ---------------------------------------------------------------
 venv:
@@ -75,6 +75,12 @@ pg-test:
 # DATABASE_PASSWORD) in the environment or .env.
 pg-migrate:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.pg_migrate $(PG_MIGRATE_ARGS)
+
+# Paid-request promo codes (2026-11-08). Examples:
+#   make promo-codes PROMO_ARGS="add --code RIDE-FREE --uses 5"
+#   make promo-codes PROMO_ARGS="list"
+promo-codes:
+	$(PY) -m pilgrim.tools.promo_codes $(PROMO_ARGS)
 
 # --- EC2 stateless half (edge :8080 behind the ALB). Production runs with
 # LOCAL_GATEWAY=0 and the M5's tailnet name as ORIGIN_HOST (pilgrim/deploy/

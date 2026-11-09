@@ -850,12 +850,15 @@ class RequestIn(BaseModel):
 
 class PaidRequestIn(BaseModel):
     """`{lyrics, music, art}` (docs/shipped/prompt-upgrade.md) or the legacy `{text}`.
-    `promo` is the operator comp code from its own UI box (2026-11-08)."""
+    `promo` is a promo code (or the operator comp token) from its own UI box
+    (2026-11-08); `voter_id` is the per-browser identity used to stop the same
+    listener redeeming one promo code twice."""
     text: str | None = None
     lyrics: str | None = None
     music: str | None = None
     art: str | None = None
     promo: str | None = None
+    voter_id: str | None = Field(None, pattern=voting.VOTER_PATTERN)
 
     @model_validator(mode="after")
     def _one_form(self) -> PaidRequestIn:
@@ -869,6 +872,7 @@ class PaidRequestIn(BaseModel):
 
 class PromoIn(BaseModel):
     code: str = Field(..., min_length=1, max_length=64)
+    voter_id: str | None = Field(None, pattern=voting.VOTER_PATTERN)
 
 
 PAID_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
@@ -976,19 +980,43 @@ def _leaks_secret(text: str, secret: str) -> bool:
     return bool(secret) and secret in text
 
 
+def _promo_identity(station: PublicSurface, request: Request,
+                    voter_id: str | None) -> str:
+    """Stable identity for one promo redemption. The browser's voter id is
+    the primary identity; without one the canonical client IP stands in."""
+    if voter_id and voting.VOTER_RE.match(voter_id):
+        return "voter:" + voter_id
+    ip = (station._client_ip(request)
+          or (request.client.host if request.client else None) or "unknown")
+    return "ip:" + ip
+
+
+def _release_promo(station: PublicSurface, promo_code: str | None,
+                   promo_identity: str | None) -> None:
+    """Return a promo use when the request it comped never reached the line."""
+    if promo_code and promo_identity:
+        station.db.release_promo_redemption(promo_code, promo_identity)
+
+
 _LEAK_REASON = "That request can't be accepted."
 _CHECK_FAILED = ("Couldn't finish checking your request. You were not charged; "
                  "try again.")
 
 
 async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
-                           comped: bool, parts: RequestParts | None = None) -> None:
+                           comped: bool, parts: RequestParts | None = None,
+                           promo_code: str | None = None,
+                           promo_identity: str | None = None) -> None:
     """Moderation -> copyright screen -> summary -> ready (or comped into the
     queue). Runs after the POST has answered; the client polls the stage
     (docs/shipped/payments.md Step 12b). Any crash rejects the row: nobody is charged.
 
     docs/shipped/prompt-upgrade.md Step 2 (D4): the moderator sees the composed text; the
-    copied-lyrics screen and the board summary never see the art part."""
+    copied-lyrics screen and the board summary never see the art part.
+
+    A promo code's use is spent at submit (atomically); if moderation or the
+    copyright screen rejects the request, the use is returned so a rejected
+    request never burns a code."""
     db = station.db
     cfg = station.cfg
     song_text = parts.song_text() if parts else text
@@ -1002,12 +1030,15 @@ async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
             "duration_ms": round((time.monotonic() - t0) * 1000, 1)})
         if not allowed:
             db.reject_checking_request(request_id, reason or "rejected")
+            _release_promo(station, promo_code, promo_identity)
             return
         if not db.set_request_stage(request_id, "copyright"):
+            _release_promo(station, promo_code, promo_identity)
             return
         verdict = await station.copyright.check(song_text, request_id)
         if not verdict.allowed:
             db.reject_checking_request(request_id, verdict.reason)
+            _release_promo(station, promo_code, promo_identity)
             return
         summary = await _summarise_paid(station, song_text,
                                         cfg.requests.max_length,
@@ -1022,6 +1053,7 @@ async def _run_paid_checks(station: PublicSurface, request_id: int, text: str,
         log.warning("payment.check_failed",
                     extra={"request_id": request_id, "error": type(exc).__name__})
         db.reject_checking_request(request_id, _CHECK_FAILED)
+        _release_promo(station, promo_code, promo_identity)
 
 
 def build_station(cfg: Config) -> Station:
@@ -1355,13 +1387,27 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
             parts = None
             text = _normalise_paid(payload.text or "")
         # Operator comp (D7): the promo box (validated on APPLY and again
-        # here) or the legacy first line of the lyrics box / text.
+        # here) or the legacy first line of the lyrics box / text. A promo
+        # code spends one use here, atomically; an operator token is unlimited.
         promo_ok = False
+        promo_code = None
+        promo_identity = None
         if payload.promo:
-            promo_ok = bool(secret) and hmac.compare_digest(
-                payload.promo.strip().encode(), secret.encode())
-            if not promo_ok:
-                raise HTTPException(403, "That promo code didn't work.")
+            code = payload.promo.strip()
+            if secret and hmac.compare_digest(code.encode(), secret.encode()):
+                promo_ok = True
+            else:
+                promo_code = code
+                promo_identity = _promo_identity(station, request,
+                                                 payload.voter_id)
+                redeemed = station.db.redeem_promo_code(promo_code,
+                                                        promo_identity)
+                if not redeemed["ok"]:
+                    status = 403 if redeemed["code"] == "invalid" else 409
+                    return JSONResponse(status_code=status, content={
+                        "ok": False, "code": redeemed["code"],
+                        "detail": redeemed["detail"]})
+                promo_ok = True
         comp_source = parts.lyrics if parts else text
         comped, stripped = _split_override(comp_source, secret)
         comped = comped or promo_ok
@@ -1378,6 +1424,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         limits = cfg.payments.parts
         if parts is not None:
             if not parts.has_song:
+                _release_promo(station, promo_code, promo_identity)
                 raise HTTPException(
                     422, "both lyrics and musical direction are required")
             for name, value, cap in (("Lyrics", parts.lyrics, limits.lyrics_max),
@@ -1385,17 +1432,21 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                                       limits.music_max),
                                      ("Cover art", parts.art, limits.art_max)):
                 if len(value) > cap:
+                    _release_promo(station, promo_code, promo_identity)
                     raise HTTPException(
                         422, f"{name} is too long ({cap} characters max)")
             text = parts.composed()
         lines = text.count("\n") + 1
         if (not text or len(text) > cfg.payments.paid_max_length
                 or lines > cfg.payments.paid_max_lines):
+            _release_promo(station, promo_code, promo_identity)
             raise HTTPException(422, "paid request empty or too long")
         if _leaks_secret(text, secret):
+            _release_promo(station, promo_code, promo_identity)
             return {"ok": False, "rejected": True, "reason": _LEAK_REASON}
         pref = prefilter(text, phone_mode="runs")
         if pref:
+            _release_promo(station, promo_code, promo_identity)
             req = station.db.add_request(text, cap=None, status="rejected",
                                          reason=pref, priority=1)
             log.info("request.moderated", extra={
@@ -1406,24 +1457,31 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         log.info("payment.requested",
                  extra={"request_id": row["id"], "len": len(text), "lines": lines,
                         "comped": comped, "parts": parts is not None,
+                        "promo": promo_code is not None,
                         "len_lyrics": len(parts.lyrics) if parts else 0,
                         "len_music": len(parts.music) if parts else 0,
                         "len_art": len(parts.art) if parts else 0,
                         "client_ip": station._client_ip(request) if comped else None})
         background.add_task(_run_paid_checks, station, int(row["id"]), text,
-                            comped, parts)
+                            comped, parts, promo_code, promo_identity)
         return {"ok": True, "token": row["public_token"], "stage": "moderation"}
 
     @app.post("/api/paid-requests/promo")
-    async def validate_promo(payload: PromoIn):
+    async def validate_promo(payload: PromoIn, request: Request):
         """UI_REFACTOR feedback (2026-11-08): the promo code has its own box
-        with an APPLY button. Validate the operator comp code in constant time
-        without echoing or storing it; the client counts its own attempts and
-        the code is re-checked on submit."""
+        with an APPLY button. Validate the operator comp token in constant
+        time, or check a stored promo code's remaining uses and this
+        identity's redemption, without echoing the code. The client counts
+        its own attempts; submit re-checks and spends a use atomically."""
         secret = _override_secret(station)
-        ok = bool(secret) and hmac.compare_digest(
-            payload.code.strip().encode(), secret.encode())
-        return {"ok": ok}
+        code = payload.code.strip()
+        if secret and hmac.compare_digest(code.encode(), secret.encode()):
+            return {"ok": True}
+        identity = _promo_identity(station, request, payload.voter_id)
+        res = station.db.promo_code_status(code, identity)
+        if res["ok"]:
+            return {"ok": True}
+        return {"ok": False, "code": res["code"], "detail": res["detail"]}
 
     @app.post("/api/paid-requests/{token}/checkout")
     async def start_paid_checkout(token: str):

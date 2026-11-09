@@ -40,7 +40,7 @@
     const tr = document.createElement("tr");
     tr.className = "req-empty";
     const td = document.createElement("td");
-    td.colSpan = 4;
+    td.colSpan = 3;
     td.textContent = text;
     tr.appendChild(td);
     return tr;
@@ -109,6 +109,9 @@
           readySeen = true;
         }
         if (r.buried) label = "buried";   // docs/plans/voting.md V7: voted below the line
+        // Every column is populated on phones too; a missing label is an em
+        // dash, never a blank cell (feedback 2026-11-08).
+        if (!label) label = "—";
         // Only this page's rows are built; readySeen above still tracks the
         // whole queue so "up next" is right on page 2 as well.
         if (i < start || i >= end) return;
@@ -122,14 +125,10 @@
           td.className = "req-vote";
           tr.appendChild(td);
         }
-        // the queue has no Title column (the aired table shows titles); on
-        // phones the Status column is hidden and its text sits under the
-        // request text, so the table is Vote / Request+status at 520 px
+        // the queue has no Title column (the aired table shows titles); the
+        // Vote / Request / Status columns stay on phones too (feedback
+        // 2026-11-08: every column is populated, empty cells read "—").
         const promptTd = promptCell(r, i + 1);
-        const inline = document.createElement("span");
-        inline.className = "req-status-inline";
-        inline.textContent = label;
-        promptTd.appendChild(inline);
         tr.appendChild(promptTd);
         tr.appendChild(cell("req-status", label));
         queueEl.appendChild(tr);

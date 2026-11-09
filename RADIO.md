@@ -903,7 +903,8 @@ scroll positions, chat follow-the-bottom and typed text survive a tab
 change; the selected tab persists in `sessionStorage` `pd_tab`. The shell
 is sized by the visual viewport (`--vvh`); while a text field has focus and
 the keyboard is up the tabs and mini player hide so the composer sits above
-the keys. The mini player is a mirror of `#btn-play`, `#indicator` and
+the keys, and focusing a field in SHEEP PEN scrolls the log to the newest
+message. The mini player is a mirror of `#btn-play`, `#indicator` and
 `pd:nowplaying` and its PLAY clicks the real button inside the gesture;
 `player.js`, `#sink` and the AudioContext are untouched (§9.2). On phones
 only the cover art shrinks (floor 140 px) so RADIO fits without scrolling;
@@ -957,8 +958,14 @@ the station name.
   prev/next pager (`1–20 of N`; hidden while the whole queue fits on one
   page); each page still scrolls in a 520 px box with a pinned header, a
   thin visible scrollbar and a bottom gradient while there is more below
-  (`has-more`). On phones the Status column folds under the request text (two
-  visual columns) and nothing scrolls horizontally down to 320 px.
+  (`has-more`). On phones every column stays visible — Vote / Request /
+  Status — and a cell with no value (a paid row's vote, a missing status)
+  reads an em dash (`—`) rather than being blank; nothing scrolls
+  horizontally down to 320 px. The AIRED REQUESTS table keeps Prompt /
+  Title / Prep Time, its header row sits flush under the pink section rule
+  (no flex-gap band), and Prep Time (header and value) is right-aligned.
+  The phone mini player's idle text is `PILGRIM DOT FARM ▶`; OFF THE AIR
+  keeps its warning text.
 - **PRIORITY REQUEST** (docs/shipped/prompt-upgrade.md Step 5, docs/shipped/payments.md; UI feedback
   2026-11-08): the *SKIP THE BARNYARD! YOUR SONG, YOUR RULES!* headline and the
   parenthesised *(Help us pay the power and cloud bills)* line (no
@@ -967,20 +974,23 @@ the station name.
   Four numbered creative departments each have a label and one helper line:
   **1 LYRICS** (*Subject, story, title, exact words.*), **2 MUSICAL DIRECTION**
   (*Genre, instruments vocals, tempo, and etc.*), **3 COVER ART (Optional)**
-  (*Artistic description, e.g. style, colors, scene.*), **4 PROMO CODE**
-  (*Got a code? Skip the payment line.*, the whole block grey). The optional
-  label uses the same font as COVER ART; textarea and promo input text is
-  13 px, the same as the helper lines. Textarea borders match their step
-  colours (cyan, purple, pink), including focus. The lyrics placeholder reads
-  *A love song about a sentient vending machine.*
+  (*Artistic description, e.g. style, colors, scene.*), **4 PROMO CODE
+  (Optional)** (*Got a code? Ride for free!*, the whole block grey). The
+  optional label uses the same font as COVER ART; textarea and promo input
+  text is 13 px, the same as the helper lines. Textarea borders match their
+  step colours (cyan, purple, pink), including focus. The priority boxes
+  have no example placeholder text. The *(Help us pay the power and cloud
+  bills)* line is 12 px, one step smaller than the headline above it.
   **Both lyrics and musical direction are required** (art and promo are
   optional); cover art alone is not a song request. The technical help
   (section tags, a full MiniMax structured caption, how to describe imagery,
   the 4,000 / 3,000 / 800 limits) lives in one collapsed *Want to get
   technical?* block with a larger summary (17 px; help content remains
-  13 px), so the main form never says LLM, prompt, caption, MiniMax, FLUX,
-  token or metadata. The client posts `{lyrics, music, art}` (plus `promo`
-  when a code was applied) (§11); the `maxlength` values mirror
+  13 px, and the lyric section tags use the same font and size as the
+  surrounding text), so the main form never says LLM, prompt, caption,
+  MiniMax, FLUX, token or metadata. The client posts `{lyrics, music, art}`
+  (plus `promo` and the browser `voter_id` when a code was applied) (§11);
+  the `maxlength` values mirror
   `payments.parts`, and the server is the authority. Drafts persist across a
   reload in `sessionStorage` under `pd_pay_draft` (`{lyrics, music, art, ts}`,
   24 h), restored on page load and cleared when the request reaches the line
@@ -993,12 +1003,16 @@ the station name.
   Checking for unseemly content*, *(2/3) Checking for existing copyrighted
   material*, *(3/3) Preparing secure payment* — the active one in cyan and
   completed ones ticked, and the list is scrolled into view on phones. The
-  promo box's **APPLY** validates the operator comp code server-side without
-  echoing it; a wrong code reads *FAILED: N attempts remain.* in red, two
-  wrong tries grey the box out, and a valid code reads *Success! This one's
-  on us* in green and the request skips Stripe. The terms line says *Your
-  request goes ahead of free submissions. Chip in what you like: $3.50
-  suggested, $3 minimum.*
+  promo box's **APPLY** validates a stored promo code (or the operator comp
+  token) server-side without echoing it. A wrong code reads *FAILED: N
+  attempts remain.* in red and two wrong tries grey the box out; a spent
+  code reads *That code is all used up.* and an already-used code reads
+  *You've already used that code.*; a valid code reads *Success! This one's
+  on us* in green and the request skips Stripe. A promo code has a fixed
+  number of uses, one redemption per browser identity, and is spent
+  atomically at submit (a use is returned if moderation/copyright rejects
+  the request). The terms line says *Your request goes ahead of free
+  submissions. Chip in what you like: $3.50 suggested, $3 minimum.*
 - **RATE THIS SONG** (docs/plans/voting.md, docs/plans/ratings.md): a row above the cover art
   with five turkey buttons (44 px targets, outlined → filled) and the on-air
   song's lifetime aggregate (`avg · n`, or `NO RATINGS YET`). The aggregate is
@@ -1026,8 +1040,8 @@ the station name.
   claim row (3–24 characters, unique; a claimed name is locked to that user —
   the admin rename route is the only way to change it — and the message input
   stays disabled until a name is claimed), a scrolling log rendered with
-  `textContent` only, a
-  200-character counter and Send. Each display name is coloured from the
+  `textContent` only, a 200-character counter and a Send button with a
+  magenta→violet→magenta gradient. Each display name is coloured from the
   standard xterm 256-colour palette by a stable hash of the name (purple,
   violet and magenta hues and unreadably dark/grey entries filtered out), so
   listeners are distinguishable. Repeated rejected sends (rate or repeat)
@@ -1231,8 +1245,8 @@ refill target.
 | GET | `/api/requests` | Request board: `{queue: [{id, text, status, paid, stage, song_title, score, votable, buried}], recent: [{text, song_title, song_artist, paid, wait_s}], cap, voting_enabled}` — queue = queued+producing+ready in queue order (≤ `queue_cap`), `song_title` set from `ready` on; `stage` is set only on `producing` rows: `waiting` until its turn at the brief LLM (briefs run one at a time), `writing` while the lyrics/brief are written, `generating` once the song model runs, `rendered` once the song exists but its intro is being made or it waits for the requests ahead of it (ready order is air order) (the board shows "in line" / "being written" / "being generated" / "generated, in line"; `queued` also shows "in line"); `score` is the vote sum, `votable` false for paid rows or when `voting.enabled` is false, `buried` true for a free queued row at/below `voting.bury_threshold` (docs/plans/voting.md §1); recent = **last 5** aired, never scored (no retrospective voting). The page renders the queue as Votes / Request / Status (scrolls, header pinned) and recent as Prompt / Title / Prep Time. `wait_s` (Prep Time) is whole seconds from `prep_started_at` — the moment lyrics/brief writing began — to the **earlier of `aired_at` and `due_at`**. `due_at` is the wall time the song was scheduled to air when it was teed up (committed or spliced into the programme, §5.2); with listeners present it agrees with `aired_at` to within seconds, but with nobody listening the playhead is frozen (§3, docs/plans/idle.md D3) and `aired_at` only lands on the next PLAY, hours later: that wait is capped at when the song would have aired. Time spent in line or waiting for the station to come back is not prep, and a row with no recorded writing start (aired before that column existed) sends `null`, which the page renders as an em dash (`—`) — measured-or-nothing, never queue idle dressed up as prep. Rows that aired before `due_at` existed are recovered from the station log by `make due-backfill` (tee-up line + frozen spans; dry run unless `DUE_ARGS="--apply"`). `POST` answers `line_full: true` when the free line is at `free_queue_max` |
 | POST | `/api/requests/{id}/vote` | docs/plans/voting.md: `{voter_id, value}` where `voter_id` is the browser's 32-hex id and `value` ∈ {−1, 0, +1} (0 retracts). Upsert per `(request_id, voter_id)`; only free rows in `queued/producing/ready` are votable. `200 {ok, score, mine, open}`; `404 not_found`; `409 {code: voting_closed\|not_votable, score}`; `422` bad body/id; `429` rate limit or `too_many_voters` (max distinct ids per IP per request); `404` when `voting.enabled` is false. `no-store` |
 | POST | `/api/station/rating` | docs/plans/voting.md: `{voter_id, epoch, seq, stars 1-5}` for the on-air song. The window is server-authoritative (epoch must match, `seq` must be the on-air song or the song that just ended within `ratings.grace_s`; a frozen station is closed). `200 {ok, item_id, count, avg, mine}`; `409 {code: rating_closed}`; `422`; `429`; `404` when `ratings.enabled` is false. `no-store` |
-| POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art[, promo]}` or legacy `{text}` (docs/shipped/payments.md Step 12b; docs/shipped/prompt-upgrade.md Step 2; UI feedback 2026-11-08): rate limit -> normalise -> operator-comp check (`promo` == `PAID_OVERRIDE_TOKEN` after constant-time compare, or the legacy first line of the lyrics box / `text` == the token, stripped) -> prefilter. A wrong `promo` is `403`. Three-box body: **both lyrics and music required**; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only (or one department alone) is `422`. Prefilter reject: `{ok:false, rejected:true, reason}`. Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
-| POST | `/api/paid-requests/promo` | `{code}` -> `{ok}`: validates the operator comp code in constant time for the promo box's APPLY button; never echoes or stores the code. The client counts two wrong tries and greys the box out; the code is re-checked on submit |
+| POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art[, promo, voter_id]}` or legacy `{text}` (docs/shipped/payments.md Step 12b; docs/shipped/prompt-upgrade.md Step 2; UI feedback 2026-11-08): rate limit -> normalise -> promo check (`promo` == `PAID_OVERRIDE_TOKEN` after constant-time compare, or a stored promo code redeemed atomically for the `voter_id`/client-IP identity, or the legacy first line of the lyrics box / `text` == the token, stripped) -> prefilter. A wrong `promo` is `403 {code:"invalid"}`; a spent code is `409 {code:"exhausted"}` and a repeat identity `409 {code:"used_by_identity"}`. Three-box body: **both lyrics and music required**; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only (or one department alone) is `422` (a redeemed promo use is returned). Prefilter reject: `{ok:false, rejected:true, reason}` (use returned). Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. A rejected/crashed check returns the promo use. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
+| POST | `/api/paid-requests/promo` | `{code[, voter_id]}` -> `{ok}` or `{ok:false, code:"invalid"\|"exhausted"\|"used_by_identity", detail}`: validates the operator comp token in constant time, or a stored promo code's remaining uses and this identity's redemption, for the promo box's APPLY button; never echoes or stores the code. A spent code is answered `exhausted` (*all used up*), not `invalid`, because exhausted codes are retired but never deleted. The client counts two wrong tries and greys the box out; the code is re-checked and spent on submit |
 | GET | `/api/paid-requests/{token}` | `{status, position, stage, comped, reason?}` (`no-store`): `stage` is `moderation\|copyright\|ready` while `status=checking`; `reason` only when `rejected`. Reconciles an `awaiting_payment` row with Stripe when payments are active |
 | POST | `/api/paid-requests/{token}/checkout` | Only for a non-comped row at `checking/ready`: claims it once (`-> awaiting_payment`) and creates the Checkout Session → `{ok, client_secret, publishable_key, expires_at}`; `client_secret` is returned once and never stored. `409` not ready / already claimed, `424` Stripe failure (row `abandoned`), `503` payments inactive |
 | POST | `/api/stripe/webhook` | Signature-verified Stripe events (docs/shipped/payments.md Step 5) |
@@ -1978,6 +1992,33 @@ rewrite):
 - `song_ratings(id, item_id, epoch, seq, voter_id, ip, stars, created_at,
   updated_at)` — `UNIQUE (epoch, seq, voter_id)`: one rating per **airing**,
   `stars` 1–5 (`CHECK`), `item_id` feeds the lifetime aggregate.
+
+**Promo codes (2026-11-08).** Two additive tables, created idempotently on
+open:
+
+- `promo_codes(id, code UNIQUE, max_uses, uses, active, note, created_at,
+  retired_at, retired_by)` — codes are stored trimmed and upper-case; a code
+  has a fixed `max_uses`. When `uses` reaches `max_uses` it is retired
+  (`active=0`, `retired_by='exhausted'`) but **never deleted**, so a guessed
+  spent code can answer *all used up* rather than *invalid*. An operator can
+  retire a code with `retired_by='operator'`; it stays retired even if a use
+  is later released.
+- `promo_redemptions(code_id, identity, request_id, created_at)` — PRIMARY
+  KEY `(code_id, identity)`: one redemption per identity. `identity` is
+  `voter:<32-hex browser id>` when supplied, else `ip:<canonical client IP>`.
+
+`Store.redeem_promo_code` spends a use with a guarded
+`UPDATE … WHERE active=1 AND uses<max_uses RETURNING uses` and the
+redemption insert in one transaction, so a concurrent last-use claim either
+wins or gets `exhausted`, and a repeat identity is rejected by the PK. The
+APPLY route (`promo_code_status`) is read-only. A use is returned by
+`release_promo_redemption` when moderation/copyright rejects the request;
+an auto-exhausted code is re-activated then, an operator-retired one is not.
+Operators manage codes locally with
+`python -m pilgrim.tools.promo_codes` (`add --code … --uses N`, `list`,
+`redemptions`, `retire`, `activate`) or `make promo-codes
+PROMO_ARGS="…"`; the tool uses the same store (`DATABASE_URL` Postgres in
+production, else `library.db`).
 
 Aggregates are computed from these tables on every read (SUM/COUNT/AVG),
 never cached on `requests`/`items` (docs/plans/voting.md V9), so retractions and

@@ -183,3 +183,28 @@ In our "Want to get technical" drop-down, I'm glad we are highlighting the tags 
   inputs were already 16 px. With no sub-16 px control left, focusing a field
   no longer scales the page, and the shell simply follows `--vvh` above the
   keyboard.
+
+## Round 4 (2026-11-08)
+
+- **Bills line.** *(Help us pay the power and cloud bills)* is 12 px, one
+  step below the headline.
+- **AIRED REQUESTS on phones.** The table header row now sits flush under the
+  pink section rule (the pane body's 12 px flex gap was the band). Prep Time
+  is right-aligned, header and value.
+- **All queue columns on phones.** Votes / Request / Status stay visible down
+  to 320 px; the old folded-under inline status is gone. A cell with no value
+  (a paid row's vote) reads an em dash (`—`).
+- **Technical help.** The lyric section `<code>` tags now use the surrounding
+  font and size (the monospace face was reading larger).
+- **Keyboard + chat.** Focusing a SHEEP PEN field scrolls the log to the
+  newest message; the Send button gets a magenta→violet→magenta gradient.
+- **Promo box.** Heading is `PROMO CODE (Optional)`, matching COVER ART;
+  description is *Got a code? Ride for free!*
+- **Promo code system.** Codes have N uses and one redemption per browser
+  identity; exhausted codes are retired (never deleted) and answer *That code
+  is all used up.* Local operators manage them with
+  `python -m pilgrim.tools.promo_codes` (or `make promo-codes
+  PROMO_ARGS="…"`).
+- **Mini player.** Idle text is `PILGRIM DOT FARM ▶`; OFF THE AIR is
+  unchanged.
+- **Priority boxes.** The example placeholders are removed.

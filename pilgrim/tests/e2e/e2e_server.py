@@ -128,6 +128,11 @@ def _seed_requests(cfg: Config, store: Store) -> None:
         paid["id"], session_id=f"cs_e2e_{paid['id']}",
         payment_intent_id="pi_e2e", amount_cents=350, currency="usd",
         livemode=False)
+    # Promo codes (2026-11-08): one live, one spent, so the client can show
+    # both the success and "all used up" messages.
+    store.create_promo_code("RIDE-FREE", 2, "e2e live")
+    store.create_promo_code("SPENT-CODE", 1, "e2e spent")
+    store.redeem_promo_code("SPENT-CODE", "seed-identity")
 
 
 def build_app() -> FastAPI:
@@ -373,13 +378,37 @@ def build_app() -> FastAPI:
                 "voting_enabled": cfg.voting.enabled},
                 headers={"Cache-Control": "no-store"})
 
+    @app.post("/api/paid-requests/promo")
+    async def validate_promo(payload: dict):
+        """Real promo-code validation over the e2e store: live codes answer
+        ok, a spent code answers exhausted (2026-11-08)."""
+        code = str(payload.get("code") or "").strip()
+        voter = str(payload.get("voter_id") or "").strip()
+        ident = ("voter:" + voter) if voter else "ip:127.0.0.1"
+        res = store.promo_code_status(code, ident)
+        if res["ok"]:
+            return JSONResponse({"ok": True})
+        return JSONResponse({"ok": False, "code": res["code"],
+                             "detail": res["detail"]})
+
     @app.post("/api/paid-requests")
     async def submit_paid_request(payload: dict):
         """docs/shipped/prompt-upgrade.md Step 5: the three-box shape the real route takes,
-        validated the same way, but nothing is stored and payment is a fake."""
+        validated the same way, but nothing is stored and payment is a fake.
+        A promo code spends a use here so the client sees the real lifecycle."""
         lyrics = str(payload.get("lyrics") or "").strip()
         music = str(payload.get("music") or "").strip()
         art = str(payload.get("art") or "").strip()
+        promo = str(payload.get("promo") or "").strip()
+        if promo:
+            voter = str(payload.get("voter_id") or "").strip()
+            ident = ("voter:" + voter) if voter else "ip:127.0.0.1"
+            redeemed = store.redeem_promo_code(promo, ident)
+            if not redeemed["ok"]:
+                status = 403 if redeemed["code"] == "invalid" else 409
+                return JSONResponse(status_code=status, content={
+                    "ok": False, "code": redeemed["code"],
+                    "detail": redeemed["detail"]})
         parts = cfg.payments.parts
         if not lyrics and not music:
             return JSONResponse(status_code=422, content={

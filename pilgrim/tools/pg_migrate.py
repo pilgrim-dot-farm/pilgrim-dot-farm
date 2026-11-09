@@ -27,9 +27,10 @@ from pilgrim.store import Store
 # Dependency order (requests/votes reference items/requests by id; nothing is
 # enforced by a foreign key, but the order keeps a partial failure legible).
 TABLES = ["items", "program", "airplay", "requests", "visitor_ips", "meta",
-          "stripe_events", "request_votes", "song_ratings"]
+          "stripe_events", "request_votes", "song_ratings", "promo_codes",
+          "promo_redemptions"]
 IDENTITY = {"items": "id", "program": "seq", "airplay": "id", "requests": "id",
-            "song_ratings": "id"}
+            "song_ratings": "id", "promo_codes": "id"}
 BATCH = 2000
 
 
