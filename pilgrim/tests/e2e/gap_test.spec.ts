@@ -236,9 +236,14 @@ test("cover art swaps with the song label and never moves PLAY", async ({ page }
     expect(s.w, "the cover actually decoded").toBeGreaterThan(0);
   }
   for (const s of others) {
-    expect(s.src, "non-song audio shows the live default cover").toContain("IMG_6238.jpeg");
+    expect(s.src, "non-song audio shows a cat from the live pool")
+      .toContain("img/cats/");
     expect(s.alt).toBe("");
+    expect(s.w, "the cat image actually decoded").toBeGreaterThan(0);
   }
+  // the pool rotates: successive non-song airings do not repeat one image
+  expect(new Set(others.map(s => s.src)).size,
+    "non-song items advance through the cat pool").toBeGreaterThan(1);
   // at least one swap happened (art is per-song, not a single static image)
   expect(new Set(songs.map(s => s.src)).size).toBeGreaterThan(1);
 });

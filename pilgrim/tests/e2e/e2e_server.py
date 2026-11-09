@@ -35,7 +35,7 @@ from pilgrim.chat.routes import register_chat_routes
 from pilgrim.config import RNG, Clock, Config, ensure_dirs, load_config
 from pilgrim.scheduler import Scheduler
 from pilgrim.selector import RandomSelector
-from pilgrim.server import _load_prompts
+from pilgrim.server import _load_prompts, cat_manifest
 from pilgrim.store import Store
 from pilgrim.tests.fakes import FakeLLM
 from pilgrim.tests.fakes.fake_flux import encode_png
@@ -437,6 +437,13 @@ def build_app() -> FastAPI:
         song_seq = next((r["seq"] for r in sched._items if r["item_id"] == song), None)
         return {"ok": True, "revision": sched.revision,
                 "song_id": song, "song_seq": song_seq}
+
+    @app.get("/api/station/cats")
+    async def cats():
+        """Same pool as production (RADIO §11): the live-cover rotation the
+        cover-art spec samples."""
+        return JSONResponse({"cats": cat_manifest(cfg)},
+                            headers={"Cache-Control": "no-store"})
 
     @app.get("/api/test/report")
     async def report():
