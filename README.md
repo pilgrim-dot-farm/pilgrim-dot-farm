@@ -186,6 +186,14 @@ disables it (the test suite does this so a live `.env` can never leak in).
   Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
   The line is stripped before the text is stored, logged, moderated or shown;
   a free request containing it is rejected unstored. Origin `.env` only.
+- `INSTAGRAM_TOKEN` — Meta Graph API token for posting Reels (INSTAGRAM.md).
+  A Business **system-user** token (Facebook-Login flavour, `EAA…`) with
+  `instagram_basic` + `instagram_content_publish`, used against
+  `hosts.graph` (`graph.facebook.com`). Sent only as `Authorization: Bearer`;
+  never in a URL, log, ledger or caption. Origin `.env` only.
+- `INSTAGRAM_ACCOUNT_ID` — the Instagram professional account's IG user id
+  (`pilgrim.farm` = `17841480340352745`). Only `make reel-post` reads these
+  two; the station process never does.
 
 Never commit them. Rotate the webhook secret, or the override token, if it is
 ever exposed.

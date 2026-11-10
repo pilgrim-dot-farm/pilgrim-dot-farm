@@ -105,6 +105,7 @@ class Hosts(BaseModel):
     brave: str = "https://api.search.brave.com"  # Brave Search API (docs/systems/search.md)
     sfx: str = "http://127.0.0.1:8000"  # MOSS-SoundEffect v2.0 (docs/backends.md §7)
     flux: str = "http://127.0.0.1:8084"  # FLUX 3 Image Klein, cover art (docs/backends.md §10)
+    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (INSTAGRAM.md, backends §14)
 
 
 class Models(BaseModel):
@@ -115,6 +116,7 @@ class Models(BaseModel):
     liners: str
     field_report: str = "qwen38"  # field reporter copy (docs/systems/sfx.md §4.2)
     art_scene: str = "qwen38"  # cover-art scene writer (docs/shipped/album-art.md Step 3)
+    instagram_caption: str = "qwen38"  # Reel caption line (INSTAGRAM.md Step 3)
     # Sheep Pen chat (docs/plans/sheep-pen-brief.md): Layer B review runs on the reasoning model
     # the station already uses for commercials/liners; Giles files text only.
     chat_moderation: str = "Ornith-1.5-9B"
@@ -728,6 +730,28 @@ class Art(BaseModel):
     jpeg_quality: int = 3             # ffmpeg -q:v (2..5 is good; ~200-300 KB)
 
 
+class Instagram(BaseModel):
+    """Instagram Reels from aired songs (INSTAGRAM.md; RADIO §8.4, §12). Read
+    only by `pilgrim/instagram.py` and `pilgrim/tools/post_reel.py`, which the
+    operator (or the local agent on the operator's word) runs by hand; nothing
+    in playout or production imports them."""
+    api_version: str = "v27.0"            # Graph API version (dashboard latest, 2026-11-08)
+    layout: Literal["square", "vertical"] = "square"  # square = art as-is; vertical = 1080x1920
+    clip_s: float = 20.0                  # first N seconds of the song
+    key_prefix: str = "reels/"            # S3 prefix (bucket/CloudFront from media:)
+    share_to_feed: bool = True            # the Reel also appears in the profile grid / Feed
+    ai_label: bool = True                 # is_ai_generated=true (Meta's AI self-disclosure)
+    poll_s: float = 5.0                   # container status poll interval
+    poll_timeout_s: float = 600.0         # give up waiting for FINISHED after this
+    timeout_s: float = 60.0               # per Graph call
+    max_attempts: int = 3                 # tries per Graph call (5xx / transport errors only)
+    caption_attempts: int = 3             # LLM tries for a valid line, then a verbatim tagline
+    name_the_song: bool = True            # '"Title" by Artist.' before the call to action
+    cta: str = "Request your own at https://pilgrim.farm — link in bio."
+    hashtags: list[str] = Field(default_factory=lambda: [
+        "#ai", "#aimusic", "#aimusicgenerator", "#pilgrimdotfarm"])
+
+
 class Media(BaseModel):
     """Public media delivery (RADIO §8.4): the station uploads every rendered
     MP3 to S3, CloudFront serves it, and the program/state API hands browsers
@@ -961,6 +985,7 @@ class Config(BaseModel):
     audio: Audio = Field(default_factory=Audio)
     media: Media = Field(default_factory=Media)
     art: Art = Field(default_factory=Art)
+    instagram: Instagram = Field(default_factory=Instagram)
     logging: Logging = Field(default_factory=Logging)
     talk: Talk = Field(default_factory=Talk)
     liners: Liners = Field(default_factory=Liners)
