@@ -144,3 +144,47 @@ def test_reel_uses_cloudfront_urls(tmp_env):
     assert make_reel._url(cfg, "art/a.jpg") == "https://cdn.example/art/a.jpg"
     assert "scale=1080:1080" in make_reel.filter_graph(60)
     assert "afade=t=out:st=58" in make_reel.filter_graph(60)
+
+
+def test_square_reel_is_the_art_as_is_with_no_edit_list(tmp_env):
+    cfg, _, tmp = tmp_env
+    cfg.logging.dir = str(tmp / "logs")
+    cfg.media.public_base_url = "https://cdn.example"
+    song = tmp / "song_sq.mp3"
+    _mp3(song, 6.0)
+    art = tmp / "art.jpg"
+    png = tmp / "a.png"
+    png.write_bytes(encode_png(64, 64))
+    encode_jpeg(png, art, 3)
+    item = {"media_path": str(song), "s3_key": "audio/song/song_sq-x.mp3",
+            "art_s3_key": "art/song_sq-y.jpg"}
+
+    def get(url: str) -> bytes:
+        return art.read_bytes() if url.endswith(".jpg") else song.read_bytes()
+
+    out = make_reel.run(cfg, item, start=0.0, duration=4.0, get=get, layout="square")
+    assert out.name == "song_sq-sq.mp4"
+    info = make_reel.probe(out)
+    assert make_reel.verify(info, 4.0, "square") == []
+    video = next(s for s in info["streams"] if s["codec_type"] == "video")
+    audio = next(s for s in info["streams"] if s["codec_type"] == "audio")
+    assert (video["width"], video["height"]) == (1024, 1024)
+    assert video["pix_fmt"] == "yuv420p" and video["field_order"] == "progressive"
+    assert float(video["start_time"]) == 0.0 and float(audio["start_time"]) == 0.0
+    assert audio["sample_rate"] == "48000" and audio["channels"] == 2
+    # +faststart: the file opens with ftyp then moov (never mdat first)
+    head = out.read_bytes()[:64]
+    assert head[4:8] == b"ftyp" and b"moov" in head
+
+
+def test_verify_rejects_a_stream_that_does_not_start_at_zero():
+    info = {"streams": [
+        {"codec_type": "video", "codec_name": "h264", "width": 1024, "height": 1024,
+         "r_frame_rate": "30/1", "profile": "High", "pix_fmt": "yuv420p",
+         "field_order": "progressive", "start_time": "0.066667"},
+        {"codec_type": "audio", "codec_name": "aac", "sample_rate": "48000",
+         "channels": 2, "start_time": "0.000000"}], "format": {"duration": "20.0"}}
+    bad = make_reel.verify(info, 20.0, "square")
+    assert any("edit list" in b for b in bad)
+    with pytest.raises(ValueError):
+        make_reel.dimensions("round")
