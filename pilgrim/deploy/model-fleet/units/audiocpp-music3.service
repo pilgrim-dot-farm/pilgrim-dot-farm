@@ -1,0 +1,21 @@
+# DRAFT — not installed. See ../README.md (rollover procedure + caveats).
+# Hosts: spx0 and spx1 (DGX Spark GB10).
+# run.sh is idempotent (port guard), runs the hot server in the foreground
+# (port 8080) with the web UI on 8321, and `wait`s — systemd-friendly.
+# Requires build/bin/audiocpp_server (./build.sh, CMake Release).
+[Unit]
+Description=audio.cpp MiniMax-Music-3 hot server (port 8080, web UI 8321)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=justin
+WorkingDirectory=/home/justin/local_llm/audio.cpp
+ExecStart=/usr/bin/bash ./run.sh
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

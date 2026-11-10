@@ -1,0 +1,16 @@
+# DRAFT — not installed. See ../README.md.
+# Hosts: spx0 and spx1. The Sparks run with GPU clocks locked to 2200 MHz
+# (`sudo nvidia-smi -lgc 0,2200` per the ds41 recipe notes); the lock is
+# lost after every reboot, so it re-applies at boot as a oneshot.
+[Unit]
+Description=Lock GB10 GPU clocks to 2200 MHz (lock is lost after reboot)
+After=nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-smi -lgc 0,2200
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

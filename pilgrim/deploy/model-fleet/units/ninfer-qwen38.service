@@ -1,0 +1,19 @@
+# DRAFT — not installed. See ../README.md (rollover procedure + caveats).
+# Host: twr (RTX 5090). Replaces the tmux `ninfer` session.
+# run.sh's default path is `start`, which execs ninfer-serve in the
+# foreground (systemd-friendly). Flags live in run.sh, not here.
+[Unit]
+Description=NInfer serve - Qwen3.8-27B NVFP4 (model id qwen38, port 8081)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=justin
+WorkingDirectory=/home/justin/local_llm/ninfer
+ExecStart=/usr/bin/bash ./run.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

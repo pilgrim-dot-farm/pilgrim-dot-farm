@@ -1,0 +1,25 @@
+# DRAFT — not installed. BLOCKED: the box's current run.sh is a one-shot
+# vet harness (the `ninfer` CLI), not a server wrapper. Before this unit
+# can be installed, write ./run-serve.sh on the host wrapping
+#   build/dgx-spark-release/apps/ninfer-serve
+# with the vetted parameters (docs/systems/model-fleet.md §4.4, vet run
+# 2026-11-10): model /models/Qwen3.8-Flash-Next-NInfer/qwen3_8_flash_next.ninfer,
+# --kv-dtype fp8 --spec mtp --draft-tokens 3 --proposal-head optimized
+# --max-context 32768, plus serve flags in the twr run.sh shape
+# (--host 0.0.0.0 --port 8081 --model-id qwen38-flash ...).
+# Hosts: spx0 and spx1 — the "qwen 3.8 Flash alongside MiniMax" target.
+[Unit]
+Description=NInfer serve - Qwen3.8-Flash-Next on a DGX Spark
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=justin
+WorkingDirectory=/home/justin/local_llm/ninfer
+ExecStart=/usr/bin/bash ./run-serve.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

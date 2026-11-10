@@ -1,0 +1,21 @@
+# DRAFT — not installed. See ../README.md.
+# Host: yuri (RTX 4070 Ti). Replaces the tmux `llm` session's llama-server
+# pane. ornith15_run.sh runs `llama-server` in the foreground — the
+# rollover practice case (operator 2026-11-10).
+# Loads /ssd/models/Ornith-1.5-9B-GGUF/Ornith-1.5-9B-Q5_K_M.gguf
+# (-c 131072, q8_0 KV, --no-mmap, -ngl 99); port 8080.
+[Unit]
+Description=llama.cpp server - Ornith-1.5-9B (port 8080)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yuri
+WorkingDirectory=/home/yuri/local_llm/llama.cpp
+ExecStart=/usr/bin/bash ./ornith15_run.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
