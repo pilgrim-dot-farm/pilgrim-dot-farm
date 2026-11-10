@@ -1406,6 +1406,7 @@ hosts:
   brave: https://api.search.brave.com       # Brave Search API (docs/systems/search.md); key BRAVE_SEARCH_KEY
   sfx: http://192.168.68.88:8000  # MOSS-SoundEffect v2.0
   flux: http://127.0.0.1:8084     # FLUX 3 Image Klein, cover art (docs/shipped/album-art.md)
+  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (INSTAGRAM.md); token INSTAGRAM_TOKEN
 
 models:
   news: qwen38
@@ -1416,6 +1417,7 @@ models:
   field_report: qwen38
   chat_moderation: Ornith-1.5-9B   # Layer B review worker (docs/plans/sheep-pen-brief.md §6)
   chat_giles: qwen38               # Giles's text-only chat dispatches
+  instagram_caption: qwen38        # Reel caption line (INSTAGRAM.md)
   music: MiniMax-Music-3     # LiteLLM model group for `auth: litellm` song backends
   context_tokens: {qwen38: 262144}  # calls send max_tokens = context - prompt (no artificial
                              # limit); omitting it gets the server's 8192 default
@@ -1754,6 +1756,23 @@ art:                         # §8.4, §14 (docs/shipped/album-art.md): cover ar
   scene_attempts: 3          # LLM retries for a valid scene
   key_prefix: art/           # S3 key prefix for published JPEGs
   jpeg_quality: 3            # ffmpeg -q:v for the delivered JPEG
+
+# §8.4 (INSTAGRAM.md): Reels from aired songs; read only by make reel-post
+instagram:
+  api_version: v27.0         # Graph API version; v24.0 and v27.0 both answered on 2026-11-08
+  layout: square             # square (1024x1024 art as-is) | vertical (1080x1920 blurred frame)
+  clip_s: 20                 # first N seconds of the song
+  key_prefix: reels/         # S3 prefix (bucket/CloudFront from media:)
+  share_to_feed: true        # also in the profile grid / Feed
+  ai_label: true             # is_ai_generated=true on the container
+  poll_s: 5                  # container status poll
+  poll_timeout_s: 600        # give up waiting for FINISHED
+  timeout_s: 60              # per Graph call
+  max_attempts: 3            # retries per Graph call (5xx / transport only)
+  caption_attempts: 3        # LLM tries for a valid line, then a verbatim tagline
+  name_the_song: true        # '"Title" by Artist.' before the call to action
+  cta: "Request your own at https://pilgrim.farm — link in bio."
+  hashtags: ["#ai", "#aimusic", "#aimusicgenerator", "#pilgrimdotfarm"]
 
 library:
   soft_cap_gb: 100          # past this, producer slows song generation and recycling share rises

@@ -48,7 +48,8 @@ def _no_repo_secrets(monkeypatch):
     monkeypatch.setenv("PILGRIM_ENV_FILE", "")
     for name in ("STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
                  "STRIPE_WEBHOOK_SECRET", "PAID_OVERRIDE_TOKEN", "BRAVE_SEARCH_KEY",
-                 "DATABASE_URL", "DATABASE_PASSWORD", "DB_PASS_SECRET_ARN", "REDIS_URL"):
+                 "DATABASE_URL", "DATABASE_PASSWORD", "DB_PASS_SECRET_ARN", "REDIS_URL",
+                 "INSTAGRAM_TOKEN", "INSTAGRAM_ACCOUNT_ID"):
         monkeypatch.delenv(name, raising=False)
     if PG_TEST_URL:
         _reset_pg_schema()
