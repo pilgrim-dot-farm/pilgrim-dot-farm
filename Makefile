@@ -3,7 +3,7 @@ PY := $(VENV)/bin/python
 BIN := $(VENV)/bin
 FFMPEG := $(HOME)/bin/ffmpeg
 
-.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel due-backfill image image-smoke pg-test pg-migrate promo-codes
+.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel reel-post due-backfill image image-smoke pg-test pg-migrate promo-codes
 
 # --- setup ---------------------------------------------------------------
 venv:
@@ -139,11 +139,20 @@ art-backfill:
 art-smoke:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.art_smoke
 
-# Instagram Reel builder (docs/shipped/album-art.md Step 11; ffmpeg only, never posts):
 # Instagram Reel builder (docs/shipped/album-art.md Step 11, INSTAGRAM.md Step 2; ffmpeg only, never posts):
 #   make reel REEL_ARGS="--item 132 --start 0 --duration 60 [--layout square]"
 reel:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.make_reel $(REEL_ARGS)
+
+# Instagram Reels posting (INSTAGRAM.md Step 5; docs/instagram.md). Nothing is
+# sent to Instagram without --publish, and the agent passes --publish only
+# after the operator confirmed the song (title + artist):
+#   make reel-post REEL_ARGS="--find 'possum'"
+#   make reel-post REEL_ARGS="--item 9188"                      # build, caption, upload; inspect
+#   make reel-post REEL_ARGS="--item 9188 --publish"            # post; prints the permalink
+#   make reel-post REEL_ARGS="--item 9188 --publish --note 'lean on the banjo'"
+reel-post:
+	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.post_reel $(REEL_ARGS)
 
 # Library backfill to MP3 + S3 (RADIO §8.4). Dry run by default:
 #   make mp3-migrate MIGRATE_ARGS="--apply --upload"
