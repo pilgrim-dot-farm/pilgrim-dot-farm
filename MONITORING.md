@@ -142,8 +142,10 @@ Housekeeping found on the way: `~/Library/Logs/pilgrim/gateway.access.log` is
 2. **Metered or blocking backends are never probed**: no Brave probe (AGENTS
    §2; the station reports `search_last`), no FLUX HTTP probe (a render blocks
    `/health` ~40 s, docs/backends.md §10; TCP connect to :8084 only), no song
-   render, no LLM completion. Reachability probes are `GET /health`,
-   `GET /v1/models`, TCP or TLS handshakes.
+   render, no LLM completion, **no Graph API call** (INSTAGRAM.md: the token is
+   used only by `make reel-post`, and a probe would spend publishing quota).
+   Reachability probes are `GET /health`, `GET /v1/models`, TCP or TLS
+   handshakes.
 3. **Cheap AWS first, paid where it adds a signal we cannot get otherwise.**
    Everything AWS already publishes for free (ALB, target group, ECS service
    CPU/memory, RDS basic, ElastiCache serverless, CloudFront, S3 storage,
@@ -298,6 +300,35 @@ deployment); if it is enterprise-gated (the 307 suggests so) the station's
 | `AWS/EC2` (`i-052b107fc0251d8c2`) | `CPUUtilization`, `StatusCheckFailed`, `NetworkIn/Out`, `CPUCreditBalance` if applicable | bastion, 5-minute basic metrics are free |
 | chat EMF namespace (SHEEP_PEN_PLAN) | `chat_messages_per_s`, `chat_moderation_backlog`, worker heartbeat metrics | read-only here; owned by the chat plan |
 
+### 3.6 Reels (Instagram, operator-triggered)
+
+`make reel-post` (INSTAGRAM.md; `docs/instagram.md`) is not a station task and
+has no schedule, so there is nothing to poll: monitoring only **records** what
+the tool did. It never calls the Graph API (see §2.2, §8 rule 1) — the token,
+the quota and the container status can only be learned by posting, and a
+synthetic post would spend one of the 100/24 h.
+
+Source: `pilgrim/logs/reels/*.json` (one ledger per attempt, rewritten at each
+stage; gitignored). The tool logs to stderr, not `station.log`, so §3.1's log
+tail cannot see it — a small writer, `pilgrim/monitoring/reels.py` (Step 3),
+emits a textfile that the M5 node_exporter's textfile collector serves:
+`~/pilgrim-monitoring/textfile/reels.prom`. It reads only that directory — no
+store, no database, no network (consistent with §8 rule 2).
+
+| Metric | Type | From |
+|--------|------|------|
+| `pg_reel_posts_total` | counter | ledgers that reached `status=published` (cumulative; the writer keeps its own `reels.counters.json` so the counter survives restarts and a deleted ledger) |
+| `pg_reel_failures_total{stage}` | counter | ledgers with `status=failed`; `stage` is `failed_at` (`building`\|`built`\|`captioned`\|`uploaded`\|`container`) |
+| `pg_reel_last_posted_timestamp_seconds` | gauge | newest `posted_at` across ledgers (0 when none) |
+| `pg_reel_quota_usage`, `pg_reel_quota_total` | gauge | the `quota` block of the most recent publish attempt; **as of the last post**, not live |
+| `pg_reel_ledgers{status}` | gauge | ledgers currently on disk, by `status` (`prepared` = `uploaded` with no `media_id`, i.e. never published) |
+| `pg_reel_writer_last_success_seconds` | gauge | the writer about itself (feeds #30) |
+
+Labels carry nothing private: no caption text, no permalink, no media id, no
+token (§8 rule 3). Deliberately not collected: the caption (it is copy, not a
+signal), the MP4 size (`media:` S3 metrics already cover the bucket), and the
+`reels/` object's presence (bastion probe #23 covers CloudFront).
+
 Logs stay in CloudWatch (`/aws/ecs/pg-app/app`, the chat audit group). Grafana
 gets a CloudWatch **Logs** data source using `kenny-logger` (its `logs:*` covers
 Logs Insights) so container and chat JSON lines are searchable next to the
@@ -365,8 +396,10 @@ the operator is told by a path that owns none of our infrastructure.
 | 27 | **TLS expiry** | `probe_ssl_earliest_cert_expiry - time() < 14 d` for `pilgrim.farm` and the `ts.net` cert | blackbox | digest | Cloudflare renews; Tailscale renews on serve |
 | 28 | **Chat worker heartbeat** | the chat plan's heartbeat/EMF signal absent (5 m) | yace / chat plan | agent | SHEEP_PEN_PLAN; `chat_worker.sh status`. Wired in Step 11 |
 | 29 | **Spend** | AWS Budget 80 % forecast; `EstimatedCharges` month-to-date above the operator's number | AWS Budgets (free ×2) + yace | digest (page above a hard ceiling) | Cost Explorer by service |
-| 30 | **Monitoring itself** | `pg_exporter_scrape_ok == 0` (5 m); yace scrape errors; Alertmanager cluster; `Watchdog` silence → healthchecks.io | both | agent / external | |
+| 30 | **Monitoring itself** | `pg_exporter_scrape_ok == 0` (5 m); yace scrape errors; Alertmanager cluster; the reel textfile writer stale (`pg_reel_writer_last_success_seconds`, §3.6); `Watchdog` silence → healthchecks.io | both | agent / external | |
 | 31 | **Log noise** | `rate(pg_log_events_total{level="WARNING"}[1h])` > 5 × its 7-day median | M5 | digest | today: `sfx.backend_retry` 2029 lines while SFX is down |
+| 32 | **Reels stale** | `pg_reel_posts_total > 0 and time() - pg_reel_last_posted_timestamp_seconds > 30 d` (1 d) | M5 textfile (§3.6) | digest | Usually an expired `INSTAGRAM_TOKEN`: the next `--publish` answers `OAuthException 190`; the operator regenerates the system-user token in Business Settings (never paste it) |
+| 33 | **Reels quota nearly used** | `pg_reel_quota_usage >= 0.9 * pg_reel_quota_total` (1 h) | M5 textfile (§3.6) | digest | 100 posts / 24 h; `make reel-post` refuses at 100/100 before creating a container |
 
 ---
 
@@ -437,8 +470,9 @@ reads `pilgrim/config.yaml` (+ `.env` for the Valkey and RDS hostnames only;
 it prints hostnames, never credentials) and writes
 `~/pilgrim-monitoring/targets/backends.yml` for the §3.3 table. The template
 forbids FLUX HTTP, Brave and `/api/station/program` by construction: the
-render tool has an explicit deny list and a unit test asserting none of those
-appear in its output. *Done when* every §3.3 row shows in Prometheus with the
+render tool has an explicit deny list (which also refuses
+`graph.facebook.com`, §2.2) and a unit test asserting none of those appear in
+its output. *Done when* every §3.3 row shows in Prometheus with the
 expected `probe_success`, and the tests pass.
 
 **Step 6 — Bastion stack.** `pilgrim/deploy/monitoring/bastion/monitoring.sh
@@ -476,7 +510,8 @@ appear in the bastion Prometheus, the SNS email is confirmed, and
 **Step 8 — Dashboards as code.** `pilgrim/deploy/monitoring/grafana/
 dashboards/*.json`, provisioned: **Station** (on-air/idle, listeners,
 coverage, inventory vs targets, backends and slots, cache publisher, renders
-per generator, log events), **Hosts** (node + GPU per box, disks front and
+per generator, log events, Reels: `pg_reel_posts_total`, failures by stage,
+last-post age and quota vs total, §3.6), **Hosts** (node + GPU per box, disks front and
 centre), **Model servers** (probe status/latency matrix, LiteLLM metrics if
 Step 1 found them), **Public path** (bastion probes, ALB, CloudFront, TLS
 expiry), **Data tier** (RDS, Valkey ECPU vs the cap), **Spend** (Billing by
@@ -578,8 +613,9 @@ are the only steps that touch RADIO.md or the chat agent's files.
 In addition to AGENTS §1:
 
 1. Monitoring never calls `GET /api/station/program` or `POST
-   /api/station/heartbeat`, never probes Brave or FLUX over HTTP, never asks a
-   model for anything. Enforced by the render tool's deny list and a test.
+   /api/station/heartbeat`, never probes Brave, FLUX or the Meta Graph API
+   over HTTP, never asks a model for anything. Enforced by the render tool's
+   deny list and a test.
 2. The exporter, the receiver and the render tool never import
    `pilgrim/scheduler.py`, `pilgrim/producer.py`, `pilgrim/selector.py` or
    `pilgrim/payments.py`, and never open `station.db` or `DATABASE_URL`.
