@@ -1,0 +1,19 @@
+# DRAFT — not installed. See ../README.md.
+# Host: yuri (RTX 4070 Ti). Replaces the tmux `kokoro` session.
+# server/run.sh execs the venv python tts_server.py (foreground);
+# weights /ssd/models/Kokoro-82M; port 8001; 16-bit mono 24 kHz WAV.
+[Unit]
+Description=Kokoro TTS server (port 8001)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yuri
+WorkingDirectory=/home/yuri/local_llm/kokoro/server
+ExecStart=/usr/bin/bash ./run.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
