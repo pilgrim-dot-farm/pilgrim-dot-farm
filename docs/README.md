@@ -82,6 +82,7 @@ full mapping is:
 | [architecture.md](architecture.md) | The system map: topology, components, data flow, invariants, glossary | reference |
 | [backends.md](backends.md) | Probe records for every external backend (request/response shapes, limits, failure modes) | reference |
 | [models.md](models.md) | Which model does what, where it runs | reference |
+| [instagram.md](instagram.md) | Posting an aired song to Instagram Reels: the agent runbook (`make reel-post`) | active |
 | [systems/sfx.md](systems/sfx.md) | SFX backend (MOSS-SoundEffect v2.0), the two pools, sidecar design, prompt guide (§11) | reference |
 | [systems/console.md](systems/console.md) | The Textual DJ console and its admin routes | reference |
 | [systems/search.md](systems/search.md) | Web search via the Brave Search API; why searxng was retired | shipped 2026-11-04 |

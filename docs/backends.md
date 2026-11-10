@@ -821,3 +821,77 @@ Layer B (Ornith) every `chat.review_interval_s`, Giles every
 `chat.giles_interval_s`, and the 7-day purge once a day. It writes
 `pilgrim:{chat}:worker:heartbeat` (TTL 120) so the admin route can prove it is
 alive. It never imports `scheduler.py`, `producer.py` or `selector.py`.
+
+## 14. Instagram Reels — Meta Graph API (`https://graph.facebook.com`), probed 2026-11-08
+
+Account `pilgrim.farm`, IG user id `17841480340352745`, posted to by the Meta
+app `pilgrim.farm` (`2180821312509939`, dev mode, use case INSTAGRAM_BUSINESS,
+Business Portfolio `2933344800368615`). `INSTAGRAM_TOKEN` is a Business
+**system-user** token (`EAA…`, "pilgrim.farm System User") — the *Instagram
+API with Facebook Login* flavour:
+
+- Host **`graph.facebook.com`**. `graph.instagram.com` → `OAuthException 190
+  "Cannot parse access token"` for this token.
+- Permissions granted: `instagram_basic`, `instagram_content_publish`,
+  `instagram_manage_comments`, `instagram_manage_messages`, `public_profile`.
+- `GET /debug_token` needs an app token → expiry not readable from here.
+  System-user tokens from Business Settings are normally non-expiring; there is
+  no refresh endpoint for this token type (`refresh_access_token` is
+  Instagram-Login only).
+- `GET /me/accounts` → `{"data": []}` (no Page on the system user; not needed).
+- Versions `v24.0` and `v27.0` (dashboard "latest") both answer. Config:
+  `instagram.api_version`.
+
+### Observed (read-only)
+
+```
+GET /v27.0/17841480340352745?fields=id,username,name,media_count,followers_count
+{"id":"17841480340352745","followers_count":8,"media_count":4,"name":"Pilgrim Dot Farm LLC","username":"pilgrim.farm"}
+
+GET /v27.0/17841480340352745/content_publishing_limit?fields=quota_usage,config
+{"data":[{"quota_usage":1,"config":{"quota_total":100,"quota_duration":86400}}]}   # docs say 50; observed 100
+
+GET /v27.0/17841480340352745/media?fields=id,media_type,media_product_type,permalink,timestamp,caption&limit=3
+{"data":[{"id":"…","caption":"Pilgrim Dot Farm — Artificial intelligence. Natural stupidity. Coming soon, https://pilgrim.farm #ai #localllm #selfhostedai","media_product_type":"FEED","media_type":"IMAGE","permalink":"https://www.instagram.com/p/…/","timestamp":"2026-11-08T19:59:17+0000"},
+         {"id":"18106378283098500","media_product_type":"REELS","media_type":"VIDEO","permalink":"https://www.instagram.com/reel/DfT-NkcBWv1/","timestamp":"2026-11-04T07:58:03+0000"}, …],
+ "paging":{…}}
+
+GET /v27.0/18106378283098500?fields=id,media_type,media_product_type,permalink,timestamp,caption
+{"id":"18106378283098500","media_product_type":"REELS","media_type":"VIDEO","permalink":"https://www.instagram.com/reel/DfT-NkcBWv1/","timestamp":"2026-11-04T07:58:03+0000"}
+
+GET /v27.0/18106378283098500?fields=like_count,view_count,…      # engagement fields on own media
+{"error":{"message":"(#36104) You do not have permission to access this field outside of the Business Discovery API.","code":36104,"type":"OAuthException",…}}
+
+GET /v27.0/17889455560051444?fields=status_code,status             # an id that is not ours
+HTTP 400 {"error":{"message":"Unsupported get request. Object with ID '17889455560051444' does not exist, cannot be loaded due to missing permissions, or does not support this operation. …","type":"GraphMethodException","code":100,"error_subcode":33,"fbtrace_id":"…"}}
+```
+
+### Publishing flow (Meta docs; `pilgrim/instagram.py` `GraphClient`)
+
+1. `POST /{ig}/media` form `media_type=REELS&video_url=<CloudFront URL>&caption=…&share_to_feed=true&is_ai_generated=true` → `{"id": "<container>"}`. Meta **cURLs `video_url`**, so the MP4 must be public at that moment (we HEAD it through CloudFront first).
+2. `GET /{container}?fields=status_code,status` every `instagram.poll_s` until `FINISHED`; `ERROR`/`EXPIRED` abort; `IN_PROGRESS` waits; containers expire after 24 h.
+3. `POST /{ig}/media_publish` form `creation_id=<container>` → `{"id": "<media>"}`.
+4. `GET /{media}?fields=id,permalink,media_type,media_product_type,timestamp`.
+
+Token only in `Authorization: Bearer …` (the docs' own cURL example uses that
+header with form params). 4xx error bodies are final; 5xx/transport retry.
+
+### Reel spec (IG User Media reference, 2026-11-08)
+
+MP4/MOV, **no edit lists**, `moov` first; H.264 (or HEVC) progressive, closed
+GOP, 4:2:0; 23–60 fps; ≤ 1920 columns; aspect 0.01:1–10:1 (9:16 recommended,
+1:1 allowed and shows letterboxed in the Reels tab); video ≤ 25 Mb/s VBR;
+AAC ≤ 48 kHz, 1–2 ch, 128 kb/s; 3 s–15 min; ≤ 300 MB. ffmpeg 9.0.2 recipe
+that meets it (`make_reel.build_command`): `-r 30 -fps_mode cfr -c:v libx264
+-profile:v high -tune stillimage -g 60 -keyint_min 60 -sc_threshold 0 -bf 0
+-c:a aac -b:a 128k -ar 48000 -ac 2 -movflags +faststart -use_editlist 0`,
+with `scale=…:in_range=full:out_range=limited,format=yuv420p` for the JPEG
+input. Without `-bf 0` the video starts at 0.0667 s once the edit list is
+gone; without the range conversion the output is `yuvj420p`. A 20 s 1024×1024
+clip: 369 KB, 0.31 s wall on the M5.
+
+### Observed in Step 7 (fill in)
+
+- container `status_code` sequence and wall time to `FINISHED`: …
+- `media_publish` response and the permalink: …
+- CloudFront HEAD on `reels/…mp4` (status, content-type, accept-ranges, x-cache): …
