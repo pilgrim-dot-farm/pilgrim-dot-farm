@@ -140,7 +140,8 @@ art-smoke:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.art_smoke
 
 # Instagram Reel builder (docs/shipped/album-art.md Step 11; ffmpeg only, never posts):
-#   make reel REEL_ARGS="--item 132 --start 0 --duration 60"
+# Instagram Reel builder (docs/shipped/album-art.md Step 11, INSTAGRAM.md Step 2; ffmpeg only, never posts):
+#   make reel REEL_ARGS="--item 132 --start 0 --duration 60 [--layout square]"
 reel:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.make_reel $(REEL_ARGS)
 
