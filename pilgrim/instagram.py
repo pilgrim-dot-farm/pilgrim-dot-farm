@@ -9,11 +9,12 @@ the `Authorization` header, never in a URL, log line, ledger or caption.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -247,3 +248,132 @@ def posted_record(store: Any, item_id: int) -> dict[str, Any] | None:
 
 def record_posted(store: Any, item_id: int, record: dict[str, Any]) -> None:
     store.meta_set(META_KEY.format(item_id=int(item_id)), json.dumps(record))
+
+
+# ------------------------------------------------------------- Graph API
+class GraphError(Exception):
+    """A Graph API error body, a non-JSON answer, or exhausted retries."""
+
+    def __init__(self, message: str, *, code: int | None = None,
+                 subcode: int | None = None, status: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.subcode = subcode
+        self.status = status
+
+
+class GraphClient:
+    """The six calls of INSTAGRAM §0.4 against `hosts.graph`/`instagram.api_version`.
+
+    The token lives in a default header, so no call can put it in a URL; 4xx
+    error bodies raise at once (never retried); 5xx and transport errors
+    retry with backoff up to `instagram.max_attempts`. `sleep` is injectable
+    so tests never wait.
+    """
+
+    def __init__(self, cfg: Config, token: str, ig_user_id: str, *,
+                 transport: httpx.AsyncBaseTransport | None = None,
+                 sleep: Callable[[float], Awaitable[None]] = asyncio.sleep) -> None:
+        if not token or not ig_user_id:
+            raise ValueError(f"{TOKEN_ENV} and {ACCOUNT_ENV} are required")
+        self.cfg = cfg
+        self.ig = ig_user_id
+        self._sleep = sleep
+        base = f"{cfg.hosts.graph.rstrip('/')}/{cfg.instagram.api_version}"
+        self._client = httpx.AsyncClient(
+            base_url=base, transport=transport,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=httpx.Timeout(cfg.instagram.timeout_s, connect=10.0))
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+    async def _call(self, method: str, path: str, *,
+                    params: dict[str, Any] | None = None,
+                    data: dict[str, Any] | None = None) -> dict[str, Any]:
+        last: GraphError | None = None
+        for attempt in range(1, max(1, self.cfg.instagram.max_attempts) + 1):
+            try:
+                r = await self._client.request(method, path, params=params, data=data)
+            except httpx.HTTPError as e:
+                last = GraphError(f"{type(e).__name__}: {e}"[:200])
+            else:
+                if r.status_code >= 500:
+                    last = GraphError(f"HTTP {r.status_code}", status=r.status_code)
+                else:
+                    try:
+                        body = r.json()
+                    except ValueError:
+                        raise GraphError(f"non-JSON response (HTTP {r.status_code})",
+                                         status=r.status_code) from None
+                    err = body.get("error") if isinstance(body, dict) else None
+                    if err or r.status_code >= 400:
+                        err = err if isinstance(err, dict) else {}
+                        raise GraphError(
+                            str(err.get("message") or f"HTTP {r.status_code}"),
+                            code=err.get("code"), subcode=err.get("error_subcode"),
+                            status=r.status_code)
+                    return body if isinstance(body, dict) else {"data": body}
+            log.warning("instagram.graph_retry", extra={
+                "stage": "graph", "attempt": attempt, "path": path,
+                "error": str(last)[:200]})
+            if attempt < max(1, self.cfg.instagram.max_attempts):
+                await self._sleep(min(30.0, 2.0 ** attempt))
+        raise last or GraphError("graph call failed")
+
+    async def account(self) -> dict[str, Any]:
+        return await self._call("GET", f"/{self.ig}",
+                                params={"fields": "id,username,media_count"})
+
+    async def publishing_limit(self) -> dict[str, int]:
+        body = await self._call("GET", f"/{self.ig}/content_publishing_limit",
+                                params={"fields": "quota_usage,config"})
+        row = (body.get("data") or [{}])[0]
+        conf = row.get("config") or {}
+        return {"quota_usage": int(row.get("quota_usage") or 0),
+                "quota_total": int(conf.get("quota_total") or 0),
+                "quota_duration": int(conf.get("quota_duration") or 0)}
+
+    async def create_reel_container(self, *, video_url: str, caption: str) -> str:
+        data: dict[str, str] = {
+            "media_type": "REELS", "video_url": video_url, "caption": caption,
+            "share_to_feed": "true" if self.cfg.instagram.share_to_feed else "false"}
+        if self.cfg.instagram.ai_label:
+            data["is_ai_generated"] = "true"
+        body = await self._call("POST", f"/{self.ig}/media", data=data)
+        cid = str(body.get("id") or "")
+        if not cid:
+            raise GraphError("container response had no id")
+        return cid
+
+    async def container_status(self, container_id: str) -> tuple[str, str]:
+        body = await self._call("GET", f"/{container_id}",
+                                params={"fields": "status_code,status"})
+        return str(body.get("status_code") or ""), str(body.get("status") or "")
+
+    async def wait_until_finished(self, container_id: str) -> None:
+        """Poll until FINISHED; ERROR/EXPIRED or the timeout raise."""
+        waited = 0.0
+        while True:
+            code, status = await self.container_status(container_id)
+            if code == "FINISHED":
+                return
+            if code in ("ERROR", "EXPIRED"):
+                raise GraphError(f"container {code}: {status or 'no detail'}")
+            if waited >= self.cfg.instagram.poll_timeout_s:
+                raise GraphError(f"container still {code or 'unknown'} after "
+                                 f"{self.cfg.instagram.poll_timeout_s:g}s")
+            await self._sleep(self.cfg.instagram.poll_s)
+            waited += self.cfg.instagram.poll_s
+
+    async def publish(self, container_id: str) -> str:
+        body = await self._call("POST", f"/{self.ig}/media_publish",
+                                data={"creation_id": container_id})
+        mid = str(body.get("id") or "")
+        if not mid:
+            raise GraphError("publish response had no id")
+        return mid
+
+    async def media(self, media_id: str) -> dict[str, Any]:
+        return await self._call("GET", f"/{media_id}", params={
+            "fields": "id,permalink,media_type,media_product_type,timestamp"})
