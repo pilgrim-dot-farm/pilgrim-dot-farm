@@ -27,7 +27,8 @@ the edge/gateway/origin layout), `prompt-upgrade.md` (Steps 1–6, shipped
 `song-concurrency.md`, `priorities.md`, `fix-radio.md` and
 `announcer-overhaul.md`. Subsystem references are in `docs/systems/`;
 `docs/systems/search.md` (shipped 2026-11-04) is the web-search reference: Brave
-Search API direct, searxng retired.
+Search API direct, searxng retired. `INSTAGRAM.md` (Steps 1–7) is the plan for
+operator-triggered Instagram Reels (`docs/instagram.md` is the agent runbook).
 
 You are building an AI-generated radio station. **`RADIO.md` is the source of
 truth.** Read the relevant section of RADIO.md before implementing anything,
@@ -112,6 +113,7 @@ If a task cannot be done without breaking one, stop and report.
 | Media (S3 + CloudFront) | `media.*` in config | Public bucket `pilgrim-dot-farm-public-2` (us-west-2, account 477688903218 since 2026-11-06), read only by CloudFront `E2J4EQA5VW0HUG`; station uploads with AWS profile `mac-studio` (RADIO §8.4, docs/backends.md §9) |
 | RDS Postgres + ElastiCache Valkey | VPC `172.31.0.0/16`, via the bastion's tailnet route (docs/plans/scalability.md Step 8) | `DATABASE_URL` + `DB_PASS_SECRET_ARN`, `REDIS_URL` (TLS, no password) in `.env` on the M5 and in the ECS task env; the web tier is `pilgrimdotfarm/front-end` on Fargate |
 | Stripe | `payments.api_base` in config | Checkout Sessions + webhooks; keys in `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (docs/shipped/payments.md Step 0) |
+| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (INSTAGRAM.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
 
 **Do not guess external APIs.** Before writing a client for any backend,
 probe it (`curl .../health`, `curl .../voices`, a minimal request) and record

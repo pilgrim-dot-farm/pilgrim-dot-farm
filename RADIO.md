@@ -871,12 +871,30 @@ S3 is the source of truth for listener audio; the M5 no longer streams it
   JPEG, PUTs it to `art/smoke/`, GETs it through CloudFront (200 +
   `image/jpeg`), and saves the PNG to `pilgrim/logs/art-smoke.png` for a human
   to eyeball.
-- `make reel REEL_ARGS="--item ID [--start S] [--duration D]"` (docs/shipped/album-art.md
-  Step 11) builds an Instagram Reel from the **published** copies — the song's
-  MP3 and cover JPEG fetched through CloudFront — as 1080×1920 H.264 High /
-  AAC 48 kHz stereo 192 kb/s at 30 fps with `+faststart`, verified by
-  `ffprobe`. Output: `pilgrim/logs/reels/<stem>.mp4`. Uploading to Instagram
-  is out of scope.
+- `make reel REEL_ARGS="--item ID [--layout vertical|square] [--start S] [--duration D]"`
+  (docs/shipped/album-art.md Step 11, INSTAGRAM.md Step 2) builds an Instagram Reel from
+  the **published** copies — the song's MP3 and cover JPEG fetched through
+  CloudFront — as H.264 High 4:2:0 progressive 30 fps (closed 2 s GOP, no
+  B-frames), AAC 48 kHz stereo 128 kb/s, MP4 with `+faststart` and **no edit
+  list**, verified by `ffprobe`. `vertical` = 1080×1920 (art blurred to fill,
+  sharp art centred); `square` = 1024×1024 (the art as-is). Output:
+  `pilgrim/logs/reels/<stem>.mp4` / `<stem>-sq.mp4`. Never posts.
+- `make reel-post REEL_ARGS="--find TEXT | --item ID [--publish] [--note T] [--caption T] [--force]"`
+  (INSTAGRAM.md Step 5; docs/instagram.md) is the operator-triggered Reels
+  post: `instagram.layout` clip of the first `instagram.clip_s` seconds, one
+  LLM caption line in the voice of `bible/taglines.md` (`models.instagram_caption`,
+  deterministic validation, verbatim-tagline fallback) followed by the
+  deterministic song line, call to action and hashtags from `instagram:`; the
+  MP4 goes to `instagram.key_prefix + <stem>-<sha256[:16]>.mp4` on the media
+  bucket (`video/mp4`, same immutable cache header) and is HEAD-checked through
+  CloudFront; then, **only with `--publish`**, the Meta Graph API
+  (`hosts.graph`, Facebook-Login system-user token `INSTAGRAM_TOKEN`, account
+  `INSTAGRAM_ACCOUNT_ID`): quota check → `POST /{ig}/media media_type=REELS`
+  → poll `status_code` → `POST /{ig}/media_publish` → permalink. Posted songs
+  are recorded under the `meta` key `instagram:reel:<item_id>` (§14) and in
+  `pilgrim/logs/reels/<stem>-sq.json`; a repost needs `--force`. The station
+  process never imports `pilgrim/instagram.py` (hard rule 1 territory stays
+  untouched).
 - CORS: browsers `fetch()` the CloudFront URL cross-origin from the site, so
   every response must carry `access-control-allow-origin`. A CloudFront
   Function (viewer-response) sets `*`; the managed CORS policy drops the
@@ -1956,6 +1974,14 @@ an overwrite (hard rule 5). `meta_json.art` stores the scene, the final FLUX
 prompt, the seed and the listener's `art_direction` (NULL when none) so a
 render is reproducible. `art_path` is set only after
 the PNG validates and the JPEG encodes; `art_s3_key` only after the PUT.
+
+**Instagram posts (INSTAGRAM.md).** No new table. The `meta` key
+`instagram:reel:<item_id>` holds a JSON record `{media_id, container_id,
+video_key, posted_at, permalink, caption_source}` written by
+`pilgrim/tools/post_reel.py` the moment `media_publish` succeeds (permalink
+filled in by the read that follows). It is the duplicate check for
+`make reel-post`; `--force` overwrites it. `items.meta_json` is not touched
+(the station's art worker owns it).
 
 The `items` table carries a `retired` flag (default 0) — a soft-delete used to
 pull truncated/unusable inventory out of playout and production while keeping
