@@ -160,9 +160,121 @@ directory has the install/rollover procedure, including why you must stop
 the tmux-hosted instance before enabling a unit (the `run.sh` port guards
 make the unit exit 0 while the old instance still serves).
 
-## 6. Open items
+## 6. Fire drill — restarting a model service by hand (for agents)
 
-1. Restart SFX on spx0 (§4.1) — one command, needs a go-ahead.
+When the normal levers fail: the service's `/health` is dead AND (systemd is
+not installed or its unit is wedged) AND the box's run script is broken, the
+port is held, or GPU memory is parked. Last-resort manual procedure for an
+agent with `ssh` + `sudo` on the box. The station itself is out of scope
+(separate runbook).
+
+**Ground rules (read again at step 5).**
+
+- One box, one service at a time. Never touch `/models`, the other box, or
+  any `~/local_llm` tree beyond the target service.
+- All command output goes to `/tmp/fire-drill-<svc>-<YYYYMMDD>.log`; the
+  final report quotes the key lines + exit codes.
+- **Never:** reboot a box (a human reboots, after approval); kill a process
+  you can't identify; rewrite a box run script in place (record it, fix via
+  PR); run `_reset_driver` on a box where a live job you are not stopping
+  owns the GPU (a running DS41 rank, a live music server).
+- If the GPU is owned by the DeepSeek 2x-Spark job: out of scope — the job
+  is the memory owner. Report, don't fight.
+
+**Step 0 — is it really down? (≤5 min)**
+
+```sh
+curl -sf --max-time 5 http://127.0.0.1:<port>/health; echo "rc=$?"
+systemctl status <unit> 2>&1 | head -20   # if a unit exists
+ss -ltnp | grep :<port>                   # who holds the port, if anyone
+ps aux | grep -E '<launcher pattern>' | grep -v grep
+free -h
+```
+
+Healthy → false alarm; report and stop. Otherwise classify:
+
+- **A** process alive, port dead (wedged / crash-looping) → 2A
+- **B** no process, port dead (died, nothing to restart it) → 2B
+- **C** port held by a non-service process (stale ssh forward, old pid) → 2C
+- **D** unit exists and is wedged → 2D
+
+**Step 2A — kill the wedged process.** `sudo fuser -k <port>/tcp` (or
+`kill <pid>` from `ss`; TERM, wait 10 s, then KILL). Verify the port is free
+→ 2B.
+
+**Step 2B — cold-start raw (the workhorse).** The most reliable restart is
+the *raw launcher*, not the run script:
+
+1. Read the run script **live**: `cat <dir>/run.sh` — copy the real command
+   and flags. Never type flags from memory or from this doc.
+2. Strip the guard/pid logic: if the script bails with "already running"
+   while the port is dead, a stale pidfile is the cause — `ls <dir>/*.pid*`,
+   `kill -0 <pid>` (must fail), remove the file.
+3. Launch in a fresh tmux (never reuse a stale session):
+   `tmux new-session -d -s <svc>-fd "cd <dir> && <raw command> >>/tmp/fire-drill-<svc>-$(date +%Y%m%d).log 2>&1"`
+4. Poll `/health` every 10 s up to the cold-start budget (table below).
+   Launcher binary missing (e.g. `build/bin/audiocpp_server`) → report;
+   do not build mid-drill.
+
+Healthy → step 4. Not healthy within budget → read the log tail: OOM? →
+step 3. Port conflict? → step 2C.
+
+**Step 2C — stale port holder.** Identify with `ss -ltnp` (owner, pid,
+start time). An sshd-owned forward (a leftover `ssh -R`/`-L`): kill the
+sshd child (`sudo kill <pid>`) only if the session is clearly dead (no tty,
+old start time); log the pid + rationale first. Anything else: TERM →
+KILL → 2B.
+
+**Step 2D — systemd wedged.**
+
+1. `journalctl -u <unit> -n 80 --no-pager` — read the last error before
+   touching anything (the unit may have died for a reason you just caused;
+   check `free -h` and `dmesg | tail -20` for OOM).
+2. `sudo systemctl reset-failed <unit> && sudo systemctl start <unit>`;
+   recheck status + `/health`.
+3. Unit's `ExecStart` script bit-rotted → do not fix the script; raw-launch
+   per 2B and file the script fix as a repo doc/PR (box run scripts are
+   human-owned; record, don't improvise).
+4. `systemctl` itself hangs/times out (dbus wedged) → skip systemd entirely,
+   go to 2B, report systemd broken.
+
+**Step 3 — GPU memory stuck (Sparks only).** `free -h` shows tens of GiB
+"used" with no resident model process → `bash -lc "_reset_driver"` → wait
+30 s → verify `free -h` + `nvidia-smi` clean → back to 2B. (twr/yuri: a
+zombie with a pid in `nvidia-smi` → kill the pid. `nvidia-smi` itself
+errors — driver wedged → only a reboot fixes it: escalate, never reboot
+yourself.)
+
+**Step 4 — verify and settle (≈10 min).** `/health` OK **and** the functional
+probe (table). `free -h` sane: footprint matches the table within ~20 %.
+Let it run 10 min, re-probe `/health`, confirm no crash loop (log tail).
+Report: before/after state, what was killed (pid + command), what was
+launched (exact command + tmux name), health output, log path.
+
+**Step 5 — unrecoverable: stop and preserve evidence.** Stop touching the
+box. Capture into one `/tmp` file: `ss -ltnp`, `ps aux`, `free -h`,
+`nvidia-smi`, `journalctl -u <unit> -n 200 --no-pager`, last 100 lines of
+the service log. Report: what is down, what was tried (with exit codes),
+suspected cause, box state (safe for a human to reboot?). The human
+reboots; the agent never does.
+
+**Per-service table** (targets, not truth — read the launcher live):
+
+| Service | Box | Port | Launcher (read live) | Cold-start budget | Health + functional probe | Footprint |
+|---|---|---|---|---|---|---|
+| qwen38 | twr | 8081 | `~/local_llm/ninfer/run.sh` | ~2 min | `/health` + `/v1/models` (id `qwen38`) | ~35 GB |
+| ornith | yuri | 8080 | `~/local_llm/llama.cpp/ornith15_run.sh` | ~1 min | `/health` + `/v1/models` | ~6 GB RAM + 12 GB GPU |
+| kokoro | yuri | 8001 | `~/local_llm/kokoro/server/run.sh` | ~1 min | `/health` (`model_loaded:true`) | small (82M + CUDA ctx) |
+| sfx | spx0 | 8000 | `~/local_llm/MOSS-sfx/run_server.sh` | 1–4 min | `/health` + `/models` | several GB (verify via `free -h`) |
+| music3 | spx0/spx1 | 8080 (+ UI 8321) | `~/local_llm/audio.cpp/run.sh` | ~1 min (needs `build/bin/audiocpp_server`) | `/health`; UI `/api/status` | large (verify via `free -h`) |
+| ninfer-flash | spx0/spx1 | 8081 (planned) | `run-serve.sh` (does not exist yet) | — | — | — |
+
+## 7. Open items
+
+1. SFX disposition — operator filed a bug report (2026-11-10,
+   `docs/backlog/sfx-bug.md`): not mission critical; options are (a) leave
+   it, (b) run the CGM plan C1–C3, (c) retire. The §4.1 restart one-liner
+   is still the way to bring the backend up first, if (b) is chosen.
 2. Restore DeepSeek vs. keep the Sparks free for MiniMax + qwen flash (§4.2)
    — operator's call; they don't coexist.
 3. Write `run-serve.sh` on the Sparks and install the draft units (practice:
