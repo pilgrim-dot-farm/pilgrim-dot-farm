@@ -68,3 +68,19 @@ in the origin `.env` (README "Secrets").
 - `OAuthException code 190` — the token is invalid/expired; the operator
   regenerates it in Business Settings → System users (never paste it in chat).
 - `publishing quota used up` — 100 posts per 24 h on the account; wait.
+
+## Monitoring
+
+Nothing here is polled. The tool logs to stderr, not `station.log`, so the
+record is the ledger: `pilgrim/logs/reels/*.json`, one file per attempt,
+rewritten at each stage. MONITORING.md §3.6 turns those into `pg_reel_*`
+(`posts_total`, `failures_total{stage}`, `last_posted_timestamp_seconds`,
+`quota_usage`/`quota_total`, `ledgers{status}`) via the M5 node_exporter's
+textfile collector, and §4.1 has two digest alerts:
+
+- **#32 Reels stale** — no successful post for 30 days. The usual cause is an
+expired `INSTAGRAM_TOKEN`; the next `--publish` answers `OAuthException 190`.
+- **#33 Reels quota nearly used** — `quota_usage ≥ 90 %` of 100/24 h.
+
+The Graph API is never probed (MONITORING §2.2): a probe would spend publishing
+quota, and the tool already tells the operator the outcome synchronously.
