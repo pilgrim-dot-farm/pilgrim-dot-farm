@@ -104,6 +104,7 @@ full mapping is:
 | [shipped/fix-radio.md](shipped/fix-radio.md) | Option A: requests splice instead of holding the song rotation | shipped |
 | [shipped/announcer-overhaul.md](shipped/announcer-overhaul.md) | Discourse, clock accuracy and self-promotion overhaul | shipped 2026-11-01 |
 | [backlog/cgm.md](backlog/cgm.md) | One sound per animal, code-enforced, no re-generation | backlog |
+| [backlog/sfx-bug.md](backlog/sfx-bug.md) | SFX bug report (2026-11-10): backend down, no cue retry, weak new-SFX generation | backlog |
 | [backlog/fix-prompting.md](backlog/fix-prompting.md) | Song prompting and genre variety | backlog |
 | [request-analysis-20261003/report.md](request-analysis-20261003/report.md) | Measured listener-request traffic (arrivals, bursts, latency) | reference |
 
