@@ -890,8 +890,38 @@ input. Without `-bf 0` the video starts at 0.0667 s once the edit list is
 gone; without the range conversion the output is `yuvj420p`. A 20 s 1024×1024
 clip: 369 KB, 0.31 s wall on the M5.
 
-### Observed in Step 7 (fill in)
+### Observed in Step 7 (2026-11-12, first real `--publish`; song id 10866)
 
-- container `status_code` sequence and wall time to `FINISHED`: …
-- `media_publish` response and the permalink: …
-- CloudFront HEAD on `reels/…mp4` (status, content-type, accept-ranges, x-cache): …
+First live post: "Chinese Honeypot" by The Canning Sisters, operator-dictated
+line via `--caption`, `share_to_feed=true`, `is_ai_generated=true`.
+
+- Quota at run start: `0/100` (the 2026-11-08 feed post had aged out of the
+  24 h window).
+- Timeline (UTC, ledger + `make` wall): run start `04:08:42` → S3 PUT +
+  CloudFront HEAD → quota → `POST /media` container `17877778074678012` →
+  polled `status_code` every 5 s → `FINISHED` → `POST /media_publish` →
+  `posted_at 04:09:33`. **51 s end-to-end**, dominated by Meta's async video
+  ingestion (the 20 s square clip built in ~2 s; the 4.66 MB S3 PUT + HEAD
+  ~5 s).
+- Per-poll `status_code` values were **not logged** by the tool (the ledger
+  records stage transitions only: `uploaded` → `container` → `published`); the
+  observed sequence was `FINISHED` reached without `ERROR`/`EXPIRED`, then
+  publish succeeded. If the sequence matters for ops, the tool needs a
+  per-poll log line.
+- `POST /media_publish` → `{"id": "17914755423475892"}`.
+- `GET /{media}` → permalink `https://www.instagram.com/reel/DfoKdXPOmfp/`,
+  `media_type: VIDEO`, `media_product_type: REELS`, timestamp
+  `2026-11-12T04:09:33+0000`.
+- Public page (no login): caption byte-identical to the ledger (line, song
+  line, CTA, four hashtags); Meta's **"AI content"** label is shown (the
+  `is_ai_generated` flag renders as that badge); "Original audio"; the video
+  element is **720×720** — 1:1 square kept, Meta downscales the 1024² upload
+  for delivery.
+- CloudFront HEAD on `reels/song_1794451121487_97dd44-5f78925f02a68db2.mp4`
+  (post-PUT): `HTTP 200`, `content-type: video/mp4`, `content-length: 4661155`,
+  `accept-ranges: bytes`, `cache-control: public, max-age=31536000, immutable`,
+  `x-cache: Miss from cloudfront`, `x-amz-cf-pop: ORD56-P10`, CORS
+  `access-control-allow-origin: *`.
+- Duplicate guard: immediate re-run of `--item 10866 --publish` exits 3,
+  `RESULT status=already_posted` with the prior permalink, **zero** Graph
+calls.
