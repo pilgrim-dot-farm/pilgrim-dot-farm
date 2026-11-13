@@ -64,6 +64,7 @@ def test_rate_limited_after_fourth_request(tmp_env):
     from pilgrim.server import create_app
 
     cfg, _, _ = tmp_env
+    cfg.requests.free_interval_s = 0   # the attempt limit alone
     app = create_app(cfg)
     station = app.state.station
     calls = {"n": 0}
@@ -82,6 +83,57 @@ def test_rate_limited_after_fourth_request(tmp_env):
     assert codes[:3] == [200, 200, 200]
     assert codes[3] == 429
     assert calls["n"] <= 3
+
+
+def test_free_request_gate_interval_and_release():
+    from pilgrim.server import FreeRequestGate
+
+    t = {"now": 1000.0}
+    gate = FreeRequestGate(600.0, now=lambda: t["now"])
+    assert gate.reserve("a") == 0.0
+    assert gate.reserve("a") == 600.0          # same instant: full wait
+    assert gate.reserve("b") == 0.0            # per client
+    t["now"] += 599.0
+    assert gate.reserve("a") == 1.0
+    t["now"] += 1.0
+    assert gate.reserve("a") == 0.0            # the interval has passed
+    gate.release("a")                          # a refused attempt frees the slot
+    assert gate.reserve("a") == 0.0
+    off = FreeRequestGate(0.0, now=lambda: t["now"])
+    assert off.reserve("a") == 0.0 and off.reserve("a") == 0.0
+
+
+def test_one_accepted_free_request_per_ten_minutes(tmp_env):
+    """RADIO §14: the second accepted free request inside the interval is a
+    429 that names the wait; it reaches neither the moderator nor the store,
+    and a rejected attempt does not use up the listener's slot."""
+    from fastapi.testclient import TestClient
+    from pilgrim.server import create_app
+
+    cfg, _, _ = tmp_env
+    assert cfg.requests.free_interval_s == 600
+    app = create_app(cfg)
+    station = app.state.station
+    seen: list[str] = []
+
+    class _Picky:
+        async def moderate(self, text):
+            seen.append(text)
+            return ("nope" not in text), "not on this station"
+
+    station.moderator = _Picky()
+    c = TestClient(app)
+    # a rejected attempt, then a pre-filtered one: neither takes the slot
+    assert c.post("/api/requests", json={"text": "nope nope"}).json()["rejected"] is True
+    assert c.post("/api/requests", json={"text": "see example.com"}).json()["rejected"] is True
+    first = c.post("/api/requests", json={"text": "play the accordion"})
+    assert first.status_code == 200 and first.json()["ok"] is True
+    second = c.post("/api/requests", json={"text": "play the banjo"})
+    assert second.status_code == 429
+    assert second.json()["detail"].startswith(
+        "One free request every 10 minutes. Try again in 10 minutes")
+    assert "play the banjo" not in seen
+    assert len(station.db.queued_requests()) == 1
 
 
 def test_request_board_in_api(tmp_env):

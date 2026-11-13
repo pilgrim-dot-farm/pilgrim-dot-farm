@@ -100,13 +100,16 @@ test("page layout: pane order, RADIO BROADCAST title, credits + hit counter", as
   expect(links[0]).toEqual(["Qwen 3.8 27B", "https://huggingface.co/Qwen/Qwen3.8-27B", "_blank"]);
   expect(links[5]).toEqual(["Kokoro-82M", "https://huggingface.co/hexgrad/Kokoro-82M", "_blank"]);
   for (const [, href] of links) expect(href).toMatch(/^https:\/\/(huggingface\.co|www\.anthropic\.com)\//);
-  // IN POP CULTURE: one YouTube embed under CREDITS, scaled to the pane
+  // IN POP CULTURE: two stacked YouTube embeds under CREDITS (2026-11-10,
+  // b73cf46/f4f7d23), scaled to the pane
   const embed = page.locator('[data-sub="popculture"] iframe');
-  await expect(embed).toHaveCount(1);
-  expect(await embed.getAttribute("src"))
+  await expect(embed).toHaveCount(2);
+  expect(await embed.nth(0).getAttribute("src"))
     .toBe("https://www.youtube.com/embed/U49MXakb7f4?si=baZ7zxIQ7y1KWKoP");
-  expect(await embed.getAttribute("allowfullscreen")).toBe("");
-  const embedBox = await embed.boundingBox();
+  expect(await embed.nth(1).getAttribute("src"))
+    .toBe("https://www.youtube.com/embed/hYTQ7__NNDI");
+  expect(await embed.nth(0).getAttribute("allowfullscreen")).toBe("");
+  const embedBox = await embed.nth(0).boundingBox();
   const aboutBox = await page.locator('[data-win="about"]').boundingBox();
   expect(embedBox!.width, "the embed fits the 484 px pane").toBeLessThanOrEqual(aboutBox!.width);
   expect(await page.textContent(".visitors")).toMatch(/^Unique visitors:/);

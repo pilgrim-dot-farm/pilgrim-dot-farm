@@ -632,6 +632,7 @@ def test_free_line_caps_waiting_free_requests_paid_never(tmp_env, monkeypatch):
     cfg, app, station, fake = _build(tmp_env, monkeypatch)
     cfg.requests.free_queue_max = 2
     cfg.requests.per_client_per_10min = 50
+    cfg.requests.free_interval_s = 0   # one client fills the line here
     app = create_app(cfg)   # limiters are built at app creation
     station2 = app.state.station
     station2.payments_active, station2.payment_service = True, station.payment_service

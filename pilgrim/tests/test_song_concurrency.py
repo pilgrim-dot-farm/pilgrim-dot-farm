@@ -48,7 +48,7 @@ def test_pool_capacity_is_sum_of_slots_and_drops_while_down():
     t.t += 120.0
     assert pool.capacity() == 3          # cooldown over
     pool.mark_down("b")
-    assert pool.mark_down("b") == 480.0  # third consecutive failure doubles twice
+    assert pool.mark_down("b") == 120.0  # flat: repeated failures never lengthen it
     pool.mark_ok("b")
     assert pool.capacity() == 3
 
@@ -333,8 +333,11 @@ def test_stock_and_free_requests_leave_the_last_slot_for_paid(cfg, tmp_env):
         await asyncio.sleep(0.02)
         assert songs.active == 2                      # slot 3 held back
         free = store.add_request("a waltz for the goats", cap=10)
+        # its words are written ahead, but it gets no slot: 3 is for paid
+        await _until(lambda: prod.request_stage.get(free["id"]) == "waiting"
+                     and "a waltz for the goats" in [t for t, _ in songs.briefs])
         await asyncio.sleep(0.02)
-        assert songs.active == 2 and _status(store, free) == "queued"
+        assert songs.active == 2 and _status(store, free) == "producing"
         paid = _add_paid(store, "a paid polka")
         await _until(lambda: songs.active == 3)       # paid takes it at once
         assert (paid["id"], "fast") in [(r, p) for r, p, _ in songs.renders]
@@ -342,6 +345,7 @@ def test_stock_and_free_requests_leave_the_last_slot_for_paid(cfg, tmp_env):
         await _until(lambda: _status(store, paid) == "ready")
         await asyncio.sleep(0.02)
         assert songs.active == 2                      # nothing refills slot 3
+        assert free["id"] not in [r for r, _, _ in songs.renders]
     _run(prod, scenario)
     assert songs.peak == 3
     assert all(p == "slow" for r, p, _ in songs.renders if r is None)
@@ -365,6 +369,180 @@ def test_capacity_one_is_the_serial_worker(cfg, tmp_env):
     assert songs.peak == 1
 
 
+def test_one_slot_writes_the_next_brief_while_a_render_runs(cfg, tmp_env):
+    """RADIO §6.1: with a single generator the words for the next song are
+    written while the current one renders, so qwen38 is never idle behind a
+    render."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0               # stock out of the way
+    a = store.add_request("first song", cap=10)
+    b = store.add_request("second song", cap=10)
+    songs = GateSong(cap=1)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 1)
+        # b's brief lands while a is still humming: two briefs, one render
+        await _until(lambda: len(songs.briefs) == 2)
+        assert songs.active == 1
+        assert [t for t, _ in songs.briefs] == ["first song", "second song"]
+        assert b["id"] not in [r for r, _, _ in songs.renders]
+        songs.release(a["id"])
+        await _until(lambda: any(r == b["id"] for r, _, _ in songs.renders))
+        songs.release(b["id"])
+        await _until(lambda: _status(store, b) == "ready")
+    _run(prod, scenario)
+    assert songs.peak == 1
+
+
+def test_one_slot_still_renders_a_paid_request_first(cfg, tmp_env):
+    """The render gate grants by queue order: a free request may write its
+    brief ahead, but a paid one renders first (plan §2.3)."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0
+    a = store.add_request("first free", cap=10)
+    b = store.add_request("second free", cap=10)
+    songs = GateSong(cap=1)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 1)
+        await _until(lambda: len(songs.briefs) == 2)   # b's words written ahead
+        paid = _add_paid(store, "paid song")
+        await _until(lambda: len(songs.briefs) == 3)
+        songs.release(a["id"])
+        await _until(lambda: any(r == paid["id"] for r, _, _ in songs.renders))
+        rendered = [r for r, _, _ in songs.renders]
+        assert rendered[-1] == paid["id"]              # paid jumped the gate
+        assert b["id"] not in rendered
+        songs.release(paid["id"])
+        await _until(lambda: any(r == b["id"] for r, _, _ in songs.renders))
+        songs.release(b["id"])
+        await _until(lambda: _status(store, b) == "ready")
+    _run(prod, scenario)
+    assert songs.peak == 1
+
+
+def test_paid_requests_are_bounded_at_one_slot(cfg, tmp_env):
+    """A paid request is briefed one slot ahead, not without bound: six paid
+    requests at one slot are two jobs in flight, not seven (RADIO §6.1)."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0
+    reqs = [_add_paid(store, f"paid song {i}") for i in range(6)]
+    songs = GateSong(cap=1)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 1)
+        await asyncio.sleep(0.05)
+        assert len(prod._jobs) == 2                    # one rendering, one briefed
+        assert len(songs.briefs) == 2
+        assert songs.active == 1
+        songs.release(reqs[0]["id"])
+        await _until(lambda: songs.active == 1)
+        await asyncio.sleep(0.05)
+        assert len(prod._jobs) == 2                    # refilled, still bounded
+    _run(prod, scenario)
+    assert songs.peak == 1
+
+
+def test_stage_is_in_line_while_waiting_for_a_slot(cfg, tmp_env):
+    """RADIO §11: `generating` means the song model runs. A request that has
+    its words but no slot reads `waiting` ("in line")."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0
+    a = store.add_request("first song", cap=10)
+    b = store.add_request("second song", cap=10)
+    songs = GateSong(cap=1)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 1)
+        await _until(lambda: len(songs.briefs) == 2 and
+                     prod.request_stage.get(b["id"]) == "waiting")
+        assert prod.request_stage[a["id"]] == "generating"
+        assert b["id"] not in [r for r, _, _ in songs.renders]
+        songs.release(a["id"])
+        await _until(lambda: prod.request_stage.get(b["id"]) == "generating")
+        songs.release(b["id"])
+        await _until(lambda: _status(store, b) == "ready")
+    _run(prod, scenario)
+
+
+def test_prep_clock_excludes_the_wait_for_a_slot(cfg, tmp_env):
+    """RADIO §11: the wait for a generator slot is queue idle, not prep.
+    B's brief is written 400 s before its render starts; its Prep Time clock
+    is anchored at the render start, not at the writing."""
+    from datetime import UTC, datetime
+
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0
+    a = store.add_request("first song", cap=10)
+    b = store.add_request("second song", cap=10)
+    songs = GateSong(cap=1)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 1)
+        await _until(lambda: len(songs.briefs) == 2)   # b's words are written
+        prod.clock.advance(400.0)                      # a's render, simulated
+        songs.release(a["id"])
+        await _until(lambda: any(r == b["id"] for r, _, _ in songs.renders))
+        started = store.get_request(b["id"])["prep_started_at"]
+        assert started == datetime.fromtimestamp(
+            prod.clock.wall(), UTC).isoformat()
+        # ... while a, whose brief and render met with no wait, is unchanged
+        assert store.get_request(a["id"])["prep_started_at"] == \
+            datetime.fromtimestamp(prod.clock.wall() - 400.0, UTC).isoformat()
+        songs.release(b["id"])
+        await _until(lambda: _status(store, b) == "ready")
+    _run(prod, scenario)
+    assert songs.peak == 1
+
+
+def test_a_generated_song_waiting_its_turn_frees_its_slot(cfg, tmp_env):
+    """RADIO §6.1: a request whose song is generated but which waits to air
+    behind a paid one still rendering holds no generator slot. Seen live
+    2026-11-11: one generated, one generating, one being written and one in
+    line, with three healthy generators; all three must render."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0               # stock out of the way
+    a = store.add_request("first free", cap=10)
+    b = store.add_request("second free", cap=10)
+    songs = GateSong(cap=3)
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: songs.active == 2)        # a and b
+        paid = _add_paid(store, "slow paid song")
+        await _until(lambda: songs.active == 3)
+        c = store.add_request("third free", cap=10)
+        d = store.add_request("fourth free", cap=10)
+        e = store.add_request("fifth free", cap=10)
+        songs.release(a["id"])                         # generated, waits behind paid
+        await _until(lambda: prod.request_stage.get(a["id"]) == "rendered")
+        await _until(lambda: c["id"] in [r for r, _, _ in songs.renders])
+        assert songs.active == 3                       # paid, b, c
+        songs.release(b["id"])                         # a second one generated
+        await _until(lambda: d["id"] in [r for r, _, _ in songs.renders])
+        assert songs.active == 3                       # paid, c, d
+        assert _status(store, a) == "producing" and _status(store, b) == "producing"
+        # still one brief ahead, no more: e is written, the slot rule holds it
+        await _until(lambda: prod.request_stage.get(e["id"]) == "waiting"
+                     and len(songs.briefs) == 6)
+        await asyncio.sleep(0.02)
+        assert songs.active == 3 and e["id"] not in [r for r, _, _ in songs.renders]
+        songs.release(paid["id"])
+        await _until(lambda: _status(store, b) == "ready")   # air order: paid, a, b
+        for r in (c, d):
+            songs.release(r["id"])
+        await _until(lambda: songs.active == 1)        # e
+        songs.release(e["id"])
+        await _until(lambda: _status(store, e) == "ready")
+    _run(prod, scenario)
+    assert songs.peak == 3
+
+
 def test_in_flight_stock_counts_toward_the_fresh_target(cfg, tmp_env):
     cfg, store, _ = tmp_env
     cfg.inventory.fresh_songs_ready = 2
@@ -384,29 +562,43 @@ def test_in_flight_stock_counts_toward_the_fresh_target(cfg, tmp_env):
     _run(prod, scenario)
 
 
-def test_two_free_requests_render_at_once_and_a_third_waits(cfg, tmp_env):
+def test_two_free_requests_render_at_once_and_a_third_is_written_ahead(cfg, tmp_env):
     cfg, store, _ = tmp_env
     cfg.inventory.fresh_songs_ready = 0               # stock out of the way
     a = store.add_request("first song", cap=10)
     b = store.add_request("second song", cap=10)
     c = store.add_request("third song", cap=10)
+    d = store.add_request("fourth song", cap=10)
     songs = GateSong(cap=3)
     prod = _loop_producer(cfg, store, songs)
 
     async def scenario():
         await _until(lambda: songs.active == 2)
+        # the third is written while the first two render (RADIO §6.1) ...
+        await _until(lambda: len(songs.briefs) == 3
+                     and prod.request_stage.get(c["id"]) == "waiting")
         await asyncio.sleep(0.02)
-        assert [t for t, _ in songs.briefs] == ["first song", "second song"]
-        assert _status(store, c) == "queued"          # last slot is for paid
+        assert [t for t, _ in songs.briefs] == ["first song", "second song",
+                                                "third song"]
+        # ... but takes no slot (the last one is for paid), and only one
+        # request is written ahead
+        assert songs.active == 2 and _status(store, c) == "producing"
+        assert _status(store, d) == "queued"
         paid = _add_paid(store, "paid song")
         await _until(lambda: songs.active == 3)
         songs.release(paid["id"])                     # paid is ahead of a in queue order
+        await asyncio.sleep(0.02)
+        assert songs.active == 2                      # c does not take the paid slot
         songs.release(a["id"])
-        await _until(lambda: len(songs.briefs) == 4)  # c starts once a is done
+        await _until(lambda: c["id"] in [r for r, _, _ in songs.renders])
+        await _until(lambda: len(songs.briefs) == 5)  # d is written ahead in turn
         await _until(lambda: songs.active == 2)       # b and c
         for r in (b, c):
             songs.release(r["id"])
         await _until(lambda: _status(store, c) == "ready")
+        await _until(lambda: songs.active == 1)       # d
+        songs.release(d["id"])
+        await _until(lambda: _status(store, d) == "ready")
     _run(prod, scenario)
     assert songs.peak == 3
 

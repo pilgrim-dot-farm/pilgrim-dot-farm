@@ -97,6 +97,103 @@ class PriorityGate:
 
 # stock briefs queue behind every request brief (keys sort by first element)
 STOCK_BRIEF_KEY = (1,)
+# stock renders queue behind every request render (same ordering)
+STOCK_RENDER_KEY = (1,)
+# One request brief may be written ahead of the render slots: the next
+# request's words are written while the songs ahead of it render (RADIO §6.1).
+# Paid requests are bounded at C + 1 jobs; free requests at one job past the
+# reserved-slot rule and songs.free_request_slots, and that extra one waits at
+# the render gate (SlotGate free_caps) until a free-work slot opens.
+BRIEFS_AHEAD = 1
+
+
+class SlotGate:
+    """`capacity()` holders at a time, granted to the waiter with the LOWEST
+    key, not the earliest (RADIO §6.1: a paid request must not wait for a
+    render behind free work that already has its brief).
+
+    The render gate. Capacity is re-read on every grant, so a backend back
+    from cooldown lets the queue through on the next `pump()`. Grants happen
+    on release and on `pump()` only: the song loop is the only clock here
+    (hard rule 3), never a timer of its own.
+
+    `hold_free()` is asked before granting a free/stock waiter: while a paid
+    request is still writing its brief, free work stays in line so the paid
+    song renders first (RADIO §6.1).
+
+    `free_caps()` returns `(free_total, free_requests)`: how many free holders
+    (requests + stock) and how many free request holders may render at once.
+    A free request whose brief was written ahead of its slot waits here
+    until one of those opens, so the slot reserved for a paid request stays
+    open (RADIO §6.1). A waiter the caps hold back does not block the ones
+    behind it."""
+
+    def __init__(self, capacity: Callable[[], int],
+                 hold_free: Callable[[], bool] | None = None,
+                 free_caps: Callable[[], tuple[int, int]] | None = None) -> None:
+        self._capacity = capacity
+        self._hold_free = hold_free
+        self._free_caps = free_caps
+        self._active = 0
+        self._free_active = 0       # free requests + stock holding a slot
+        self._free_req_active = 0   # free requests holding a slot
+        self._waiters: list[tuple[tuple, int, bool, bool, asyncio.Future]] = []
+        self._seq = itertools.count()
+
+    def _free_fits(self, stock: bool) -> bool:
+        if self._free_caps is None:
+            return True
+        total, requests = self._free_caps()
+        if self._free_active >= total:
+            return False
+        return stock or self._free_req_active < requests
+
+    def pump(self) -> None:
+        cap = max(0, int(self._capacity()))
+        self._waiters = [w for w in self._waiters if not w[4].done()]
+        for w in sorted(self._waiters, key=lambda w: w[:2]):
+            if self._active >= cap:
+                return
+            _, _, free, stock, fut = w
+            if free:
+                if self._hold_free is not None and self._hold_free():
+                    continue  # a paid request is still writing: free work stays in line
+                if not self._free_fits(stock):
+                    continue  # written ahead of its slot: waits for a free-work slot
+                self._free_active += 1
+                self._free_req_active += 0 if stock else 1
+            self._waiters.remove(w)
+            self._active += 1
+            fut.set_result(None)  # granted: counts until the holder releases
+
+    def _release(self, free: bool, stock: bool) -> None:
+        self._active -= 1
+        if free:
+            self._free_active -= 1
+            self._free_req_active -= 0 if stock else 1
+        self.pump()
+
+    async def _acquire(self, key: tuple, free: bool, stock: bool) -> None:
+        fut = asyncio.get_running_loop().create_future()
+        self._waiters.append((key, next(self._seq), free, stock, fut))
+        try:
+            self.pump()
+            if not fut.done():
+                await fut
+        except asyncio.CancelledError:
+            if fut.done() and not fut.cancelled():
+                self._release(free, stock)   # granted as we were cancelled: pass it on
+            fut.cancel()
+            raise
+
+    @contextlib.asynccontextmanager
+    async def hold(self, key: tuple, free: bool = False,
+                   stock: bool = False) -> AsyncIterator[None]:
+        await self._acquire(key, free, stock)
+        try:
+            yield
+        finally:
+            self._release(free, stock)
 
 
 @dataclass
@@ -105,6 +202,12 @@ class SongJob:
     kind: str                      # "request" | "stock"
     req: dict | None = None
     genre: str | None = None       # set once the brief exists (genre context)
+    # "brief" while the words are being written, "render" from the moment it
+    # waits for a generator slot: only "render" competes for the pool (§6.1).
+    # "done" once the song model has returned: what is left (intro, waiting
+    # for the requests ahead of it) holds no slot, so it no longer counts
+    # against the jobs the decider may start
+    phase: str = "brief"
     # set when the job ends (ready, failed or re-queued): releases later
     # requests held behind it
     finished: asyncio.Event = field(default_factory=asyncio.Event)
@@ -170,6 +273,13 @@ class Producer:
         # slowed qwen38 into its ~120 s cutoff, and each brief sees the last
         # one's genre
         self._brief_gate = PriorityGate()
+        # generator slots, granted by queue order: a job waits here after its
+        # brief, so the words are written while another song renders (§6.1)
+        self._render_gate = SlotGate(self._capacity, self._paid_briefing,
+                                     self._free_render_caps)
+        # set when a job's render returns: the song loop starts the next job
+        # at once instead of on its 20 s tick
+        self._render_done = asyncio.Event()
         # request_id -> cut-off briefs so far; the first few are free retries
         self._llm_cuts: dict[int, int] = {}
         # injectable wait for song_loop: tests drive it without wall time
@@ -956,14 +1066,19 @@ class Producer:
 
     async def song_loop(self) -> None:
         """Song decider (RADIO §6.1/§6.2). Keeps up to `songs.capacity()` song
-        jobs in flight, each one brief -> render -> intro -> store:
+        **renders** in flight, plus one request brief written ahead of them,
+        each job one brief -> render -> intro -> store:
         - the next listener request first (queue order: paid, then FIFO). Up to
           songs.free_request_slots free requests render at once, paid ones in any
-          free slot;
-          a finished request waits (`_wait_turn`) until those ahead of it are
+          free slot; paid jobs are bounded at `capacity() + BRIEFS_AHEAD`, so a
+          queue of paid requests cannot pile up unbounded;
+        - a job that has its brief waits for a generator slot at the render
+          gate, which grants by queue order (a paid request is never behind
+          free work);
+        - a finished request waits (`_wait_turn`) until those ahead of it are
           ready, because ready order is air order;
-        - free requests and stock never take the last slot, which stays open for
-          a paid request (with capacity 1 they use it when it is idle);
+        - free requests and stock never take the last slot, which stays open
+          for a paid request (with capacity 1 they use it when it is idle);
         - a backend outage (transport error) pauses new jobs 15 s doubling to
           2 min; any other failure pauses 15 s (a dead LLM must not spin briefs).
         Jobs are never cancelled for a request: a generator doesn't abort on
@@ -985,14 +1100,19 @@ class Producer:
                 if pause:
                     await self._sleep(pause)
                     continue
+                # a backend back from cooldown may unblock jobs waiting here
+                self._render_gate.pump()
                 while (job := self._next_job()) is not None:
                     self._spawn(job)
                 tick = asyncio.ensure_future(self._sleep(20.0))
+                freed = asyncio.ensure_future(self._render_done.wait())
                 try:
-                    await asyncio.wait({tick, *self._jobs},
+                    await asyncio.wait({tick, freed, *self._jobs},
                                        return_when=asyncio.FIRST_COMPLETED)
                 finally:
                     tick.cancel()
+                    freed.cancel()
+                    self._render_done.clear()
         finally:
             for task in self._jobs:
                 task.cancel()
@@ -1038,36 +1158,77 @@ class Producer:
 
     def _next_job(self) -> SongJob | None:
         """Pick the next song job given what is in flight (sync, no awaits).
+        A job's expensive part is the render, so a request brief (qwen38) is
+        written while another job renders: paid jobs are bounded at
+        `capacity() + BRIEFS_AHEAD`, free work by the reserved-slot rule and
+        `songs.free_request_slots` (§6.1). A job that has its brief waits for a
+        slot at the render gate, granted by queue order.
+
         Same gates as ever for the serial path (`song_step`, nothing in flight):
         a queued request first, even at stock target or library cap; else stock
         if fresh (+ in-flight stock) is below target, the library is under
         songs.stock_max_library and songs.stock_gap_s has passed (§6.1)."""
-        jobs = list(self._jobs.values())
+        every = list(self._jobs.values())
+        # a job whose render has returned (intro, waiting its turn to air)
+        # holds no slot: it must not keep the next request out of one
+        jobs = [j for j in every if j.phase != "done"]
         cap = self._capacity()
-        if len(jobs) >= cap:
+        if cap <= 0:
             return None
+        free_jobs = sum(1 for j in jobs if not j.paid)
+        paid_jobs = len(jobs) - free_jobs
         # free requests and stock together never fill every slot: one stays
         # open for a paid request. Paid jobs don't count against that, so with
-        # two paid rendering a free one may take the third. (Capacity 1: they
-        # use the slot when it is idle.)
-        unpaid = sum(1 for j in jobs if not j.paid)
-        room = unpaid < cap - 1 if cap > 1 else not jobs
+        # two paid rendering a free one may take the third. With a single slot
+        # there is nothing to reserve: the render gate keeps a paid request
+        # ahead of free work that already has its brief (plan §2.3).
+        free_total, free_requests = self._free_render_caps()
         # first eligible queued request in queue order: paid may take any slot
         # (several at once); free only a non-last slot, up to
         # songs.free_request_slots. Finished songs still air in queue order
         # (_wait_turn), so starting a later request early is safe.
         free_busy = sum(1 for j in jobs if j.kind == "request" and not j.paid)
-        free_ok = room and free_busy < self.cfg.songs.free_request_slots
-        claimed = {j.req["id"] for j in jobs if j.req is not None}
+        # one free request past those limits is briefed ahead of its slot and
+        # waits at the render gate, which enforces the same two limits
+        free_ok = (free_busy < free_requests + BRIEFS_AHEAD
+                   and free_jobs < free_total + BRIEFS_AHEAD)
+        # that request holds no slot, so it doesn't count against stock
+        ahead = max(0, free_busy - free_requests, free_jobs - free_total)
+        slot_jobs = free_jobs - ahead
+        claimed = {j.req["id"] for j in every if j.req is not None}
         for req in self.store.queued_requests(
                 bury_threshold=self.cfg.voting.bury_threshold):
             if req["id"] in claimed:
                 continue
-            if req.get("priority") or free_ok:
+            # a paid request is briefed ahead of the slot it waits for, but
+            # only one ahead: a queue of paid requests is bounded like any
+            # other work (RADIO §6.1)
+            if req.get("priority"):
+                if paid_jobs < cap + BRIEFS_AHEAD:
+                    return SongJob("request", req)
+                continue
+            if free_ok:
                 return SongJob("request", req)
-        if room and self._stock_due(sum(1 for j in jobs if j.kind == "stock")):
+        # stock only starts when a slot is free: a listener request never waits
+        # for a render behind stock that already has its words (plan §2.3)
+        if slot_jobs < free_total and self._stock_due(
+                sum(1 for j in every if j.kind == "stock")):
             return SongJob("stock")
         return None
+
+    def _free_render_caps(self) -> tuple[int, int]:
+        """`(free work, free requests)` that may render at once: free requests
+        and stock never fill every slot (one stays open for a paid request;
+        with a single slot there is nothing to reserve), and at most
+        songs.free_request_slots free requests render together (RADIO §6.1)."""
+        cap = self._capacity()
+        total = cap - 1 if cap > 1 else cap
+        return total, min(total, self.cfg.songs.free_request_slots)
+
+    def _paid_briefing(self) -> bool:
+        """A paid request is still writing its brief: free work waits at the
+        render gate so the paid song is next (RADIO §6.1)."""
+        return any(j.paid and j.phase == "brief" for j in self._jobs.values())
 
     def _stock_due(self, in_flight: int) -> bool:
         if self.idle():
@@ -1210,7 +1371,12 @@ class Producer:
                 job.genre = brief.get("genre")
             art_task = self._start_early_art(
                 brief, f"stock{secrets.token_hex(6)}")
-            item = await self.songs.produce_song(brief, prefer="slow")
+            # the words are written: now wait for a generator slot (queue order)
+            job.phase = "render"
+            async with self._render_gate.hold(STOCK_RENDER_KEY, free=True, stock=True):
+                item = await self.songs.produce_song(brief, prefer="slow")
+            job.phase = "done"
+            self._render_done.set()
             # render the intro BEFORE the song enters the library: the scheduler
             # shares this event loop and would air the song bare in the gap
             intro = await self._render_intro(item, None)  # stock intros are non-fatal
@@ -1248,6 +1414,7 @@ class Producer:
         paid = bool(req.get("priority"))
         art_task = None
         attached = False
+        brief_s = 0.0
         try:
             backlog = len(self.store.queued_requests(
                 bury_threshold=self.cfg.voting.bury_threshold))
@@ -1257,13 +1424,19 @@ class Producer:
             async with self._brief_gate.hold(SongJob("request", req).queue_key()):
                 self.request_stage[req["id"]] = "writing"
                 # Prep Time on the board starts here: lyrics/brief writing, not
-                # submission (RADIO §11) — queue idle is not prep work.
+                # submission (RADIO §11) — queue idle is not prep work. If the
+                # words were written ahead of a render slot, it is re-anchored
+                # below so the wait for that slot is not counted either.
                 self.store.mark_request_writing(req["id"])
+                written_at = self.clock.wall()
                 parts = from_row(req)
                 brief = await self.songs.brief(self._genre_context(),
                                                request_text=req["text"],
                                                short=short, paid=paid,
                                                parts=parts)
+                # how long the words took: Prep Time counts it, the wait for a
+                # render slot below does not (RADIO §11)
+                brief_s = max(0.0, self.clock.wall() - written_at)
                 if job is not None:  # inside the lock: the next brief sees it
                     job.genre = brief.get("genre")
             brief["request_id"] = req["id"]
@@ -1272,9 +1445,23 @@ class Producer:
             art_task = self._start_early_art(
                 brief, f"req{req['id']}", request_text=req["text"], paid=paid,
                 parts=parts)
-            # requests take the fastest idle generator (RADIO §6.2)
-            self.request_stage[req["id"]] = "generating"
-            item = await self.songs.produce_song(brief, prefer="fast")
+            # its words are written: in line for a generator slot (RADIO §11)
+            self.request_stage[req["id"]] = "waiting"
+            if job is not None:
+                job.phase = "render"
+            async with self._render_gate.hold(
+                    job.queue_key() if job is not None else STOCK_RENDER_KEY,
+                    free=not paid):
+                # requests take the fastest idle generator (RADIO §6.2)
+                self.request_stage[req["id"]] = "generating"
+                # Prep Time starts now, back-dated by the brief's own duration:
+                # the wait for a slot is queue idle, not prep (RADIO §11)
+                self.store.mark_request_writing(
+                    req["id"], at=self.clock.wall() - brief_s)
+                item = await self.songs.produce_song(brief, prefer="fast")
+            if job is not None:
+                job.phase = "done"
+                self._render_done.set()
             # the generator is done; what is left (intro, waiting behind the
             # requests ahead of it) must not read "being generated"
             self.request_stage[req["id"]] = "rendered"

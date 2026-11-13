@@ -26,7 +26,7 @@ Health at survey: qwen38 `{"status":"ok"}`, `/v1/models` → `qwen38`
 `{"status":"ok"}` (cuda, 55 voices, default `af_heart`, ~10 days uptime).
 SFX: **down** (§4.1).
 
-Note: `MONITORING.md` §1.1 lists spx1 as `192.168.68.90` — that was the
+Note: `docs/backlog/monitoring-infra.md` §1.1 lists spx1 as `192.168.68.90` — that was the
 survey-time value; spx1 is on `.56` today. LAN IPs change; the ds41 recipe
 is unaffected (it uses the hardwired CX7 link, §3).
 
@@ -281,4 +281,4 @@ reboots; the agent never does.
    ornith).
 4. Stale ssh forward holding spx1 :8000 (owned by an sshd child, pid 2886)
    — unknown owner, clean up on next login.
-5. `MONITORING.md` §1.1 host table: spx1 `.90` → `.56` (LAN IP changed).
+5. `docs/backlog/monitoring-infra.md` §1.1 host table: spx1 `.90` → `.56` (LAN IP changed).

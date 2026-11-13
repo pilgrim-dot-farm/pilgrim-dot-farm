@@ -5,9 +5,18 @@ Entries are SHA-256 hex digests of the *normalized* form (NFKC → casefold →
 whitespace-collapsed). Matching hashes a candidate token / bigram / trigram and
 looks it up in the set — never a substring search.
 
-Accepted limitation (docs/plans/sheep-pen-brief.md §0.6.2): matching is token-exact, so
-leetspeak and homoglyph evasions fall to Layer B, and a dictionary attack can
-recover the list. The goal is no plaintext in the repo and logs, not secrecy.
+Evasions are matched without ever knowing the terms: a candidate is rewritten
+into the spellings it could stand for (digit/symbol look-alikes, a stand-in
+character for any letter, homoglyphs, accents, stretched letters, separators,
+spaced-out letters, number padding) and each spelling is hashed and looked up.
+Messages match whole words only, so an innocent word that merely contains a
+term passes; display names are locked and shown on every message, so they also
+match a term embedded anywhere in the name (`embedded=True`).
+
+Accepted limitation (docs/plans/sheep-pen-brief.md §0.6.2): creative respellings
+(a dropped letter, a phonetic spelling, a term glued to another word in a
+message) still fall to Layer B, and a dictionary attack can recover the list.
+The goal is no plaintext in the repo and logs, not secrecy.
 
 Operator step: feed terms on stdin to `pilgrim/tools/add_prohibited_term.py`;
 it prints digests only. Paste them here. Never commit, log or echo a term.
@@ -15,6 +24,7 @@ it prints digests only. Paste them here. Never commit, log or echo a term.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import re
 import unicodedata
 
@@ -71,13 +81,154 @@ def tokens(text: str) -> list[str]:
     return _WORD.findall(normalize(text))
 
 
-def prohibited_hit(text: str) -> bool:
-    """True when a token, bigram or trigram of `text` is on the digest list."""
+# --- evasion matching -------------------------------------------------------
+# Character tables only: nothing below names or implies a term.
+_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+# Digits and symbols that stand in for a letter.
+_LOOKALIKE: dict[str, str] = {
+    "0": "o", "1": "il", "2": "z", "3": "e", "4": "a", "5": "s", "6": "gb",
+    "7": "t", "8": "b", "9": "g", "@": "a", "$": "s", "!": "i", "|": "il",
+    "+": "t", "€": "e", "£": "l", "¡": "i",
+}
+# Letters commonly swapped for another letter.
+_LETTER_ALT: dict[str, str] = {"l": "i", "q": "g", "z": "s", "v": "u"}
+# Cyrillic and Greek letters that render like a Latin one.
+_HOMOGLYPH = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "к": "k", "м": "m", "н": "h", "о": "o",
+    "р": "p", "с": "c", "т": "t", "у": "y", "х": "x", "і": "i", "ј": "j",
+    "ѕ": "s", "һ": "h", "ԁ": "d", "ɡ": "g", "ı": "i",
+    "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i", "κ": "k", "ν": "v",
+    "ο": "o", "ρ": "p", "τ": "t", "υ": "u", "χ": "x",
+})
+_SPELLING_CAP = 1500     # spellings tried per unit and pass
+_HASH_BUDGET = 30000     # digests per screened text; past it Layer B decides
+_EMBED_MIN, _EMBED_MAX = 4, 20   # embedded-term lengths tried in a name
+_JOIN_MAX = 12           # chunks joined when a term is spaced out
+
+
+def _fold(text: str) -> str:
+    """normalize() plus accent stripping and homoglyph folding."""
+    decomposed = unicodedata.normalize("NFKD", normalize(text))
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return stripped.translate(_HOMOGLYPH)
+
+
+def _units(folded: str, embedded: bool) -> list[str]:
+    """Whitespace chunks, plus the joins that undo a spaced-out term: a run of
+    chunks where at most one is longer than a character, or three or more
+    chunks of at most two characters. Names also try the whole name joined."""
+    chunks = folded.split()
+    units = list(chunks)
+    for i in range(len(chunks)):
+        for j in range(i + 2, min(len(chunks), i + _JOIN_MAX) + 1):
+            window = chunks[i:j]
+            long_ones = sum(1 for c in window if len(c) > 1)
+            if long_ones <= 1 or (len(window) >= 3 and all(len(c) <= 2 for c in window)):
+                units.append("".join(window))
+    if embedded and len(chunks) > 1:
+        units.append("".join(chunks))
+    return list(dict.fromkeys(units))
+
+
+def _options(unit: str, *, alts: bool, wild: bool) -> list[tuple[str, ...]]:
+    """Per character, the letters it may stand for ("" = may be dropped)."""
+    letters = [ch.isalpha() for ch in unit]
+    if True not in letters:
+        return []
+    first = letters.index(True)
+    last = len(letters) - 1 - letters[::-1].index(True)
+    inner = [i for i in range(first, last + 1) if not letters[i]]
+    wild = wild and 1 <= len(inner) <= 2 and sum(letters) >= 3
+    out: list[tuple[str, ...]] = []
+    for i, ch in enumerate(unit):
+        if letters[i]:
+            out.append((ch, *_LETTER_ALT.get(ch, "")) if alts else (ch,))
+            continue
+        look = tuple(_LOOKALIKE.get(ch, ""))
+        if first < i < last:
+            if wild:
+                out.append(tuple(_ALPHABET))        # a stand-in for any letter
+            elif ch.isdigit():
+                out.append(look or ("",))
+            else:
+                out.append((*look, ""))             # symbol or separator
+        else:
+            out.append((*look, ""))                 # padding around the word
+    return out
+
+
+def _spellings(unit: str, *, wild: bool) -> list[str]:
+    for alts in (True, False):
+        opts = _options(unit, alts=alts, wild=wild)
+        size = 1
+        for o in opts:
+            size *= len(o)
+        if opts and size <= _SPELLING_CAP:
+            return ["".join(p) for p in itertools.product(*opts)]
+    return []
+
+
+def _squeezed(word: str) -> set[str]:
+    """`word` with stretched letters squeezed: each repeated run kept at one
+    or two characters (all combinations while there are few runs)."""
+    runs = [(k, len(list(g))) for k, g in itertools.groupby(word)]
+    repeated = [n for _, n in runs if n > 1]
+    if not repeated:
+        return {word}
+    out = {word}
+    if len(repeated) <= 4:
+        choices = [(k,) if n == 1 else (k, k * 2) for k, n in runs]
+        out.update("".join(p) for p in itertools.product(*choices))
+    else:
+        out.add("".join(k for k, _ in runs))
+        out.add("".join(k * min(n, 2) for k, n in runs))
+    return out
+
+
+def _evasion_hit(text: str, digests: frozenset[str], embedded: bool) -> bool:
+    seen: set[str] = set()
+    budget = _HASH_BUDGET
+
+    def check(candidate: str) -> bool:
+        nonlocal budget
+        if len(candidate) < 2 or candidate in seen or budget <= 0:
+            return False
+        seen.add(candidate)
+        budget -= 1
+        return hashlib.sha256(candidate.encode("utf-8")).hexdigest() in digests
+
+    units = _units(_fold(text), embedded)
+    for wild in (False, True):            # cheap spellings first, stand-ins last
+        for unit in units:
+            for spelling in _spellings(unit, wild=wild):
+                for word in _squeezed(spelling):
+                    if check(word) or (word[-1] in "sz" and check(word[:-1])):
+                        return True
+                    if not embedded:
+                        continue
+                    for n in range(_EMBED_MIN, min(len(word), _EMBED_MAX) + 1):
+                        for i in range(len(word) - n + 1):
+                            if check(word[i:i + n]):
+                                return True
+                if budget <= 0:
+                    return False
+    return False
+
+
+def prohibited_hit(text: str, *, embedded: bool = False) -> bool:
+    """True when `text` carries a term on the digest list.
+
+    Exact tokens, bigrams and trigrams first, then the evasion spellings (see
+    the module docstring). `embedded=True` (display names) also matches a term
+    inside a longer word.
+    """
     words = tokens(text)
     candidates = list(words)
     candidates += [" ".join(words[i:i + 2]) for i in range(len(words) - 1)]
     candidates += [" ".join(words[i:i + 3]) for i in range(len(words) - 2)]
-    return any(digest(c) in PROHIBITED_DIGESTS for c in candidates)
+    if any(digest(c) in PROHIBITED_DIGESTS for c in candidates):
+        return True
+    return _evasion_hit(text, PROHIBITED_DIGESTS, embedded)
 
 
 def is_reserved_name(display: str) -> bool:

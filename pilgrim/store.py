@@ -76,6 +76,12 @@ def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _iso_at(at: float | None = None) -> str:
+    """ISO timestamp for `at` (epoch seconds), else now."""
+    return ((datetime.fromtimestamp(at, UTC) if at is not None
+             else datetime.now(UTC)).isoformat())
+
+
 def _promo_norm(code: str) -> str:
     """Promo codes are case-insensitive, trimmed and stored upper-case."""
     return (code or "").strip().upper()
@@ -1117,16 +1123,20 @@ class Store:
                 "SELECT claimed_at FROM requests WHERE id=?", (request_id,)).fetchone()
         return r["claimed_at"] if r else None
 
-    def mark_request_writing(self, request_id: int) -> None:
+    def mark_request_writing(self, request_id: int, at: float | None = None) -> None:
         """The request got its turn at the brief LLM and lyrics/brief writing
         begins: start the board's Prep Time clock (RADIO §11). Set again on a
         retry so a request that sat out an outage or a failed attempt does not
-        count that idle time as prep."""
-        now = _now_iso()
+        count that idle time as prep.
+
+        `at` re-anchors the clock when the brief was written ahead of a render
+        slot: the producer passes the moment the song model started minus the
+        brief's own duration, so the wait for a slot is not counted as prep."""
+        now = _iso_at(at)
         with self._lock:
             self._conn.execute(
                 "UPDATE requests SET prep_started_at=?, updated_at=? WHERE id=?",
-                (now, now, request_id))
+                (now, _now_iso(), request_id))
             self._conn.commit()
 
     def mark_request_ready(self, request_id: int, song_item_id: int | None,

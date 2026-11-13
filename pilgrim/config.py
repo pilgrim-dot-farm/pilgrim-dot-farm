@@ -333,8 +333,8 @@ class Songs(BaseModel):
     # min seconds between render submissions: LiteLLM's least-busy router only
     # fans concurrent calls out to separate boxes when they arrive staggered
     submit_stagger_s: float = 5.0
-    # a backend that fails at transport level sits out this long (doubling to 600 s)
-    backend_cooldown_s: float = 120.0
+    # a backend that fails at transport level sits out this long (flat, no doubling)
+    backend_cooldown_s: float = 60.0
     # how often a `slots: auto` backend re-counts its healthy deployments while
     # renders keep leasing it; a transport failure forces a recount at once
     discover_interval_s: float = 300.0
@@ -449,7 +449,10 @@ class Requests(BaseModel):
     # None = no output cap (the default): reasoning counts against it, and a
     # cap turned a slow verdict into an empty one that fails closed.
     moderation_max_tokens: int | None = None
-    per_client_per_10min: int = 3  # rate limit on the request line (OVERHAUL 4.3)
+    per_client_per_10min: int = 3  # attempts per client, accepted or not (OVERHAUL 4.3)
+    # One ACCEPTED free request per client per this many seconds; a refused or
+    # rejected attempt does not count. 0 disables it.
+    free_interval_s: float = 600.0
 
 
 class Idle(BaseModel):

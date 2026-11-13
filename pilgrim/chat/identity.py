@@ -73,7 +73,9 @@ def validate_name(display: str, cfg: Chat) -> str | None:
         return "name_chars"
     if prefilter(name):
         return "name_link"
-    if prohibited.prohibited_hit(name):
+    # A name is locked and shown on every message: also refuse a term
+    # embedded in a longer word.
+    if prohibited.prohibited_hit(name, embedded=True):
         return "name_invalid"
     if prohibited.is_reserved_name(name):
         return "name_reserved"
