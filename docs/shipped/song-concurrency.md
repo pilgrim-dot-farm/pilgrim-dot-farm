@@ -19,6 +19,18 @@ and Steps 1–3 ship as one change (config schema + RADIO.md, hard rule 8).
 
 ## Status: implemented 2026-11-01
 
+- **Amendment 2026-11-11 — briefs overlap renders.** The decider no longer
+  counts a brief against the render slots: a listener-request job writes its
+  brief and then waits for a generator slot at a new `SlotGate`, which grants
+  by queue order (`producer.py`). With one healthy generator (the pool was
+  down to the M5 MLX box) the next request's words are written while the
+  current song renders, instead of serially. Each tier may hold at most
+  `capacity() + 1` jobs (one brief ahead), so a queue of paid requests stays
+  bounded; while a paid request is still writing, free work waits at the gate
+  so the paid song renders first. Stock is briefed only when a slot is free.
+  The stage reads `waiting` ("in line") while a request has its words but no
+  slot, and `generating` only once the song model runs; Prep Time excludes
+  that slot wait (§11). Covered by `tests/test_song_concurrency.py`.
 - **Transport:** LiteLLM mode via the vLLM pass-through (the only one this
   host can verify): `songs.gen_backends: [{name: litellm, slots: 3, auth:
   litellm}]`. The URL is derived from `hosts.litellm` (minus `/v1`, plus
@@ -140,7 +152,7 @@ songs:
   It picks by EWMA real-time factor (audio_s / wall_s), seeded from Step 0
   numbers and updated per render.
 - Health: on `httpx.TransportError` or a non-200 the backend is marked down
-  for `songs.backend_cooldown_s` (default 120 s, doubling to 600 s). While it
+  for `songs.backend_cooldown_s` (default 60 s, flat since 2026-11-11; was 120 s doubling to 600 s). While it
   is down it doesn't count toward C. `/health` reports each backend.
 - Each song's `meta` records `backend` (name) next to `seed`.
 

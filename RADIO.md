@@ -503,8 +503,9 @@ then commercials (a few per cycle) and field reports. It runs alongside the
 song worker, so talk is ready by the time a new song lands.
 
 The song worker (`Producer.song_loop`) is a decider that keeps up to
-C = the generator pool's healthy slots (`songs.gen_backends`, §6.2) song jobs
-in flight. Each job is brief → render → intro → store. The decider picks:
+C = the generator pool's healthy slots (`songs.gen_backends`, §6.2) song
+**renders** in flight, plus one listener-request brief written ahead of them.
+Each job is brief → render → intro → store. The decider picks:
 1. the next queued listener request (queue order: paid first, FIFO within a
    tier), scanning past requests that can't start yet. Up to
    `songs.free_request_slots` (2) free requests render at once.
@@ -522,7 +523,25 @@ In-flight stock counts toward the fresh target, so a cold start doesn't
 overshoot. Song briefs (requests and stock) run one at a time on the LLM,
 turns granted in queue order (paid, then oldest free, then stock; not
 first-come), while renders run in parallel, and each sees the genres of jobs still rendering
-(§5.2 `genre_no_repeat`). A brief whose output was cut off (empty, or JSON
+(§5.2 `genre_no_repeat`). **Writing and rendering overlap:** a request that has
+its brief waits for a generator slot at the render gate, which grants by
+queue order — so the next request's words are written while the songs ahead
+of it render. Paid requests may hold up to C + 1
+jobs (one brief ahead of the slots), so a queue of paid requests never becomes
+an unbounded pile of claims. Free requests get the same one brief ahead: one
+job past the reserved-slot rule and `songs.free_request_slots` (with C = 3,
+two rendering and the third being written). That request holds no slot: the
+render gate applies both limits, so it starts rendering only when a free-work
+slot opens and never takes the one kept for a paid request. A paid request renders before free work that
+already has its brief: while a paid request is still writing, free work waits
+at the gate. Stock songs are briefed only when a slot is free, so a listener
+request never waits for a render behind stock that already has its words.
+The wait for a slot is queue idle, not prep (§11).
+A job counts against these limits only until its render returns: a song that
+is generated but still making its intro, or waiting to air behind a request
+ahead of it (ready order is air order), holds no slot, so the next request
+renders in its place and all C generators stay busy while there is work.
+A brief whose output was cut off (empty, or JSON
 that never closes: an LLM limit or overload) re-queues its request without
 spending an attempt, up to 4 times per request; after that it counts. A generator outage (transport error,
 429/502/503/504) re-queues the request without spending an attempt and pauses
@@ -662,7 +681,7 @@ Workers:
    `/api/health` reports the effective slots as `music_slots`. Requests
    lease the fastest idle backend (EWMA real-time factor), stock the slowest.
    A backend that fails at transport level sits out `songs.backend_cooldown_s`
-   (doubling to 600 s). The song's `meta` records `backend` and `generator`
+   (60 s, flat: repeated failures do not lengthen it). The song's `meta` records `backend` and `generator`
    (the `x-generated-by` header; a seed replays only on the same generator).
    Record wall-clock generation time for the rate metric.
 3. **QC** (§8.1).
@@ -1259,8 +1278,8 @@ refill target.
 | GET | `/api/media/<id>` | Transitional fallback (§8.4): the item's file from the origin library (`audio/mpeg` for MP3, `audio/flac` for a not-yet-migrated FLAC). Browsers use it only for items without an `s3_key` |
 | GET | `/api/station/cats` | The rotating live-cover pool (`web/img/cats/`): `{cats: ["img/cats/<name>", …]}` sorted by filename, images only (`jpg\|jpeg\|png\|webp`). A filesystem glob per request (no DB, no station state) so dropping a picture into the directory is the whole procedure; `no-store` so a new file shows up on the next load. The client shows one pool image while playing a non-song (or a song without `art_url`) and advances one step on each new non-song item; idle keeps `img/fall.jpg` (§9.1) |
 | GET | `/api/health` | Admin: backend status (incl. `sfx`; `search` = Brave, true until a real call degrades, false without a key, with `search_last: {status, at, kind, error}` — no metered probe), inventory levels vs. targets (incl. `field_report`, `promo` and `sfx` = evergreen stinger stock vs. approved evergreen cues) (`inventory`: what the producer refills), `rotation` (what can air now: all non-retired songs/commercials/liners, unaired unexpired DJ talk/news), song generation rate, `art` = `{backend: ok\|down\|busy\|disabled, with_art, without_art}`, `db` = `{engine, host}` (`sqlite`\|`postgres` and the Postgres host, §14; no credentials), `cache` = the hot-state publisher summary (§14; `{enabled: false}` without `REDIS_URL`), and `idle` = `{idle, since, wakes}` (docs/plans/idle.md: the frozen playhead, when it began, and how many wakes this process has served). Public listener: `{on_air, art: {backend}, time}` only — no DB read, no FLUX probe, and **no `idle` field** (the browser's OFF AIR logic must not see idle; `on_air` stays true while frozen) (docs/shipped/album-art.md Step 5) |
-| POST | `/api/requests` | Submit a request `{text}`: pre-filter (4.1) -> rate limit (4.3) -> LLM moderation (4.2). Returns `{board}` plus `ok/rejected/reason/request`. |
-| GET | `/api/requests` | Request board: `{queue: [{id, text, status, paid, stage, song_title, score, votable, buried}], recent: [{text, song_title, song_artist, paid, wait_s}], cap, voting_enabled}` — queue = queued+producing+ready in queue order (≤ `queue_cap`), `song_title` set from `ready` on; `stage` is set only on `producing` rows: `waiting` until its turn at the brief LLM (briefs run one at a time), `writing` while the lyrics/brief are written, `generating` once the song model runs, `rendered` once the song exists but its intro is being made or it waits for the requests ahead of it (ready order is air order) (the board shows "in line" / "being written" / "being generated" / "generated, in line"; `queued` also shows "in line"); `score` is the vote sum, `votable` false for paid rows or when `voting.enabled` is false, `buried` true for a free queued row at/below `voting.bury_threshold` (docs/plans/voting.md §1); recent = **last 5** aired, never scored (no retrospective voting). The page renders the queue as Votes / Request / Status (scrolls, header pinned) and recent as Prompt / Title / Prep Time. `wait_s` (Prep Time) is whole seconds from `prep_started_at` — the moment lyrics/brief writing began — to the **earlier of `aired_at` and `due_at`**. `due_at` is the wall time the song was scheduled to air when it was teed up (committed or spliced into the programme, §5.2); with listeners present it agrees with `aired_at` to within seconds, but with nobody listening the playhead is frozen (§3, docs/plans/idle.md D3) and `aired_at` only lands on the next PLAY, hours later: that wait is capped at when the song would have aired. Time spent in line or waiting for the station to come back is not prep, and a row with no recorded writing start (aired before that column existed) sends `null`, which the page renders as an em dash (`—`) — measured-or-nothing, never queue idle dressed up as prep. Rows that aired before `due_at` existed are recovered from the station log by `make due-backfill` (tee-up line + frozen spans; dry run unless `DUE_ARGS="--apply"`). `POST` answers `line_full: true` when the free line is at `free_queue_max` |
+| POST | `/api/requests` | Submit a request `{text}`: free-request interval (`requests.free_interval_s`: one accepted request per client per 10 min, else 429 whose `detail` names the wait; a refused or rejected attempt does not count) -> rate limit (4.3) -> pre-filter (4.1) -> LLM moderation (4.2). Returns `{board}` plus `ok/rejected/reason/request`. |
+| GET | `/api/requests` | Request board: `{queue: [{id, text, status, paid, stage, song_title, score, votable, buried}], recent: [{text, song_title, song_artist, paid, wait_s}], cap, voting_enabled}` — queue = queued+producing+ready in queue order (≤ `queue_cap`), `song_title` set from `ready` on; `stage` is set only on `producing` rows: `waiting` while it is in line — for its turn at the brief LLM (briefs run one at a time) or, once its words are written, for a generator slot (§6.1) — `writing` while the lyrics/brief are written, `generating` once the song model runs, `rendered` once the song exists but its intro is being made or it waits for the requests ahead of it (ready order is air order) (the board shows "in line" / "being written" / "being generated" / "generated, in line"; `queued` also shows "in line"); `score` is the vote sum, `votable` false for paid rows or when `voting.enabled` is false, `buried` true for a free queued row at/below `voting.bury_threshold` (docs/plans/voting.md §1); recent = **last 5** aired, never scored (no retrospective voting). The page renders the queue as Votes / Request / Status (scrolls, header pinned) and recent as Prompt / Title / Prep Time. `wait_s` (Prep Time) is whole seconds from `prep_started_at` — the moment lyrics/brief writing began — to the **earlier of `aired_at` and `due_at`**. When a brief is written ahead of a render slot (§6.1), the producer re-anchors `prep_started_at` to the moment the song model started minus the brief's own duration, so the wait for a slot is not counted. `due_at` is the wall time the song was scheduled to air when it was teed up (committed or spliced into the programme, §5.2); with listeners present it agrees with `aired_at` to within seconds, but with nobody listening the playhead is frozen (§3, docs/plans/idle.md D3) and `aired_at` only lands on the next PLAY, hours later: that wait is capped at when the song would have aired. Time spent in line or waiting for the station to come back is not prep, and a row with no recorded writing start (aired before that column existed) sends `null`, which the page renders as an em dash (`—`) — measured-or-nothing, never queue idle dressed up as prep. Rows that aired before `due_at` existed are recovered from the station log by `make due-backfill` (tee-up line + frozen spans; dry run unless `DUE_ARGS="--apply"`). `POST` answers `line_full: true` when the free line is at `free_queue_max` |
 | POST | `/api/requests/{id}/vote` | docs/plans/voting.md: `{voter_id, value}` where `voter_id` is the browser's 32-hex id and `value` ∈ {−1, 0, +1} (0 retracts). Upsert per `(request_id, voter_id)`; only free rows in `queued/producing/ready` are votable. `200 {ok, score, mine, open}`; `404 not_found`; `409 {code: voting_closed\|not_votable, score}`; `422` bad body/id; `429` rate limit or `too_many_voters` (max distinct ids per IP per request); `404` when `voting.enabled` is false. `no-store` |
 | POST | `/api/station/rating` | docs/plans/voting.md: `{voter_id, epoch, seq, stars 1-5}` for the on-air song. The window is server-authoritative (epoch must match, `seq` must be the on-air song or the song that just ended within `ratings.grace_s`; a frozen station is closed). `200 {ok, item_id, count, avg, mine}`; `409 {code: rating_closed}`; `422`; `429`; `404` when `ratings.enabled` is false. `no-store` |
 | POST | `/api/paid-requests` | Paid priority request `{lyrics, music, art[, promo, voter_id]}` or legacy `{text}` (docs/shipped/payments.md Step 12b; docs/shipped/prompt-upgrade.md Step 2; UI feedback 2026-11-08): rate limit -> normalise -> promo check (`promo` == `PAID_OVERRIDE_TOKEN` after constant-time compare, or a stored promo code redeemed atomically for the `voter_id`/client-IP identity, or the legacy first line of the lyrics box / `text` == the token, stripped) -> prefilter. A wrong `promo` is `403 {code:"invalid"}`; a spent code is `409 {code:"exhausted"}` and a repeat identity `409 {code:"used_by_identity"}`. Three-box body: **both lyrics and music required**; per-box limits `payments.parts` (4000/3000/800) and the composed `paid_max_length`/`paid_max_lines`; `text` is the labelled composition (`Lyrics:` / `Music:` / `Album art:` blocks, empty boxes omitted) and is what moderation and the prefilter read. Art-only (or one department alone) is `422` (a redeemed promo use is returned). Prefilter reject: `{ok:false, rejected:true, reason}` (use returned). Otherwise the row is stored as `checking` with the three columns and `{ok:true, token, stage:"moderation"}` returns at once; moderation sees the composed text, the copied-lyrics screen and the board summary read lyrics + music only (never art), in the background. A rejected/crashed check returns the promo use. `503 {paid_closed:true}` when payments are inactive (comps still accepted) |
@@ -1532,7 +1551,7 @@ songs:
     # direct mode: one entry per box, e.g. {name: m5, url: "http://127.0.0.1:11234"}
   free_request_slots: 2      # free requests rendering at once; last slot stays open for paid
   submit_stagger_s: 5        # min gap between render submissions (LiteLLM only fans out with a delay)
-  backend_cooldown_s: 120    # transport-failed backend sits out (doubling to 600 s)
+  backend_cooldown_s: 60     # transport-failed backend sits out (flat, no doubling)
   discover_interval_s: 300   # slots: auto recount cadence; a transport failure recounts at once
   genres: {country-americana: 3, jazz-swing-big-band: 3, contemporary-folk-acoustic: 2,
            roots-traditional-global: 2, soul-blues-gospel: 2, dance-pop-disco-funk: 2,
@@ -1565,7 +1584,8 @@ requests:
   max_length: 160
   moderation_model: qwen38
   moderation_max_tokens: null  # no output cap (reasoning counts against it)
-  per_client_per_10min: 3   # request-line rate limit
+  per_client_per_10min: 3   # request-line attempts per client, accepted or not
+  free_interval_s: 600      # one ACCEPTED free request per client per 10 min (429 with the wait); 0 = off
 
 # Paid priority requests (docs/shipped/payments.md §2.1). Off by default; also inactive when
 # any of STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY / STRIPE_WEBHOOK_SECRET is unset.
@@ -1998,7 +2018,10 @@ when the request gets its turn at the brief LLM and the lyrics/brief are
 written (the producer's `writing` stage), and again on every retry, so the
 board's Prep Time (`aired_at - prep_started_at`) measures prep work, not
 queue idle: a request that sat in line overnight no longer reads as a
-multi-hour prep. A row that never recorded a writing start (aired before the
+multi-hour prep. When a brief is written ahead of a render slot (§6.1) the
+producer re-anchors `prep_started_at` to the moment the song model started
+minus the brief's own duration, so the wait for a slot is not counted
+either. A row that never recorded a writing start (aired before the
 column existed) sends `wait_s: null` and the page shows an em dash (`—`): the
 measurement is missing, not zero, and not the queue wait.
 `due_at` (ISO wall time, additive migration) is stamped by `mark_request_due`
@@ -2177,7 +2200,9 @@ Random selection is chosen for Phase 1 partly because it is easy to test.
 
 **Sheep Pen tests** (docs/plans/sheep-pen-brief.md §12; `tests/test_chat_*.py`): name
 uniqueness/409/release/reserved/NFKC variants, obscured digest matching (no
-plaintext term in `pilgrim/chat/prohibited.py`), no profanity filtering, link
+plaintext term in `pilgrim/chat/prohibited.py`; evasion spellings such as
+leetspeak, stand-in characters, homoglyphs and spaced-out letters are hashed
+too, and a display name also matches an embedded term), no profanity filtering, link
 and HTML rejection, Unicode length, canonical IP pseudonym only, rate limits
 across instances, socket lifecycle, Pub/Sub fan-out, replay after reconnect,
 duplicate suppression, deletion/ban propagation, Layer B checkpoints and

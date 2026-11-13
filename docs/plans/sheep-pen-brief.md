@@ -281,9 +281,16 @@ and §11 below; where the two disagree, this section wins.
    matched by hashing the normalized candidate — never by substring. Adding
    a term is an operator step that feeds terms on stdin to a small local
    script; the terms are never committed, logged, echoed in an error, or put
-   in a prompt. Reserved display names use the same mechanism. Accepted
-   limitation: hashed matching is token-exact, so leetspeak/homoglyph
-   evasions fall to Layer B, and a dictionary attack can recover the list
+   in a prompt. Reserved display names use the same mechanism. **Evasions
+   are matched without plaintext (amended 2026-11-11):** a candidate is
+   rewritten into the spellings it could stand for (digit/symbol
+   look-alikes, a stand-in character for any letter, homoglyphs, accents,
+   stretched letters, separators, spaced-out letters, number padding) and
+   each spelling is hashed against the same digest list. Messages match
+   whole words only; display names, which are locked, also match a term
+   embedded in a longer word. Accepted limitation: creative respellings
+   (a dropped letter, a phonetic spelling, a term glued to another word in
+   a message) fall to Layer B, and a dictionary attack can recover the list
    (the goal is no plaintext in the repo and logs, not secrecy).
 3. **No profanity filtering and no masking.** Swear words are not blocked,
    not censored, not flagged, and are rendered exactly as typed. There is no
@@ -648,8 +655,8 @@ Run synchronously before accepting messages.
 Reject:
 
 - Prohibited extreme slurs, matched against the **obscured digest list** in
-  `pilgrim/chat/prohibited.py` (§0.6.2) — token-exact on the normalized form,
-  never a plaintext literal in the repo.
+  `pilgrim/chat/prohibited.py` (§0.6.2) — whole words on the normalized form
+  plus their evasion spellings, never a plaintext literal in the repo.
 - Obvious harassment patterns covered by existing rules.
 - URLs.
 - Spam/flooding.

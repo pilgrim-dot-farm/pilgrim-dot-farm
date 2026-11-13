@@ -568,7 +568,10 @@ explicitly**:
   starts when the lyrics/brief are written (`mark_request_writing`, called by
   the producer as it enters the `writing` stage — RADIO §14), **not** at
   `created_at`: time spent queued, or while the station was down, is not prep
-  work and must not show up as a multi-hour "Prep Time". Rows aired before
+  work and must not show up as a multi-hour "Prep Time". When a brief is
+  written ahead of a render slot (RADIO §6.1) the producer re-anchors
+  `prep_started_at` to the render start minus the brief's duration, so the
+  wait for a slot is not counted either. Rows aired before
   `prep_started_at` existed have no writing start and read `null`, which the
   page renders as an em dash (`—`);
 - `text` for a paid row: the generated `summary` when present, else the

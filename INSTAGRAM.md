@@ -756,6 +756,7 @@ the `Authorization` header, never in a URL, log line, ledger or caption.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -780,7 +781,15 @@ LINE_MIN, LINE_MAX = 20, 280  # the longest operator tagline is 277 chars
 META_KEY = "instagram:reel:{item_id}"  # Store.meta key per posted song (D9)
 
 # style_guide.md bans profanity on air; a Reel caption is station copy too (D5).
-_BANNED = ("fuck", "shit", "bitch", "asshole", "cunt")
+# SHA-256 digests + lengths, never plaintext words (pilgrim/chat/prohibited.py rule).
+_BANNED_DIGESTS = frozenset({
+    "566f532d486c947709d3d0e6b7575af8380248db66dada211d58eb00ad585297",
+    "6ac3c336e4094835293a3fed8a4b5fedde1b5e2626d9838fed50693bba00af0e",
+    "85fc17f7069acd39a5c636cd0a6530651096128da447959f5e250824857dc559",
+    "d75a838dc758ba17f28bd8dbac605cb70c35465263d5733164521de2f7ef7926",
+    "f50c51ed2315dcf3fa88181cf033f8029cac64f7dea4048327ca032ec102ea74",
+})
+_BANNED_LENGTHS = (4, 5, 7)
 _WORD = re.compile(r"[a-z]+")
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿⬀-⯿️]")
 _SENTENCE_END = re.compile(r"[.!?]+(?:\s|$)")
@@ -804,7 +813,9 @@ def load_bank(cfg: Config) -> list[str]:
 # ------------------------------------------------------------- tagline bank
 def _has_banned(text: str) -> bool:
     words = set(_WORD.findall(text.lower()))
-    return any(b in w for w in words for b in _BANNED)
+    return any(hashlib.sha256(w[i:i + n].encode()).hexdigest() in _BANNED_DIGESTS
+               for w in words for n in _BANNED_LENGTHS
+               for i in range(len(w) - n + 1))
 
 
 def tagline_bank(text: str) -> list[str]:

@@ -111,7 +111,7 @@ songs:
     - {name: litellm, slots: auto, auth: litellm}   # url derived: hosts.litellm minus /v1, plus /vllm
   free_request_slots: 2   # free requests rendering at once; the last slot always stays open for a paid one
   submit_stagger_s: 5     # min seconds between render submissions: LiteLLM only fans them out across the boxes with a delay
-  backend_cooldown_s: 120 # unreachable generator sits out this long (doubling to 600 s)
+  backend_cooldown_s: 60 # unreachable generator sits out this long (flat, no doubling)
   discover_interval_s: 300 # slots: auto recount cadence while renders keep leasing; a failure recounts at once
   genres:
     # MiniMax Music 3 style families (prompting guide §5). Ids must exist in
@@ -161,7 +161,8 @@ requests:
   max_length: 160        # chars allowed per request
   moderation_model: qwen38  # stricter reasoning model for the gate
   moderation_max_tokens: null  # no output cap; reasoning counts against it (docs/backends.md §1)
-  per_client_per_10min: 3   # request-line rate limit (OVERHAUL 4.3)
+  per_client_per_10min: 3   # request-line attempts per client, accepted or not (OVERHAUL 4.3)
+  free_interval_s: 600      # one ACCEPTED free request per client per 10 min; rejected attempts don't count; 0 = off
 
 # Persistent unique-visitor counter (COSMETIC_PATCHING §6, RADIO §14).
 # Stores the raw canonical client IP (deduped); count starts at 0.

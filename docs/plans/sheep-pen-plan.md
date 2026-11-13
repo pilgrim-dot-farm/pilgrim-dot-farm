@@ -240,7 +240,8 @@ Files: `pilgrim/chat/__init__.py`, `protocol.py`, `identity.py`,
   the sign-off appears once).
 
 *Done when* the three test files pass: name uniqueness/409/release/reserved,
-digest format and hit, near-miss/leetspeak accepted (documented limitation),
+digest format and hit, near-miss accepted, leetspeak/evasion spellings
+rejected (brief §0.6.2, amended 2026-11-11),
 swear words accepted verbatim, length/link/HTML/Unicode/control cases.
 
 ### Step 4 — Async Valkey client, streams, rate limits, pub/sub

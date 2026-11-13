@@ -13,12 +13,6 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 def test_every_entry_is_a_digest_and_no_plaintext():
     for entry in prohibited.PROHIBITED_DIGESTS | prohibited.RESERVED_NAME_DIGESTS:
         assert HEX64.fullmatch(entry)
-    # the source file itself contains no term, only digests and code
-    import inspect
-
-    src = inspect.getsource(prohibited)
-    assert "nigger" not in src.lower()
-    assert "faggot" not in src.lower()
 
 
 def test_digest_list_hit_rejects(monkeypatch):
@@ -30,12 +24,58 @@ def test_digest_list_hit_rejects(monkeypatch):
     assert not prohibited.prohibited_hit("barnyard friends")
 
 
-def test_near_miss_and_leetspeak_pass_layer_a(cfg):
-    # Token-exact hashed matching: evasions are Layer B's job (documented).
-    assert not prohibited.prohibited_hit("classic tractor")
+def _only(monkeypatch, *terms):
+    monkeypatch.setattr(prohibited, "PROHIBITED_DIGESTS", frozenset(
+        hashlib.sha256(prohibited.normalize(t).encode()).hexdigest() for t in terms))
+
+
+def test_evasion_spellings_are_caught(monkeypatch, cfg):
+    # A harmless stand-in term: the real list is digests only.
+    _only(monkeypatch, "tractor")
+    for text in ("tr4ct0r", "TRACTOR", "tra33or", "tr*ctor", "tr@ctor",
+                 "t.r.a.c.t.o.r", "t r a c t o r", "tr ac to r", "t ractor",
+                 "traaaactorrr", "tractor99", "420tractor", "tractors",
+                 "tractorz", "tr\u00e4ctor", "tr\u0430ct\u043er", "you old tr4ct0r!"):
+        assert prohibited.prohibited_hit(text), text
+        assert screen_text(text, cfg.chat).code == "prohibited", text
+
+
+def test_evasion_matching_spares_innocent_words(monkeypatch, cfg):
+    _only(monkeypatch, "tractor", "heck")
+    for text in ("classic tractive effort", "contractor", "subtractors",
+                 "trac tor", "the check is in", "checkers", "he ck", "h3 said ok",
+                 "it's a l33t d4y, don't y'all th1nk?!", "tr??or", "t1r2a3c4t5o6r"):
+        assert not prohibited.prohibited_hit(text), text
+        assert screen_text(text, cfg.chat).ok, text
+    # reserved names stay whole-name exact
     assert not prohibited.prohibited_hit("g1les")
-    assert screen_text("classic tractor", cfg.chat).ok
     assert screen_text("g1les was here", cfg.chat).ok
+
+
+def test_names_also_match_an_embedded_term(monkeypatch, cfg):
+    from pilgrim.chat.identity import validate_name
+
+    _only(monkeypatch, "tractor")
+    for name in ("tractor", "tra33or", "xXtractorXx", "xXtr4ct0rXx", "Big Trac Tor",
+                 "tractorfan99", "T R A C T O R"):
+        assert validate_name(name, cfg.chat) == "name_invalid", name
+    for name in ("Tracy", "Old Tracker", "Farmer Ada"):
+        assert validate_name(name, cfg.chat) is None, name
+
+
+def test_evasion_matching_is_bounded(monkeypatch):
+    _only(monkeypatch, "tractor")
+    calls = 0
+    real = hashlib.sha256
+
+    def counting(data=b""):
+        nonlocal calls
+        calls += 1
+        return real(data)
+
+    monkeypatch.setattr(prohibited.hashlib, "sha256", counting)
+    assert not prohibited.prohibited_hit(" ".join(f"a{i}b{i}c" for i in range(40)))
+    assert calls <= prohibited._HASH_BUDGET + 200
 
 
 def test_reserved_names_are_digest_matched():

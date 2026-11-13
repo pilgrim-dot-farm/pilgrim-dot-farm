@@ -73,14 +73,15 @@ in the origin `.env` (README "Secrets").
 
 Nothing here is polled. The tool logs to stderr, not `station.log`, so the
 record is the ledger: `pilgrim/logs/reels/*.json`, one file per attempt,
-rewritten at each stage. MONITORING.md §3.6 turns those into `pg_reel_*`
-(`posts_total`, `failures_total{stage}`, `last_posted_timestamp_seconds`,
-`quota_usage`/`quota_total`, `ledgers{status}`) via the M5 node_exporter's
-textfile collector, and §4.1 has two digest alerts:
+rewritten at each stage. The station's metrics loop reads those files (never the
+Graph API) and exports `pg_reel_*` gauges on `/metrics` (MONITORING.md §2.2:
+`ledgers{status}`, `failed_ledgers{stage}`, `last_posted_timestamp_seconds`,
+`quota_usage`/`quota_total`). Two digest alerts are parked with the rest of the
+alert catalogue (`docs/backlog/monitoring-infra.md` §4.1):
 
 - **#32 Reels stale** — no successful post for 30 days. The usual cause is an
 expired `INSTAGRAM_TOKEN`; the next `--publish` answers `OAuthException 190`.
 - **#33 Reels quota nearly used** — `quota_usage ≥ 90 %` of 100/24 h.
 
-The Graph API is never probed (MONITORING §2.2): a probe would spend publishing
+The Graph API is never probed (MONITORING §6 rule 1): a probe would spend publishing
 quota, and the tool already tells the operator the outcome synchronously.

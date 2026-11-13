@@ -15,6 +15,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -1100,6 +1101,44 @@ def _make_rate_limiter(station: PublicSurface,
     return _rate_limited
 
 
+class FreeRequestGate:
+    """One accepted free request per client per `interval_s` (RADIO §14).
+
+    Keyed on the resolved client IP like the attempt limiter above. `reserve`
+    answers the seconds still to wait (0 = go ahead, slot taken); a request
+    that is then refused calls `release`, so a rejected or failed attempt
+    never costs the listener their slot. In-memory per process, like the
+    other request-line limits. `interval_s <= 0` disables it.
+    """
+
+    def __init__(self, interval_s: float,
+                 now: Callable[[], float] = time.monotonic) -> None:
+        self.interval_s = interval_s
+        self._now = now
+        self._last: dict[str, float] = {}
+
+    def reserve(self, client: str) -> float:
+        if self.interval_s <= 0:
+            return 0.0
+        now = self._now()
+        if len(self._last) > 10000:   # forget expired clients
+            self._last = {k: t for k, t in self._last.items()
+                          if now - t < self.interval_s}
+        last = self._last.get(client)
+        if last is not None and now - last < self.interval_s:
+            return self.interval_s - (now - last)
+        self._last[client] = now
+        return 0.0
+
+    def release(self, client: str) -> None:
+        self._last.pop(client, None)
+
+
+def _minutes(seconds: float) -> str:
+    n = max(1, math.ceil(seconds / 60.0))
+    return f"{n} minute{'' if n == 1 else 's'}"
+
+
 async def _public_health(station: Station) -> dict:
     """Public `/api/health`: only what the browser reads.
 
@@ -1174,6 +1213,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     """
     cfg = station.cfg
     _rate_limited = _make_rate_limiter(station)
+    _free_gate = FreeRequestGate(cfg.requests.free_interval_s)
     _paid_rate_limited = _make_rate_limiter(station, cfg.payments.per_client_per_10min)
     _vote_rate_limited = _make_rate_limiter(station, cfg.voting.per_client_per_10min)
     _rating_rate_limited = _make_rate_limiter(station, cfg.ratings.per_client_per_10min)
@@ -1257,6 +1297,28 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
 
     @app.post("/api/requests")
     async def submit_request(payload: RequestIn, request: Request):
+        # One accepted free request per client per interval (RADIO §14),
+        # checked before the attempt limit so waiting it out costs no attempts.
+        client = (station._client_ip(request)
+                  or (request.client.host if request.client else None) or "unknown")
+        wait = _free_gate.reserve(client)
+        if wait > 0:
+            raise HTTPException(
+                429,
+                f"One free request every {_minutes(cfg.requests.free_interval_s)}. "
+                f"Try again in {_minutes(wait)}"
+                + (", or jump the line with a priority request."
+                   if station.payments_active else "."))
+        accepted = False
+        try:
+            result = await _submit_free(payload, request)
+            accepted = bool(result.get("ok"))
+            return result
+        finally:
+            if not accepted:   # refused, rejected or failed: the slot is free again
+                _free_gate.release(client)
+
+    async def _submit_free(payload: RequestIn, request: Request) -> dict:
         if _rate_limited(request):
             raise HTTPException(
                 429,

@@ -297,8 +297,9 @@ class MusicPool:
     Nothing upstream refuses a render beyond capacity (LiteLLM least-busy has
     no per-deployment cap; a box takes a 2nd call and halves both), so the
     ceiling is enforced here: a backend never holds more than `slots` leases.
-    A backend that fails at transport level sits out a cooldown (doubling to
-    600 s) and does not count toward `capacity()` meanwhile. Submissions are
+    A backend that fails at transport level sits out a flat cooldown
+    (`songs.backend_cooldown_s`, no doubling) and does not count toward
+    `capacity()` meanwhile. Submissions are
     spaced `songs.submit_stagger_s` apart so the proxy can spread them."""
 
     def __init__(self, backends: list[MusicBackend], cooldown_s: float,
@@ -403,7 +404,7 @@ class MusicPool:
     def mark_down(self, name: str) -> float:
         """Transport failure: cool the backend down. Returns the cooldown."""
         self._fails[name] += 1
-        cool = min(self._cooldown_s * 2 ** (self._fails[name] - 1), 600.0)
+        cool = self._cooldown_s   # flat: a long outage must not delay recovery
         self._down_until[name] = self._now() + cool
         self._discover_due = float("-inf")   # recount before the next lease
         log.warning("song.backend.down", extra={"backend": name, "cooldown_s": cool})

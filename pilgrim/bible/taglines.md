@@ -95,6 +95,7 @@ liner or station ID.
 62. We separate church and state. We're not for profit, but we're not
     non-profit.
 63. We claim to be family-friendly, because the kids won't get it.
+64. If you see an extra finger in our album art, at least it's not in your chili.
 
 ## On-air notes
 
@@ -115,6 +116,9 @@ liner or station ID.
   features (turkey ratings, two-arrows requests) — if those features ship or
   change, recheck the copy. Line 55 is a dry historical reference, not cruelty
   copy; keep it out of the Tree Fiddy Report and news-adjacent slots.
+- **Fourth bank (2026-11-12):** line 64 is an operator line. Speakable
+  verbatim, no on-air variants; it extends the AI-artifact self-awareness
+  voice established by the album-art lines.
 - **Third bank (2026-11-07):** lines 56–63 are operator lines. Lines 62 and
   63 are speakable verbatim; no on-air variants. Line 61 is a
   Lord of the Rings pastiche; speakable verbatim, no TTS variants. Line 59 keeps its

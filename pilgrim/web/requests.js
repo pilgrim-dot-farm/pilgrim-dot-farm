@@ -208,7 +208,7 @@
         showErr("The station is off the air. Requests are closed.");
         input.select();
       } else if (r.status === 429) {
-        showErr(d.detail || "Easy there — a few requests every ten minutes, please.");
+        showErr(d.detail || "One free request every 10 minutes. Try again in a bit.");
         input.select();
       } else if (d.ok) {
         input.value = "";
