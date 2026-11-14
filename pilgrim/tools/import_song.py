@@ -158,7 +158,7 @@ def main() -> int:
     try:
         return asyncio.run(import_song(src, title, a.artist, a.genre))
     except Exception as e:  # decode/QC/TTS/DB: one clear failure, no retry storm
-        log.error("import failed: %s", e)
+        log.error("import.failed: %s", e)
         print(f"import failed: {e}")
         return 1
 

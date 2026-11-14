@@ -291,5 +291,5 @@ class PhraseManager:
                 async with self._lock:
                     await self.process_ready()
             except Exception as e:
-                log.exception("phrase cycle failed: %s", e)
+                log.exception("operator_phrase.cycle_failed: %s", e)
             await asyncio.sleep(1.0)
