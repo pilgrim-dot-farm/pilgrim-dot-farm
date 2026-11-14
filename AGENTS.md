@@ -19,6 +19,12 @@ Documentation lives under `docs/`; `docs/README.md` is the index and
   and the web tier (`:9102`); Steps 1–6, then an operator handoff. The parked
   infrastructure plan is `docs/backlog/monitoring-infra.md`.
 
+Two operator tools have their reference under `docs/systems/`:
+`docs/systems/model-fleet.md` §6 (`make fleet`: every model runs in the tmux
+session `pg-<service>`; the launchd watchdog restarts a model whose session or
+`/health` is gone) and `docs/systems/queue-bench.md` (`make queue-bench`:
+flagged benchmark requests on the live queue, RADIO §6.1).
+
 `docs/plans/idle.md` and `docs/plans/voting.md` Agent A may run concurrently in
 separate worktrees.
 
@@ -70,6 +76,11 @@ If a task cannot be done without breaking one, stop and report.
    the M5; the GPU boxes are faster but not free). Never start real song
    generation except in a smoke test (`make smoke SMOKE_ARGS=--gen`), and then
    request ≤ 10 s of audio per render.
+   **Operator-approved exception (2026-11-14, docs/systems/queue-bench.md):**
+   `make queue-bench BENCH_ARGS="run ..."` renders real songs on the live
+   pool, full length by default or 30 s with `--short`, and throws the audio
+   away. It is run only when the operator asks for a benchmark; never from
+   tests, never on your own initiative.
 7. **No secrets in the repo.** Keys go in environment variables; document the
    variable name in `README.md`.
 8. **Do not change the HTTP API (§11), the config schema (§12), or the
@@ -215,6 +226,8 @@ make image        # the Fargate web image (pilgrim:web, linux/arm64); make image
 make web          # the Fargate web tier locally (python -m pilgrim.web_app; needs REDIS_URL)
 make pg-test      # the whole unit suite against a throwaway Postgres container (fakes only)
 make pg-migrate   # station.db -> Postgres copy; dry run unless PG_MIGRATE_ARGS="--apply"
+make fleet        # model fleet status; FLEET_ARGS="restart ornith" | "pause flux3" | "watch"
+make queue-bench  # live queue benchmark (only when asked): BENCH_ARGS="run --name t1 --free 6 --paid 2 --short" | "report --name t1 --wait" | "purge --apply"
 ```
 
 ---
@@ -312,6 +325,14 @@ continue.
   use `/api/station/state` or `/api/health` (the admin one reports
   `idle: {idle, since, wakes}`), which never wake it. `make split-smoke`'s
   program probe does wake it; that is fine.
+- **Models are started only by `fleetctl`, only in `pg-<service>`**
+  (docs/systems/model-fleet.md §6). A model started by hand with `nohup`, `&`
+  or another session name shows as `unmanaged` and is harder to find and
+  stop. Sessions without the `pg-` prefix are the operator's; never kill
+  them. Box run scripts are human-owned: never edit one from here.
+- **Deploy the web tier before a queue benchmark.** The Fargate web tier runs
+  its own copy of `store.py`; an image older than 2026-11-14 does not filter
+  `bench=1` rows off the public board (RADIO §14).
 - **`/metrics` has its own port and only `main()` opens it** (MONITORING.md):
   `9101` on the Mac, `9102` in the container. Never mount it on the public or
   admin app, never start it from `build_station`/`create_web_app`, and never

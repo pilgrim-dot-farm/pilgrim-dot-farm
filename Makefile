@@ -3,7 +3,7 @@ PY := $(VENV)/bin/python
 BIN := $(VENV)/bin
 FFMPEG := $(HOME)/bin/ffmpeg
 
-.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel reel-post due-backfill image image-smoke pg-test pg-migrate promo-codes
+.PHONY: setup venv test sim lint run web seed smoke e2e clean install-ffmpeg logs audit audit-apply deploy-check e2e-split split-smoke edge-up edge-down edge-status media-smoke mp3-migrate art-backfill art-smoke reel reel-post due-backfill image image-smoke pg-test pg-migrate promo-codes fleet queue-bench
 
 # --- setup ---------------------------------------------------------------
 venv:
@@ -163,3 +163,18 @@ mp3-migrate:
 # rows that aired before the column existed. Dry run unless DUE_ARGS="--apply".
 due-backfill:
 	$(PY) -m pilgrim.tools.due_backfill $(DUE_ARGS)
+
+# Model fleet control (docs/systems/model-fleet.md §6): every model runs in the
+# tmux session pg-<service> on its host. `make fleet` = status;
+# FLEET_ARGS="restart ornith" | "pause flux3" | "watch". The every-minute
+# watchdog is installed with pilgrim/deploy/mac/fleet.sh install.
+fleet:
+	$(PY) -m pilgrim.tools.fleetctl $(or $(FLEET_ARGS),status)
+
+# Queue benchmark on the LIVE station (docs/systems/queue-bench.md): real
+# renders, audio thrown away, rows flagged bench=1 (only when asked).
+#   make queue-bench BENCH_ARGS="run --name t1 --free 6 --paid 2 --short"
+#   make queue-bench BENCH_ARGS="report --name t1 --wait"
+#   make queue-bench BENCH_ARGS="purge --apply"
+queue-bench:
+	$(PY) -m pilgrim.tools.queue_bench $(BENCH_ARGS)

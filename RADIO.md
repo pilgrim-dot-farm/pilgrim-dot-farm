@@ -579,6 +579,26 @@ Workers:
 - **Kokoro worker:** renders approved copy in priority order (contextual >
   news > inventory).
 
+**Queue benchmark (docs/systems/queue-bench.md).** A request row flagged
+`bench=1` is a benchmark request, added only through the admin listener
+(`POST /api/admin/bench`, §11). The producer treats it as a listener request
+up to the end of the render: the same claim (`claimed_at`), the same queue
+order (paid first, then votes, then FIFO), the same turn at the brief gate and
+the same render slot (a free bench row counts against
+`songs.free_request_slots`). Three things differ: no cover is started; a
+replay (`bench_opts.replay_of`) renders the brief its original song was made
+from and takes no turn at the brief LLM; and when the render returns, the
+audio file is deleted and the row is closed as `bench_done` with its timings
+in `bench_opts.result` — no library item, no intro, no upload, nothing to
+air. `bench_opts.duration_s` (set by `short: true`, `bench.short_duration_s`)
+is sent to the generator as `duration_seconds` in place of
+`songs.max_duration_s`; the default is full length. A bench row is real load
+on the brief model and the generator pool and shares the queue with
+listeners: a paid bench row goes ahead of a listener's free request. It is
+never on the board, in the hit counter, in the free-queue cap or in the
+scheduler's hold (§14). Failures follow the listener rules (`attempts`,
+`failed`), without the refund log line.
+
 ### 6.2 Song pipeline
 
 1. **Brief** (`qwen38`): returns JSON validated against a schema:
@@ -1300,6 +1320,9 @@ refill target.
 | GET | `/api/admin/voices` | Kokoro voice list (for voice sampling) |
 | GET | `/api/station/state` | Cheap station state for DJ-aware clients: `{epoch, revision, current_seq, current_type, current_url, current_art_url, current_offset_s, server_time, prepared_cutover, listeners, idle, rating}` (docs/systems/console.md §4); `current_url` is the on-air item's audio URL (§8.4) and `current_art_url` its cover (same rule as `program`'s `art_url`) — with `current_offset_s` it says what is playing and how far in; `listeners` is the live listener count (§14); `idle` is the frozen playhead (docs/plans/idle.md) and `rating` = `{open, count, avg}` for the on-air song's current window + lifetime aggregate, or `null` when `ratings.enabled` is false (voter-independent, so the shared `max-age=1` cache stays correct) |
 | GET | `/api/admin/voting?limit=` | Audit only (docs/plans/voting.md §2, behind `require_dj`): `{votes, ratings, buried}` from the recent vote/rating rows and the currently buried free requests. Never exposes voter ids or IPs |
+| POST | `/api/admin/bench` | Queue benchmark (§6.1, docs/systems/queue-bench.md; admin listener only, behind `require_dj`; 404 when `bench.enabled` is false). Body `{run, requests: [{text?, paid?, votes?, replay_of?, reuse_lyrics?, short?}]}` (`run` matches `[A-Za-z0-9._-]{1,60}`; at most `bench.max_batch` rows; `votes` −20…20, free rows only). Every row is resolved before any is inserted (422 `replay_not_found` / `empty` / `too_many` adds nothing), then all rows and their votes are written with no await, so the producer never sees a half-voted batch. No moderation and no Stripe: a `paid` row is shaped like an operator comp (`priority=1`, `paid_at`, amount 0). Returns `{run, requests: [{id, paid, votes}]}` |
+| GET | `/api/admin/bench?run=&candidates=` | Benchmark rows oldest first: `{requests: [{id, status, paid, score, attempts, created_at, claimed_at, updated_at, stage, text, opts}], candidates, limits: {briefs, render_slots, free_request_slots}}`. `opts.result` holds `claimed`, `write_start`, `write_end`, `render_start`, `render_end` (epoch seconds), `reused_lyrics`, `audio_s`, `backend`, `generator`, `title`, `genre`. `candidates=N` lists the N newest aired listener requests that can be replayed |
+| DELETE | `/api/admin/bench?apply=` | Counts (default) or deletes (`apply=true`) benchmark rows and their votes: `{applied, requests, votes, producing_kept}`. Queued rows are deleted too (this cancels the rest of a run); a row in `producing` is kept until it finishes |
 | GET | `/api/station/program` | Extended: `?epoch=E&revision=R&after_seq=N`; response adds `epoch`, `revision`, `reset`, `server_time` (`reset: true` = stale cursor, replace the whole list) |
 | GET | `/api/admin/dj/state` | DJ console state: `{epoch, revision, server_time, on_air, current, upcoming, pending_commands, catalogue_revision, player_status}` — no backend probes |
 | GET | `/api/admin/dj/songs` | Sortable/searchable song catalogue: `q, sort=title|artist, direction, cursor, limit` → `{items, next_cursor, catalogue_revision}`; allowlisted sort expressions, bound SQL, stable tie-breaker |
@@ -1685,6 +1708,11 @@ voting:                    # docs/plans/voting.md: request-queue votes
   per_client_per_10min: 60   # vote POSTs per canonical client IP
   max_voters_per_ip: 3       # distinct voter ids per IP per request
   bury_threshold: -3         # free queued request at/below this score is not produced; null = off
+
+bench:                     # docs/systems/queue-bench.md: queue benchmark on the live station
+  enabled: true
+  short_duration_s: 30       # `short: true` bench renders; the default is full length
+  max_batch: 60              # bench requests one POST /api/admin/bench may add
 
 ratings:                   # docs/plans/voting.md: five-turkey song ratings
   enabled: true
@@ -2155,6 +2183,18 @@ pre-payment status `checking` (stages `moderation -> copyright -> ready`):`check
 operator comp, `checking -> queued` with `comped=1`, `amount_cents=0` and no
 Stripe session. `checking` rows are never on the board and are `abandoned` on
 station start (their background task died with the process).
+
+**Benchmark rows (docs/systems/queue-bench.md).** `bench` (INTEGER, default 0)
+and `bench_opts` (TEXT, JSON: `run`, `index`, `duration_s`, `replay_of`,
+`reuse_lyrics`, and `result` once finished) are additive,
+idempotently-migrated columns. A `bench=1` row moves `queued -> producing ->
+bench_done` (or `failed`); it never reaches `ready` or `aired` and never gets
+a `song_item_id`. `request_board`, `request_counts`, `waiting_free_requests`
+and `pending_requests` exclude `bench=1`; the producer's queue queries
+(`queued_requests`, `next_request_to_produce`) include it, which is the point.
+`purge_bench_requests` deletes the rows and their `request_votes`. The web
+tier runs the same `store.py`, so its image must carry these filters before a
+benchmark is run, or bench rows show on the public board.
 
 **The three boxes (docs/shipped/prompt-upgrade.md).** `lyrics_text`, `music_text` and
 `art_text` are additive, idempotently-migrated columns holding the listener's
