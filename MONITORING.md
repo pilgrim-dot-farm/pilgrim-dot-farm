@@ -1837,10 +1837,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://pilgrim.farm/metrics  # 404 or 
 
 # from the NAS (tailnet route + grant + security group)
 curl -s http://TASK_IP:9102/metrics | head -3
+
+# on the LAN, from the NAS itself
+curl -s http://192.168.68.90:9101/metrics | grep -c '^pilgrim_'      # > 50
 ```
 
 If Prometheus runs in a container on the NAS, run the last check from inside
-that container.
+that container — and note that a bridge-network container does **not** inherit
+the host's tailnet route to `172.31.0.0/16`. Use `network_mode: host` (the NAS
+is Linux) or add the route, otherwise `pg-web` tasks are unreachable even
+though the tailnet grant and SG allow them.
 
 ### 5.4 Prometheus on the NAS
 
@@ -1850,7 +1856,7 @@ profile (or in its environment). Then:
 ```yaml
   - job_name: pg-origin
     static_configs:
-      - targets: ["<M5 LAN address>:9101"]
+      - targets: ["192.168.68.90:9101"]
 
   - job_name: pg-web
     aws_sd_configs:
@@ -1957,9 +1963,11 @@ In addition to AGENTS §1:
 1. **`pf` vs `pf2`.** `~/.ssh/config` has `pf` → `52.53.93.0` (retired account)
    and `pf2` → `52.13.70.63` (the bastion). This plan says `pf2`. Repoint `pf`
    if you want that name to mean the bastion.
-2. **The M5's LAN address.** The parked plan says `192.168.68.51`; Prometheus
-   scrapes mlx-serve at `192.168.68.90`. Whichever is the Mac goes in the
-   `pg-origin` target.
+2. **The M5's LAN address — resolved 2026-11-14.** The Mac Studio's only LAN
+   interface is `en1` = **`192.168.68.90`** (the same address Prometheus
+   scrapes mlx-serve at); the parked plan's `192.168.68.51` is stale. Verified
+   `curl http://192.168.68.90:9101/metrics` → 121 `pilgrim_*` samples and
+   `/api/health` → 404.
 3. **`metrics.host: "0.0.0.0"` on the Mac.** It exposes `:9101` (read-only, no
    private labels) to the home LAN, like mlx-serve's `:11234`. The tailnet
    policy has no grant for it. Say so if you would rather bind the LAN address.
