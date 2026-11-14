@@ -1363,6 +1363,30 @@ admin DJ mutation (`POST /api/admin/dj/play`) wake it; `GET /api/health`,
 those). Both nginx hops allowlist the two voting paths; the origin's own
 limiter (`voting/ratings.per_client_per_10min`) is the per-listener ceiling.
 
+**Metrics (MONITORING.md).**
+Both processes export Prometheus metrics in-process, on a socket of their own:
+`GET /metrics` on `metrics.host:metrics.port` (§12; `9101` on the Mac, `9102`
+in the container). That socket answers nothing else (404), is not the public,
+admin or ALB port, and is opened only by `python -m pilgrim.server` and
+`python -m pilgrim.web_app`, never by tests, the sim or the e2e servers.
+
+A scrape does no I/O: it renders a registry. The station fills it from a task
+on the event loop: in-memory state every `metrics.live_s`, and the admin
+health body (`Station.health()`, which never wakes a frozen station) every
+`metrics.refresh_s`. The web tier fills it from a request middleware (route
+template, method, status, latency), one Valkey read of the `health` document
+and one of the chat worker's `worker:heartbeat` key per `live_s`, and its open
+chat sockets. Both attach a logging handler that counts every dotted log event
+as `pilgrim_log_events_total{logger,event,level}`; only the origin also feeds
+the render and dead-air histograms. Metric names use the `pilgrim_` prefix
+(`pilgrim_web_*` for web-only families); the Prometheus `job` labels stay
+`pg-origin`/`pg-web`, which mirror the `pg-app`/`pg-db` infra naming.
+The catalogue is MONITORING.md §2. No label carries a player id, voter id, IP,
+title, URL, request id or chat text; the registry refuses those label names.
+The metrics modules never import `scheduler.py`, `producer.py`, `selector.py`,
+`payments.py`, `store.py` or `db.py`, and a failure in them is logged
+(`metrics.refresh_failed`, `metrics.disabled`), never raised.
+
 **Web tier (docs/plans/scalability.md Step 5; `pilgrim/web_app.py`).** On Fargate the
 public listener is served by `python -m pilgrim.web_app`, which registers the
 same public routes over a `WebStation` backed by Valkey and Postgres instead
@@ -1768,6 +1792,13 @@ sfx:                          # docs/systems/sfx.md; never on news
     cow: {prompt: "a single slow cartoon cow moo, barnyard", duration_s: 2.0}
     slide_whistle: {prompt: "...", duration_s: 2.0, seed: 24, evergreen: true}
     rimshot: {prompt: "...", duration_s: 1.5, seed: 22, evergreen: true, approved: false}
+
+metrics:                   # MONITORING.md; §11 "Metrics". GET /metrics on its own socket
+  enabled: true            # model default false; config.yaml turns it on
+  host: "0.0.0.0"          # LAN-reachable for the NAS Prometheus; admin stays loopback
+  port: 9101               # container overlay: 9102 (never in the ALB target group)
+  live_s: 5                # in-memory gauges
+  refresh_s: 60            # admin-health gauges (backend probes, inventory counts)
 
 logging:
   level: INFO

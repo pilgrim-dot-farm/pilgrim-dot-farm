@@ -38,7 +38,7 @@ RUN groupadd -r -g 10001 pilgrim \
  && chown -R pilgrim:pilgrim /app/pilgrim/data
 VOLUME ["/app/pilgrim/data"]
 
-EXPOSE 8080
+EXPOSE 8080 9102
 USER pilgrim
 
 # Public listener liveness. ECS ignores this unless the task definition

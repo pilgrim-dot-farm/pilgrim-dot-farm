@@ -96,6 +96,7 @@ full mapping is:
 | [plans/sheep-pen-brief.md](plans/sheep-pen-brief.md) | The Sheep Pen chat brief (read this first) | active |
 | [plans/sheep-pen-plan.md](plans/sheep-pen-plan.md) | The Sheep Pen chat implementation plan | active |
 | [plans/scalability.md](plans/scalability.md) | The VPC move: Fargate web tier, RDS Postgres, ElastiCache Valkey, Mac as writer | active |
+| [../MONITORING.md](../MONITORING.md) | In-process Prometheus metrics: station `:9101`, web tier `:9102`, then an operator handoff | active |
 | [shipped/album-art.md](shipped/album-art.md) | Cover art per song (FLUX), S3/CloudFront, Instagram reels | shipped |
 | [shipped/payments.md](shipped/payments.md) | Paid priority requests via Stripe Embedded Checkout and webhooks | shipped |
 | [shipped/prompt-upgrade.md](shipped/prompt-upgrade.md) | Three-box paid request: lyrics / musical direction / cover art (supersedes the single box in `payments.md`) | shipped 2026-11-08 |
@@ -107,6 +108,7 @@ full mapping is:
 | [backlog/cgm.md](backlog/cgm.md) | One sound per animal, code-enforced, no re-generation | backlog |
 | [backlog/sfx-bug.md](backlog/sfx-bug.md) | SFX bug report (2026-11-10): backend down, no cue retry, weak new-SFX generation | backlog |
 | [backlog/fix-prompting.md](backlog/fix-prompting.md) | Song prompting and genre variety | backlog |
+| [backlog/monitoring-infra.md](backlog/monitoring-infra.md) | Parked monitoring infrastructure and alerting plan (the previous `MONITORING.md`) | backlog |
 | [request-analysis-20261003/report.md](request-analysis-20261003/report.md) | Measured listener-request traffic (arrivals, bursts, latency) | reference |
 
 ## Where the code lives

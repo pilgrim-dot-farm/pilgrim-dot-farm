@@ -15,6 +15,9 @@ Documentation lives under `docs/`; `docs/README.md` is the index and
   ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
 - `docs/plans/sheep-pen-plan.md` — The Sheep Pen chat; Steps 1–12. Its brief is
   `docs/plans/sheep-pen-brief.md` (read the brief first, then the plan).
+- `MONITORING.md` — in-process Prometheus metrics for the station (`:9101`)
+  and the web tier (`:9102`); Steps 1–6, then an operator handoff. The parked
+  infrastructure plan is `docs/backlog/monitoring-infra.md`.
 
 `docs/plans/idle.md` and `docs/plans/voting.md` Agent A may run concurrently in
 separate worktrees.
@@ -105,6 +108,7 @@ If a task cannot be done without breaking one, stop and report.
 | Song generation | pool in `songs.gen_backends` | MiniMax Music 3 ×3 (M5 mlx-serve + two audiocpp GPU boxes) via LiteLLM's vLLM pass-through `https://litellm.twr.church/vllm/v1/audio/music-generations`, `model: MiniMax-Music-3`, Bearer `LITELLM_TOKEN`. The station enforces the slot ceiling and staggers submissions (docs/backends.md §2b). Read `pipelines/songs.py` before writing new code. |
 | LiteLLM | `https://litellm.twr.church/v1` | LLMs, song pool (`/vllm`), MCP time tool (`/mcp`, `hosts.mcp`) |
 | LiteLLM relay (web tier only) | bastion `pf` `:4000` → `tailscale serve` on the M5 → LiteLLM | LiteLLM is a LAN service behind a public name; Fargate reaches it only via `pilgrim/deploy/bastion/relay.sh`. The web tier's `hosts.litellm` points at the relay (container overlay) |
+| Prometheus + Grafana | operator's NAS (LAN; tailnet `tag:monitoring`) | scrapes `GET /metrics` on the M5 `:9101` (LAN) and on each Fargate task `:9102` (bastion route, ECS discovery). Read-only; the station never calls it (MONITORING.md) |
 | `qwen38` (Qwen 3.8 27B) | 5090 host | via LiteLLM; news, song briefs, DJ talk |
 | `ornith` | 4070 Ti host | via LiteLLM; commercials, liners |
 | Kokoro TTS | `192.168.68.89:8001` | `/tts`, `/voices`, `/health`; 16-bit mono 24 kHz |
@@ -308,3 +312,11 @@ continue.
   use `/api/station/state` or `/api/health` (the admin one reports
   `idle: {idle, since, wakes}`), which never wake it. `make split-smoke`'s
   program probe does wake it; that is fine.
+- **`/metrics` has its own port and only `main()` opens it** (MONITORING.md):
+  `9101` on the Mac, `9102` in the container. Never mount it on the public or
+  admin app, never start it from `build_station`/`create_web_app`, and never
+  add a label that could hold a listener id or request text. Metric names use
+  the `pilgrim_` prefix (never `pg_`: that is `postgres_exporter`'s namespace);
+  the `job` labels stay `pg-origin`/`pg-web`. A metrics tick reads station state
+  through read-only accessors (`Station.listener_count()`), never the pruning
+  ones.
