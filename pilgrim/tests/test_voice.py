@@ -181,3 +181,24 @@ def test_strip_greeting_removes_the_clock_statement():
     ) == "Michigan pickles are spicy."
     assert strip_greeting("Good evening.") == ""
     assert strip_greeting("Pilgrim Dot Farm news.") == "Pilgrim Dot Farm news."
+
+
+CLOCK_READ = "Just checking the clock: about twenty-five to six in the evening."
+
+
+def test_clock_read_passes_at_a_rate_other_voice_copy_is_rejected_for(cfg, tmp_path):
+    """2026-11-14: a dozen short words in ~2.5 s (about 4.5 w/s) is a clean clock read,
+    not a truncation. The same audio is still rejected for any other role."""
+    vp = pipe(cfg, ShortKokoro(fixed_s=2.5), tmp_path)
+    copy = {"text": CLOCK_READ, "est_duration_s": 4.0, "evergreen": False}
+    r = asyncio.run(vp.render(copy, "time_check", 4.0))
+    assert cfg.audio.max_words_per_s < r["words_per_s"] <= cfg.audio.time_check_max_words_per_s
+    with pytest.raises(ValueError, match="speech rate"):
+        asyncio.run(vp.render(copy, "liner", 4.0))
+
+
+def test_a_truncated_clock_read_is_still_rejected(cfg, tmp_path):
+    vp = pipe(cfg, ShortKokoro(fixed_s=1.7), tmp_path)   # 12 words in 1.7 s
+    copy = {"text": CLOCK_READ, "est_duration_s": 4.0, "evergreen": False}
+    with pytest.raises(ValueError, match="speech rate"):
+        asyncio.run(vp.render(copy, "time_check", 4.0))

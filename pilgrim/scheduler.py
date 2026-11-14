@@ -103,6 +103,14 @@ class Scheduler:
         self._promo_log: list[tuple[float, str]] = []  # (program start, kind)
         self._last_time_check_air = -1e9
         self._last_liner_air: dict[int, float] = {}
+        # break structure (playout.breaks, §5.2): on when the config says so
+        # AND the selector is the break selector, so a scheduler built with
+        # the weighted draw keeps every old rule
+        self._break_mode = bool(cfg.playout.breaks.enabled
+                                and getattr(selector, "break_mode", False))
+        # promo item ids of the last few promos aired (no close repeats)
+        self._recent_promo_ids: deque[int] = deque(
+            maxlen=max(1, cfg.playout.breaks.promo_repeat_breaks))
         self._air_clock = 0.0  # monotonic committed-program time (independent of trimming)
         # in-memory cumulative mapping built each cycle
         self._program_start = 0.0  # absolute start of retained program history
@@ -341,7 +349,9 @@ class Scheduler:
             "liner": st.inventory_counts["liner"] > 0,
             "news": self._news_valid() is not None,
             "promo": self._promo_available(),
-            "time_check": self._time_check_item() is not None,
+            # break structure: no clock reads (the quarter-hour news marks the time)
+            "time_check": (not self._break_mode
+                           and self._time_check_item() is not None),
         }
         st.request_songs_ready = len(self._uncommitted_ready_requests())
         # recent types / genres in COMMITTED order (the air order). Constraints
@@ -357,7 +367,8 @@ class Scheduler:
         st.secs_since = {}
         for cat, ctype in (("news", "news"), ("commercial_break", "commercial"),
                            ("song", "song"), ("promo", "promo"),
-                           ("time_check", "time_check")):
+                           ("time_check", "time_check"),
+                           ("field_report", "field_report")):
             st.secs_since[cat] = self._secs_since(self._total, ctype)
         ni = self._news_valid()
         if ni:
@@ -368,7 +379,42 @@ class Scheduler:
         st.time_check_due = st.available["time_check"]
         st.campaign_due = self._campaign_due()
         st.promo_steady_due = self._steady_promo_due()
+        if self._break_mode:
+            br = self.cfg.playout.breaks
+            # one bulletin per mark: the first break inside the mark's window
+            st.news_due = (
+                self._in_mark_window(air_wall, br.news_marks_min,
+                                     br.news_lead_s, br.news_lag_s)
+                and st.secs_since["news"] > br.news_lead_s + br.news_lag_s + 60)
+            st.field_due = (
+                not st.news_due
+                and self._in_mark_window(air_wall, br.field_marks_min,
+                                         0, br.field_window_s)
+                and st.secs_since["field_report"] > br.field_window_s + 120)
+            st.break_news_gravity = self._break_news_gravity()
         return st
+
+    @staticmethod
+    def _in_mark_window(air_wall: float, marks_min: list[int],
+                        lead_s: float, lag_s: float) -> bool:
+        """Is this wall time within [mark - lead_s, mark + lag_s] of a mark
+        (minutes of the hour)? Wraps across the hour."""
+        t = air_wall % 3600.0
+        for m in marks_min:
+            delta = (t - m * 60.0 + 1800.0) % 3600.0 - 1800.0
+            if -lead_s <= delta <= lag_s:
+                return True
+        return False
+
+    def _break_news_gravity(self) -> str | None:
+        """Gravity of a bulletin committed in the break in progress, if any."""
+        for r in reversed(self._items):
+            if r["type"] == "song":
+                return None
+            if r["type"] == "news":
+                it = self.store.get_item(r["item_id"])
+                return (it.get("gravity") or "normal") if it else "normal"
+        return None
 
     # ------------------------------------------------- words between songs
     def _callout_pending(self) -> bool:
@@ -574,6 +620,7 @@ class Scheduler:
         if e.get("consume"):
             self.store.mark_aired(item_id)
         if e["type"] == "promo":
+            self._recent_promo_ids.append(item_id)
             kind = e.get("promo_kind") or "campaign"
             self._last_promo_air = host_start
             self._last_promo_kind_air[kind] = host_start
@@ -991,6 +1038,9 @@ class Scheduler:
         return out
 
     def _promo_available(self) -> bool:
+        if self._break_mode:
+            # a promo closes every break: only "is there one at all" matters
+            return bool(self._promos())
         if self._air_clock - self._last_promo_air < self.cfg.promotions.promo_min_spacing_s:
             return False
         return bool(self._due_promos())
@@ -1025,7 +1075,41 @@ class Scheduler:
                 return True
         return False
 
+    def _pick_break_promo(self) -> list[dict]:
+        """Break structure (§5.2): a promo airs in every break, so the per-kind
+        gaps become an ORDER, not a gate. A kind past its gap goes first (most
+        overdue wins, as before); otherwise any promo not among the last
+        `promo_repeat_breaks` aired; with a pool that small, the one heard
+        longest ago. Repetition is fine: it is a radio station."""
+        pool = self._promos()
+        if not pool:
+            return []
+        recent = list(self._recent_promo_ids)
+        due = [(it, meta) for it, meta in self._due_promos() if it["id"] not in recent]
+        if due:
+            now = self._air_clock
+
+            def rank(p: tuple[dict, dict]) -> tuple[float, float, int]:
+                kind = p[1].get("kind") or "campaign"
+                return (now - self._last_promo_kind_air.get(kind, -1e9),
+                        self._promo_kind_gap(kind), p[0]["id"])
+            it, meta = max(due, key=rank)
+        else:
+            unheard = [i for i in pool if i["id"] not in recent]
+            if unheard:
+                it = self.rng.choice(unheard)
+            else:  # every promo was just heard: the one heard longest ago
+                last_heard = {pid: n for n, pid in enumerate(recent)}
+                it = min(pool, key=lambda i: last_heard[i["id"]])
+            meta = json.loads(it["meta_json"]) if it.get("meta_json") else {}
+        return [{"item_id": it["id"], "type": "promo",
+                 "duration_s": it["duration_s"], "consume": True,
+                 "expires_at": it.get("expires_at"),
+                 "promo_kind": meta.get("kind") or "campaign"}]
+
     def _pick_promo(self) -> list[dict]:
+        if self._break_mode:
+            return self._pick_break_promo()
         items = self._due_promos()
         if not items:
             return []
@@ -1098,6 +1182,8 @@ class Scheduler:
             trailing_run += 1
         # leave the last non-song slot for words when none aired yet (§5.2)
         cap = max(1, cap_limit - trailing_run - (1 if st.callout_pending else 0))
+        if self._break_mode:
+            cap = 1  # one spot leads the break; the promo follows it (§5.2)
         n = 1 if len(items) == 1 else self.rng.randint(1, min(cap, len(items)))
         now = self._air_clock
         min_gap = float(self.cfg.playout.commercial_min_spacing_s)

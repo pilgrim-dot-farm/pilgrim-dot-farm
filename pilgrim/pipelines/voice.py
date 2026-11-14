@@ -390,6 +390,8 @@ def _finalize_voice(cfg, wav: bytes, clean: str, out_dir: Path, tag: str,
     speech_s = max(norm_dur - cfg.audio.edge_pad_ms / 1000.0, 0.1)
     words_per_s = words / speech_s
     lo, hi = cfg.audio.min_words_per_s, cfg.audio.max_words_per_s
+    if tag == "time_check":
+        hi = max(hi, cfg.audio.time_check_max_words_per_s)
     if not (lo <= words_per_s <= hi):
         dst.unlink(missing_ok=True)
         raise ValueError(

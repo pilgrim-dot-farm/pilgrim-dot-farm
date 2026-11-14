@@ -69,6 +69,19 @@ playout:
   weights: {song: 0.55, dj_talk: 0.12, commercial_break: 0.15, liner: 0.10, news: 0.08,
             field_report: 0.05, promo: 0.05, time_check: 0.04}
   max_consecutive_non_song: 2
+  # Break structure (RADIO §5.2, 2026-11-14): every break between two songs is
+  # LEAD + PROMO, then the song with its intro. The lead is the news on the
+  # quarter hour, a field report after :00 and :30, otherwise a feature (DJ
+  # talk / a commercial, taking turns) in every other break and a liner in the
+  # breaks between. No clock reads. enabled: false = the weighted draw above.
+  breaks:
+    enabled: true
+    news_marks_min: [0, 15, 30, 45]
+    news_lead_s: 60          # the first break from 1 min before a mark...
+    news_lag_s: 240          # ...to 4 min after it carries the bulletin
+    field_marks_min: [0, 30]
+    field_window_s: 480      # first non-news break within 8 min after :00 / :30
+    promo_repeat_breaks: 6   # the same promo is not heard again within 6 promos
   top_of_hour_window_s: 240      # a song gap this close to :00 leads with a callout (soft)
   news_min_spacing_s: 1200
   news_ttl_s: 2700
@@ -90,7 +103,14 @@ inventory:
   fresh_songs_ready: 2
   briefs_queued: 3
   commercials_min: 20            # RADIO.md §6.1/§12: >= 20 so a song drought has spots to air
-  liners_per_bucket: 4
+  commercial_target_s: 15        # new spots: lead (15 s) + promo + intro keeps a break near 30 s
+  # Turnover (RADIO §6.1): at target, with nothing new for 86400/per_day s, the
+  # most-played item (>= turnover_min_plays airings) is retired and replaced.
+  commercials_turnover_per_day: 2   # all 20 spots turn over in ~10 days
+  liners_turnover_per_day: 4
+  turnover_min_plays: 10
+  intro_backfill_per_pass: 2     # retained code-written song intros; paused while a request is in flight
+  liners_per_bucket: 16          # x5 buckets = 80 liners (the pool held 84 on 2026-11-14)
   liner_buckets_s: [3, 5, 10, 15, 30]
   dj_talk_min: 2
   field_reports_min: 1
@@ -103,25 +123,23 @@ songs:
   abrupt_fade_s: 2.5    # fade-out for songs with hard endings (OVERHAUL 3.2)
   stock_gap_s: 600      # wait between stock song generations; listener requests skip it (§6.1)
   stock_max_library: 100  # pause stock generation once the library has this many songs; requests still produce
-  # Song generator pool (RADIO §6.2). Through LiteLLM's vLLM pass-through the
-  # router fans renders out over the three MiniMax Music 3 deployments
-  # (two audiocpp GPU boxes + the M5 MLX box, docs/backends.md §2b), so one
-  # entry with 3 slots. Direct mode = one entry per box with slots: 1.
+  # Song generator pool (RADIO §6.2), 2026-11-14: the M5's mlx-serve is a
+  # direct backend again (the operator took it out of LiteLLM's MiniMax
+  # group), and LiteLLM's vLLM pass-through fans the rest out over the two
+  # audiocpp GPU boxes (docs/backends.md §2b).
+  #   - Listener requests take the fastest idle generator: the M5 (measured
+  #     ~0.5 audio-s per wall-s against ~0.27 on the GPU boxes, queue bench
+  #     t1), so local goes first and the excess goes to LiteLLM.
+  #   - Stock songs take the slowest idle one, leaving the M5 for requests.
+  # mlx-serve serializes music jobs in one queue: 1 slot.
+  # litellm slots: auto = count the deployments LiteLLM lists for models.music
+  # that answer /health, so a box that is down or removed from the proxy stops
+  # being a slot; 1 until the first count.
   gen_backends:
-    # 2026-11-01 03:21-03:28 the LiteLLM /vllm pass-through answered 500 to
-    # every render; it was back by 13:19 (10 s probe: 200, audiocpp). If it
-    # fails again, fall back to the direct M5 tunnel (1 slot):
-    #   - {name: m5, url: "http://127.0.0.1:11234", rtf_hint: 0.6}
-    # slots: auto (2026-11-07) = count the deployments LiteLLM lists for
-    # models.music that answer /health, so a box that is down or removed from
-    # the proxy stops being a slot; 1 until the first count.
-    - {name: litellm, slots: auto, auth: litellm}   # url derived: hosts.litellm minus /v1, plus /vllm
-  # Fallback generator (RADIO §6.2, 2026-11-14): when the LiteLLM pass-through
-  # can't serve the pool (down/cooled off), renders go directly to the local
-  # M5 mlx-serve (1 slot — it serializes music jobs in one queue). Active
-  # only while the primaries are down: the M5 is also one of the fan-out
-  # deployments, so the pool never double-routes it while the proxy works.
-  local_fallback: {name: m5, url: "http://127.0.0.1:11234", slots: 1, rtf_hint: 0.6}
+    - {name: m5, url: "http://127.0.0.1:11234", slots: 1, rtf_hint: 0.5}
+    - {name: litellm, slots: auto, auth: litellm, rtf_hint: 0.27}   # url derived: hosts.litellm minus /v1, plus /vllm
+  # No local_fallback: the M5 is a primary now, so it already serves alone
+  # when the LiteLLM pass-through is down.
   free_request_slots: 2   # free requests rendering at once; the last slot always stays open for a paid one
   submit_stagger_s: 5     # min seconds between render submissions: LiteLLM only fans them out across the boxes with a delay
   backend_cooldown_s: 60 # unreachable generator sits out this long (flat, no doubling)
@@ -295,6 +313,7 @@ audio:
   mp3_mono_source_kbps: 96   # mono sources (speech, SFX); delivered as stereo (WebKit, mono)
   silence_db: -50
   max_words_per_s: 4.2   # speech-rate QC ceiling (truncation smell); legit Kokoro reads hit 3.6-4.0
+  time_check_max_words_per_s: 5.5   # clock reads are short one-syllable words: 4.2-4.5 w/s is a clean read
   min_words_per_s: 1.2   # speech-rate QC floor
 
 logging:

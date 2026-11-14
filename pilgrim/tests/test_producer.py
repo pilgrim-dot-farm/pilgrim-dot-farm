@@ -167,7 +167,7 @@ def test_ensure_liners_fills_to_total_target(cfg, tmp_env):
     assert voice.calls <= 3
     assert voice.calls == store.count_usable_of_type("liner")
     # repeated calls fill up to the target, never beyond
-    for _ in range(20):
+    for _ in range(target_total):   # at most 3 per call: more than enough passes
         asyncio.run(prod.ensure_liners())
     assert store.count_usable_of_type("liner") == target_total
 
@@ -188,7 +188,7 @@ def test_ensure_liners_stops_at_target_when_fake_voice_fixed_short(cfg, tmp_env)
     prod = make_producer(cfg, store, voice)
     import asyncio
     target_total = cfg.inventory.liners_per_bucket * len(cfg.inventory.liner_buckets_s)
-    for _ in range(20):
+    for _ in range(target_total):   # at most 3 per call: more than enough passes
         asyncio.run(prod.ensure_liners())
     assert store.count_usable_of_type("liner") == target_total
 
@@ -767,6 +767,7 @@ def test_ensure_time_checks_renders_one_per_upcoming_mark(cfg, tmp_env):
     import asyncio
     import json
     _, store, _ = tmp_env
+    cfg.playout.breaks.enabled = False   # clock reads belong to the weighted draw
     prod = make_producer(cfg, store, FakeVoice())
     asyncio.run(prod.ensure_time_checks())
     items = store.list_items("time_check")
@@ -775,6 +776,57 @@ def test_ensure_time_checks_renders_one_per_upcoming_mark(cfg, tmp_env):
     assert len(set(buckets)) == 12
     assert all(b % 300 == 0 for b in buckets)
     assert all(i["expires_at"] for i in items)
+
+
+def test_a_rejected_clock_read_does_not_block_the_hour_or_retry(cfg, tmp_env):
+    """2026-11-14: one clock phrase that failed voice QC stopped every later
+    bucket from rendering and was retried (and logged) on every tick."""
+    import asyncio
+
+    class PickyVoice(FakeVoice):
+        def __init__(self):
+            super().__init__()
+            self.tries = 0
+
+        async def render(self, copy, role, target_s, voice=None):
+            self.tries += 1
+            if self.tries == 2:           # the second bucket's text is rejected
+                raise ValueError("voice speech rate 4.48 w/s outside [1.2,4.2]")
+            return await super().render(copy, role, target_s, voice)
+
+    _, store, _ = tmp_env
+    cfg.playout.breaks.enabled = False
+    voice = PickyVoice()
+    prod = make_producer(cfg, store, voice)
+    asyncio.run(prod.ensure_time_checks())
+    assert len(store.list_items("time_check")) == 11   # the rest of the hour rendered
+    assert voice.tries == 12
+    asyncio.run(prod.ensure_time_checks())
+    assert voice.tries == 12                            # the bad bucket is not retried
+
+
+def test_a_backend_error_still_stops_the_pass_and_is_retried(cfg, tmp_env):
+    import asyncio
+
+    import httpx
+
+    class DownVoice(FakeVoice):
+        down = True
+
+        async def render(self, copy, role, target_s, voice=None):
+            if self.down:
+                raise httpx.ConnectTimeout("kokoro down")
+            return await super().render(copy, role, target_s, voice)
+
+    _, store, _ = tmp_env
+    cfg.playout.breaks.enabled = False
+    voice = DownVoice()
+    prod = make_producer(cfg, store, voice)
+    asyncio.run(prod.ensure_time_checks())
+    assert store.list_items("time_check") == []
+    voice.down = False
+    asyncio.run(prod.ensure_time_checks())
+    assert len(store.list_items("time_check")) == 12
 
 
 def test_host_shifts_by_day_part(cfg, tmp_env):

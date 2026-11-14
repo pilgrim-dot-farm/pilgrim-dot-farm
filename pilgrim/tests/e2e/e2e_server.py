@@ -34,7 +34,7 @@ from pilgrim.chat.review import Reviewer
 from pilgrim.chat.routes import register_chat_routes
 from pilgrim.config import RNG, Clock, Config, ensure_dirs, load_config
 from pilgrim.scheduler import Scheduler
-from pilgrim.selector import RandomSelector
+from pilgrim.selector import make_selector
 from pilgrim.server import _load_prompts, cat_manifest
 from pilgrim.store import Store
 from pilgrim.tests.fakes import FakeLLM
@@ -142,7 +142,7 @@ def build_app() -> FastAPI:
     _seed_requests(cfg, store)
     clock = Clock()
     rng = RNG(1)
-    sched = Scheduler(cfg, store, RandomSelector(rng, cfg), clock, rng)
+    sched = Scheduler(cfg, store, make_selector(rng, cfg), clock, rng)
     sched.commit_lookahead()
 
     @asynccontextmanager

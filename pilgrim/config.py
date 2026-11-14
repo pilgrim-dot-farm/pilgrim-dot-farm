@@ -181,6 +181,31 @@ class SongRotation(BaseModel):
     starvation_margin_s: int = 600
 
 
+class Breaks(BaseModel):
+    """The break between two songs as a fixed shape the clock fills in (RADIO
+    §5.2 "Break structure"): one lead (news on the quarter hour, a field
+    report after the top and bottom of the hour, otherwise DJ talk or a
+    commercial alternating with a plain liner), then a promo, then the next
+    song with its intro. Off = the weighted draw."""
+    enabled: bool = False
+    news_marks_min: list[int] = Field(default_factory=lambda: [0, 15, 30, 45])
+    news_lead_s: int = 60        # a break this early before a mark may carry the news
+    news_lag_s: int = 240        # ...or this late after it
+    field_marks_min: list[int] = Field(default_factory=lambda: [0, 30])
+    field_window_s: int = 480    # first non-news break this soon after a field mark
+    promo_repeat_breaks: int = 6  # the same promo is not repeated within this many promos
+
+    @model_validator(mode="after")
+    def _validate(self) -> Breaks:
+        for m in [*self.news_marks_min, *self.field_marks_min]:
+            if not 0 <= m < 60:
+                raise ValueError("playout.breaks marks are minutes of the hour (0-59)")
+        if min(self.news_lead_s, self.news_lag_s, self.field_window_s) < 0 \
+                or self.promo_repeat_breaks < 0:
+            raise ValueError("playout.breaks windows must not be negative")
+        return self
+
+
 class Playout(BaseModel):
     # 300 s (5 min) of committed audio ahead: enough to absorb production
     # latency without queueing a listener request behind ten minutes of stock.
@@ -204,6 +229,7 @@ class Playout(BaseModel):
     song_min_spacing_s: list[int] = Field(default_factory=lambda: [14400, 7200, 3600])
     genre_no_repeat: int = 3
     song_rotation: SongRotation = Field(default_factory=SongRotation)
+    breaks: Breaks = Field(default_factory=Breaks)
 
 
 class Inventory(BaseModel):
@@ -216,6 +242,19 @@ class Inventory(BaseModel):
     field_reports_min: int = 1  # unaired field reports kept ready (docs/systems/sfx.md §4.2)
     station_ids_min: int = 3  # emergency station IDs: words between songs from cold start
     promos_min: int = 4  # ready promo clips (campaign or request-line)
+    commercial_target_s: float = 25.0  # length asked of a new commercial
+    # Turnover (RADIO §6.1): evergreen spots and liners are replaced a few a
+    # day so the pool keeps changing. When a type is at its target and nothing
+    # of it was made for 86400 / per_day seconds, its most-played item (at
+    # least `turnover_min_plays` airings) is retired and the producer makes a
+    # new one. 0 = never retire.
+    commercials_turnover_per_day: float = 0.0
+    liners_turnover_per_day: float = 0.0
+    turnover_min_plays: int = 10
+    # Retained song intros (RADIO §5.2 "Break structure"): songs with no
+    # reusable intro get a code-written one, this many per producer pass, only
+    # while no listener request is being produced. 0 = off.
+    intro_backfill_per_pass: int = 0
 
 
 class CampaignStep(BaseModel):
@@ -698,6 +737,10 @@ class Audio(BaseModel):
     mp3_mono_source_kbps: int = 96  # mono sources (speech, most SFX), still sent as stereo
     silence_db: int = -50
     max_words_per_s: float = 3.6  # speech-rate QC ceiling (truncation smell)
+    # Clock reads are code-written runs of one-syllable words ("about
+    # twenty-five to six in the evening"): Kokoro reads them at 4.2-4.5 w/s
+    # untruncated, so they get their own ceiling (RADIO §6.3).
+    time_check_max_words_per_s: float = 5.5
     min_words_per_s: float = 1.2  # speech-rate QC floor
 
 

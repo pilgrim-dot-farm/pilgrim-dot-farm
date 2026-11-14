@@ -58,6 +58,12 @@ class PlayoutState:
         self.promo_steady_due: bool = False
         # the next slot sits inside a clock mark's window and no check aired yet
         self.time_check_due: bool = False
+        # break structure (playout.breaks): the next slot sits in a news mark's
+        # window and no bulletin has aired for it / same for the field report
+        self.news_due: bool = False
+        self.field_due: bool = False
+        # gravity of a bulletin already committed in the CURRENT break, if any
+        self.break_news_gravity: str | None = None
 
 
 class Selector(Protocol):
@@ -209,3 +215,102 @@ class RandomSelector:
                 break
             n += 1
         return n
+
+
+# Lead types of a break, as the item types the committed program records.
+_FEATURE_ITEMS = ("dj_talk", "commercial")
+_LIGHT_LEADS = (None, "liner", "station_id", "promo")
+
+
+class BreakSelector:
+    """The break between two songs as a fixed shape (RADIO §5.2 "Break
+    structure", `playout.breaks`): **lead, promo, song**. The lead is the news
+    on the quarter hour, a field report after the top and bottom of the hour,
+    and otherwise a feature (DJ talk and a commercial, taking turns) in every
+    other break and a liner in the breaks between. A promo closes every
+    break; the song's own intro is glued on by the scheduler.
+
+    Pure function of (state, rng). With no song airable it hands over to the
+    weighted draw, whose drought rules stay as they were."""
+
+    break_mode = True
+
+    def __init__(self, rng: RNG, cfg: Config) -> None:
+        self.rng = rng
+        self.cfg = cfg
+        self.fallback = RandomSelector(rng, cfg)
+
+    def choose_next(self, state: PlayoutState) -> str:
+        if not state.available.get("song"):
+            return self.fallback.choose_next(state)   # song drought: bridge as before
+        brk = self._current_break(state.recent_types)
+        if not brk:
+            lead = self._lead(state)
+            if lead is not None:
+                return lead
+        # a promo is comic: never straight after a serious bulletin (§5.2)
+        serious = state.break_news_gravity == "serious"
+        if ("promo" not in brk and state.available.get("promo") and not serious
+                and len(brk) < self.cfg.playout.max_consecutive_non_song):
+            return "promo"
+        if not brk:
+            # nothing to say at all: the weighted draw's own fallbacks decide
+            return self.fallback.choose_next(state)
+        return "song"
+
+    def _lead(self, state: PlayoutState) -> str | None:
+        ok = state.available
+        if state.news_due and ok.get("news"):
+            return "news"
+        if state.field_due and ok.get("field_report"):
+            return "field_report"
+        if self._previous_lead(state.recent_types) in _LIGHT_LEADS:
+            # a feature break: DJ talk and commercials take turns
+            last = next((t for t in reversed(state.recent_types)
+                         if t in _FEATURE_ITEMS), None)
+            if last is None:
+                order = ["dj_talk", "commercial_break"]
+                self.rng.shuffle(order)
+            elif last == "dj_talk":
+                order = ["commercial_break", "dj_talk"]
+            else:
+                order = ["dj_talk", "commercial_break"]
+            for f in order:
+                if ok.get(f):
+                    return f
+        if ok.get("liner"):
+            return "liner"
+        for f in ("dj_talk", "commercial_break"):
+            if ok.get(f):
+                return f
+        return None
+
+    @staticmethod
+    def _current_break(recent_types: list[str]) -> list[str]:
+        """Item types committed since the last song (oldest first)."""
+        out: list[str] = []
+        for t in reversed(recent_types):
+            if t == "song":
+                break
+            out.append(t)
+        return out[::-1]
+
+    @staticmethod
+    def _previous_lead(recent_types: list[str]) -> str | None:
+        """The first item of the last COMPLETED break (the one before the most
+        recent song), or None when the history does not reach it."""
+        types = list(recent_types)
+        while types and types[-1] != "song":
+            types.pop()                      # drop the break in progress
+        while types and types[-1] == "song":
+            types.pop()                      # the song(s) that closed it
+        lead = None
+        while types and types[-1] != "song":
+            lead = types.pop()
+        return lead
+
+
+def make_selector(rng: RNG, cfg: Config) -> Selector:
+    """The selector the station runs: the break structure when
+    `playout.breaks.enabled`, else the weighted draw."""
+    return BreakSelector(rng, cfg) if cfg.playout.breaks.enabled else RandomSelector(rng, cfg)

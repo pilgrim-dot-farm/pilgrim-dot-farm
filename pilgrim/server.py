@@ -84,7 +84,7 @@ from pilgrim.pipelines.songs import SongPipeline, song_backend_health
 from pilgrim.pipelines.voice import KokoroClient, VoicePipeline
 from pilgrim.producer import Producer
 from pilgrim.scheduler import Scheduler
-from pilgrim.selector import RandomSelector
+from pilgrim.selector import make_selector
 from pilgrim.store import Store
 
 log = logging.getLogger("radio.server")
@@ -276,7 +276,7 @@ class Station(PublicSurface):
         self._idle_since: float | None = None
         self._last_listener_at: float = self.clock.now()
         self.idle_wakes = 0
-        self.selector = RandomSelector(self.rng, cfg)
+        self.selector = make_selector(self.rng, cfg)
         self.epoch = uuid.uuid4().hex[:12]  # changes on restart (docs/systems/console.md §5)
         self.scheduler = Scheduler(cfg, self.db, self.selector, self.clock, self.rng,
                                    epoch=self.epoch)

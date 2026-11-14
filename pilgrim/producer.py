@@ -110,6 +110,16 @@ STOCK_RENDER_KEY = (1,)
 # reserved-slot rule and songs.free_request_slots, and that extra one waits at
 # the render gate (SlotGate free_caps) until a free-work slot opens.
 BRIEFS_AHEAD = 1
+# How often the producer re-reads whole tables for housekeeping that rarely
+# has work (pool turnover, a finished intro backfill).
+SLOW_CHECK_S = 600.0
+
+
+def _created_epoch(item: dict) -> float:
+    try:
+        return datetime.fromisoformat(str(item.get("created_at"))).timestamp()
+    except ValueError:
+        return 0.0
 
 
 def _bench_opts(req: dict) -> dict[str, Any] | None:
@@ -308,6 +318,13 @@ class Producer:
         self._render_done = asyncio.Event()
         # request_id -> cut-off briefs so far; the first few are free retries
         self._llm_cuts: dict[int, int] = {}
+        # clock buckets whose render QC rejected: not retried (ensure_time_checks)
+        self._time_check_rejected: set[int] = set()
+        # songs whose code-written intro failed to render (ensure_song_intros)
+        self._intro_rejected: set[int] = set()
+        # station-clock times before which the slow housekeeping checks rest
+        self._intro_check_after = 0.0
+        self._turnover_check_after = 0.0
         # injectable wait for song_loop: tests drive it without wall time
         self._sleep = asyncio.sleep
         # request_id -> "waiting" (its turn at the brief LLM) | "writing"
@@ -427,7 +444,8 @@ class Producer:
         role = "commercial"
         for _ in range(min(need, 3)):  # a few per cycle: callouts come first
             try:
-                item = await self.voice.produce_item(role, 25.0)
+                item = await self.voice.produce_item(
+                    role, float(self.cfg.inventory.commercial_target_s))
                 self._store_voice(item, role)
                 log.info("produced commercial %.1fs", item["duration_s"])
             except Exception as e:
@@ -794,6 +812,95 @@ class Producer:
         log.info("produced tree_fiddy report (%d paid aired in 7d)", n)
         return item
 
+    # -------------------------------------------------------------- turnover
+    def ensure_turnover(self) -> None:
+        """Keep the evergreen pools changing (RADIO §6.1). For commercials and
+        liners: when the pool is at its target and none was made for
+        86400 / per_day seconds, retire the most-played item, so the next pass
+        of ensure_commercials / ensure_liners writes a new one. Paced by the
+        newest item's age, so it needs no state and survives restarts. Retired
+        items keep their file (hard rule 5); they just stop airing."""
+        inv = self.cfg.inventory
+        if self.clock.now() < self._turnover_check_after:
+            return
+        self._turnover_check_after = self.clock.now() + SLOW_CHECK_S
+        now = self.clock.wall()
+        plans = (("commercial", inv.commercials_turnover_per_day, inv.commercials_min),
+                 ("liner", inv.liners_turnover_per_day,
+                  inv.liners_per_bucket * len(inv.liner_buckets_s)))
+        for type_, per_day, target in plans:
+            if per_day <= 0:
+                continue
+            pool = [i for i in self.store.list_items(type_)
+                    if not i["retired"] and not i["emergency"]]
+            if len(pool) < target or not pool:
+                continue  # below target: production is already owed
+            newest = max(_created_epoch(i) for i in pool)
+            if now - newest < 86400.0 / per_day:
+                continue
+            worn = [i for i in pool
+                    if int(i.get("play_count") or 0) >= inv.turnover_min_plays]
+            if not worn:
+                continue
+            it = max(worn, key=lambda i: (int(i.get("play_count") or 0), -int(i["id"])))
+            self.store.retire_item(it["id"], "turnover: most played")
+            log.info("turnover.retired", extra={
+                "item_type": type_, "item_id": it["id"],
+                "plays": int(it.get("play_count") or 0)})
+
+    # ----------------------------------------------------- retained intros
+    def _requests_in_flight(self) -> bool:
+        """A listener request is being produced or is waiting: the backends
+        are busy with work somebody asked for."""
+        if any(j.kind == "request" for j in self._jobs.values()):
+            return True
+        return bool(self.store.queued_requests(
+            bury_threshold=self.cfg.voting.bury_threshold))
+
+    async def ensure_song_intros(self) -> None:
+        """Give songs that have no reusable intro a code-written one ("Here's
+        {title} from {artist}"), kept and replayed with the song (RADIO §5.2
+        "Break structure"). Kokoro only: no LLM, no song model. A few per
+        pass, and none while a listener request is in flight, so this never
+        competes with the queue; a song without one simply airs without it."""
+        per_pass = self.cfg.inventory.intro_backfill_per_pass
+        if per_pass <= 0 or self.clock.now() < self._intro_check_after \
+                or self._requests_in_flight():
+            return
+        have: set[int] = set()
+        for it in self.store.list_items("intro"):
+            if it["retired"] or it["emergency"]:
+                continue
+            try:
+                meta = json.loads(it["meta_json"]) if it.get("meta_json") else {}
+            except ValueError:
+                continue
+            if meta.get("request_id") is None and meta.get("song_item_id") is not None:
+                have.add(int(meta["song_item_id"]))
+        made = 0
+        for song in self.store.list_items("song"):
+            if made >= per_pass:
+                break
+            if song["retired"] or song["emergency"] or song["id"] in have \
+                    or song["id"] in self._intro_rejected or not song.get("title"):
+                continue
+            intro = await self._render_intro(song, None)
+            if intro is None:
+                # the same title would fail the same way: do not retry it
+                # every pass (see ensure_time_checks)
+                self._intro_rejected.add(int(song["id"]))
+                continue
+            self._store_intro(intro, int(song["id"]), None)
+            made += 1
+            log.info("intro.backfilled", extra={
+                "song_item_id": song["id"], "title": song.get("title")})
+            if self._requests_in_flight():
+                break  # a request arrived: get out of its way
+        if made == 0:
+            # every song has one (or cannot have one): reading the whole song
+            # and intro tables every pass would be waste; look again later
+            self._intro_check_after = self.clock.now() + SLOW_CHECK_S
+
     # ----------------------------------------------------------- time checks
     def _time_check_text(self, bucket: float, tz: str) -> str:
         variants = self.cfg.talk.time_check_variants or ["It is {clock}."]
@@ -809,6 +916,8 @@ class Producer:
         the 5-minute rounding off. Kokoro is ~0.2 s: a dozen variants an hour
         is nearly free, and each expires at the end of its bucket."""
         cfg = self.cfg
+        if cfg.playout.breaks.enabled or not cfg.talk.time_check_marks_min:
+            return  # the break structure airs no clock reads (RADIO §5.2)
         tz = cfg.station.timezone
         now = self.clock.wall()
         buckets = [int((now + k * 300) // 300 * 300) for k in range(12)]
@@ -827,8 +936,9 @@ class Producer:
                     pass
             meta = json.loads(it["meta_json"]) if it.get("meta_json") else {}
             existing.add(meta.get("bucket"))
+        self._time_check_rejected &= set(buckets)   # forget buckets that passed
         for bucket in buckets:
-            if bucket in existing:
+            if bucket in existing or bucket in self._time_check_rejected:
                 continue
             copy = {"text": self._time_check_text(float(bucket), tz),
                     "est_duration_s": 4.0, "evergreen": False}
@@ -836,7 +946,16 @@ class Producer:
                 host = self._current_host()
                 rendered = await self.voice.render(
                     copy, "time_check", 4.0, voice=host.voice if host else None)
+            except ValueError as e:
+                # QC rejected this exact text: the same words would fail the
+                # same way on every tick, so skip the bucket and render the
+                # others (2026-11-14: one bad bucket blocked the whole hour and
+                # logged a warning every 8 s)
+                self._time_check_rejected.add(bucket)
+                log.warning("time_check.production_failed: %s", err_text(e))
+                continue
             except Exception as e:
+                # backend trouble: try again next tick
                 log.warning("time_check.production_failed: %s", err_text(e))
                 return
             item = self.voice.item_dict("time_check", copy, rendered)
@@ -1038,6 +1157,8 @@ class Producer:
                 await self.ensure_promos()
                 await self.ensure_commercials()
                 await self.ensure_field_reports()
+                self.ensure_turnover()
+                await self.ensure_song_intros()
             except Exception as e:
                 log.warning("producer.voice_cycle_failed: %s", e)
             await self._sleep(6.0)
