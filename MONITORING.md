@@ -1715,17 +1715,20 @@ Then stop and write the AGENTS §8 report. **Do not deploy.**
 - **Web image: done.** `make image-smoke` PASS; the web image was built
   (`pilgrim:web`, digest `sha256:1dba6575…`) and pushed as
   `pilgrimdotfarm/front-end:5530a17` and `:latest`.
-- **Terraform: prepared, NOT applied.** The four edits below are in the
-  working tree of `~/projects/terraform-aws-pilgrim/modules/ec2` (unstaged,
-  on top of the operator's staged release-26 changes); `terraform fmt -check`
-  and `terraform validate` pass. **Blocked:** the operator's `aws login`
-  default session is `arn:aws:iam::821856822529:root` — the *pre-move*
-  account. `pg-ecs` does not exist there, and root may not assume a role into
-  `477688903218` (`AccessDenied: Roles may not be assumed by root accounts`).
-  Log in as an identity in account `477688903218`, then `terraform plan` /
-  `apply`.
-- **Not done:** the NAS Prometheus jobs (§5.4) and the Station dashboard
-  (§5.6).
+- **Terraform: applied.** Release 27, task definition `pg-app:23`
+  (1/1 ACTIVE): ports 8080 + 9102, `service_tags.prometheus_scrape=true`,
+  the `pg-ec2` SG 9102 self-ingress rule, and `kenny-logger`'s
+  `ecs-discovery-read` are all live. Container log:
+  `metrics.ready host=0.0.0.0 port=9102`; `https://pilgrim.farm/metrics` → 404.
+- **NAS Prometheus: partly done.** `prom_serv` (Prometheus 3.11.3, Docker on
+  `lilnas`) now has both jobs. **`pg-origin` is UP** (`up{job="pg-origin"}=1`,
+  `pilgrim_on_air=1` scraped from `192.168.68.90:9101`). **`pg-web` is
+  configured but has no targets**: the NAS's `~/.aws/credentials` has only an
+  old-account `[default]`; there is no `[kenny-logger]` profile. Add one (the
+  active key created 2026-11-07) and `docker restart prom_serv` — lifecycle
+  reload is disabled (403). `~/.aws` is mounted read-only at `/root/.aws`;
+  backups: `prometheus.yml.bak-20261114`, `docker-compose.yml.bak-20261114`.
+- **Not done:** the Station dashboard (§5.6).
 
 ### 5.1 Terraform, `~/projects/terraform-aws-pilgrim/modules/ec2`
 
@@ -1882,10 +1885,21 @@ profile (or in its environment). Then:
         target_label: task
 ```
 
-`role: ecs` is a recent addition to Prometheus; check `prometheus --version`
-against the changelog first (§8 Q4). If the NAS's build predates it, upgrade,
-or fall back to a `file_sd_configs` file refreshed by a cron script that calls
-`ecs:ListTasks`/`DescribeTasks`.
+On `lilnas`, Prometheus is the Docker container `prom_serv`
+(`ubuntu/prometheus:3.11-26.04_stable`, Prometheus **3.11.3** — `role: ecs` is
+supported; §8 Q4 closed). Config:
+`/home/justin/compose_stack/prometheus/prometheus.yml`; compose:
+`/home/justin/compose_stack/docker-compose.yml`; `~/.aws` is mounted read-only
+at `/root/.aws`. Lifecycle reload is **disabled** (`POST /-/reload` → 403), so
+a config change needs `docker restart prom_serv` (or
+`docker compose -p compose_stack up -d prom_serv` after a compose edit).
+Backups from 2026-11-14: `prometheus.yml.bak-20261114`,
+`docker-compose.yml.bak-20261114`.
+
+Credentials: `pg-origin` needs none. `pg-web` needs a `[kenny-logger]` profile
+in `~/.aws/credentials` — the NAS's `[default]` is an old-account key, so the
+job currently has no targets. Add the profile (the active key created
+2026-11-07), `docker restart prom_serv`, then `up{job="pg-web"}` should be 1.
 
 Done when `up{job="pg-origin"} == 1` and `up{job="pg-web"} == 1`.
 
