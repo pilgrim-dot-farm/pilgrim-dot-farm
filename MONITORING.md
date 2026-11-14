@@ -1703,6 +1703,22 @@ Then stop and write the AGENTS §8 report. **Do not deploy.**
 
 ### 5.1 Terraform, `~/projects/terraform-aws-pilgrim/modules/ec2`
 
+**Verified read-only 2026-11-14 — the ECS side is NOT done yet.** Current tree:
+
+| File | Now | Needs |
+|------|-----|-------|
+| `variables.tf` | `ecs_release = "26"`, `ecs_container_image = "pilgrimdotfarm/front-end:latest"`, `ecs_container_port = 8080`; no `ecs_metrics_port` | add `ecs_metrics_port` (below); bump `ecs_release` 26 → 27 |
+| `ecs.tf` | `portMappings` = `http`/8080 only; `load_balancer` on 8080; no `service_tags` | add the `metrics` mapping and `service_tags` |
+| `security_groups.tf` | no 9102 rule (the pattern to copy is `litellm_relay`: pg → pg, tcp 4000) | add the `metrics` ingress rule |
+| `iam.tf` | `kenny-logger` has `logs:*` and `cloudwatch:*` only | add ECS discovery read |
+| `env.tf` | no `PILGRIM_CONFIG_OVERLAY` | nothing — the Dockerfile `ENV` supplies it, so the container overlay (port 9102) applies with the new image |
+
+State: task definition `pg-app:22`, `dockerLabels.release = 26`.
+
+So **yes, ECS needs updating**: three terraform edits, one IAM policy, a new
+image, and a release bump. The ALB target group does **not** change — do not
+register 9102 with it.
+
 `variables.tf`:
 
 ```hcl
@@ -1742,15 +1758,9 @@ and the container's `portMappings` (leave `load_balancer` alone):
           ]
 ```
 
-`iam.tf`: **operator, 2026-11-13: this should already exist** — `kenny-logger`
-already has ECS discovery read. Verify before applying anything:
-
-```sh
-aws iam list-user-policies --user-name kenny-logger
-aws iam get-user-policy --user-name kenny-logger --policy-name ecs-discovery-read
-```
-
-If it is present, skip the snippet below. If it is missing, add it:
+`iam.tf`: **verified 2026-11-14: it is not there.** `kenny-logger`
+(`aws_iam_user.logs`) has only `logs:*` (`logs_read_write`) and `cloudwatch:*`.
+Add this policy:
 
 ```hcl
 data "aws_iam_policy_document" "ecs_discovery" {
@@ -1778,14 +1788,15 @@ is the `clusters` list in §5.4 (one cluster, `us-west-2`). A static key in the
 NAS Prometheus user's `~/.aws/credentials` is accepted (operator,
 2026-11-13).
 
-`terraform plan` should show: one ingress rule, the service tag, and a new task
-definition revision (rolling deploy); plus the user policy only if §5.1's
-verify step found it missing.
+`terraform plan` should show: one ingress rule, one user policy, the service
+tag, and a new task definition revision (rolling deploy).
 
 ### 5.2 Ship the code
 
-1. Web tier: `make image`, push `pilgrimdotfarm/front-end`, bump `ecs_release`,
-   `terraform apply`.
+1. Web tier: `make image`, push `pilgrimdotfarm/front-end:<sha>` and
+   `:latest` (the task's `ecs_container_image` uses the `:latest` tag), bump
+   `ecs_release` 26 → 27 in `variables.tf`, `terraform apply`. The rollout
+   briefly runs two tasks: `sum by (job)` the `pilgrim_web_*` series.
 2. Origin: restart the station on the Mac (`farm.pilgrim.station`). Look for
    `metrics.ready host=0.0.0.0 port=9101` in the station log.
 
@@ -1948,7 +1959,7 @@ In addition to AGENTS §1:
 | 6 | Dead air | **Added** `pilgrim_starved`, `pilgrim_last_starve_timestamp_seconds`, `pilgrim_starve_gap_seconds` |
 | 7 | Origin-only histograms on the web tier | **`LogMetrics(station_histograms=False)`** for the web tier |
 | 8 | `live()` mutating listener state | **`Station.listener_count()`** (read-only twin of `active_listeners()`); §6 rule 7 |
-| 9 | IAM scope for ECS discovery | **Verify first** — operator says it already exists; snippet is a fallback only (§5.1) |
+| 9 | IAM scope for ECS discovery | **Verified 2026-11-14: not present** — `kenny-logger` has only `logs:*`/`cloudwatch:*`; add the policy (§5.1) |
 | 10 | Chat worker invisible | **Covered cheaply**: the web tier reads the worker's existing `worker:heartbeat` key → `pilgrim_web_chat_worker_up` (§2.3) |
 
 ---
