@@ -309,7 +309,7 @@ def build_web_station(cfg: Config) -> WebStation:
     hot = HotState(cfg, cache_connect(url, cfg), epoch="web")
     api_key = load_api_key()
     if not api_key:
-        log.warning("LITELLM_TOKEN not set; request moderation and paid summaries will fail")
+        log.warning("llm.token_missing: request moderation and paid summaries will fail")
     station = WebStation(cfg, store, hot, api_key)
     if cfg.chat.enabled:
         try:

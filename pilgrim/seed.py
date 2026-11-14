@@ -114,7 +114,7 @@ async def seed(cfg: Config, api_key: str) -> int:
                 evergreen=True, fresh=True, meta=item.get("meta"))
             made += 1
         except Exception as e:
-            log.warning("seed song failed: %s", err_text(e))
+            log.warning("seed.song_failed: %s", err_text(e))
             break
     await llm.close()
     await kokoro.close()

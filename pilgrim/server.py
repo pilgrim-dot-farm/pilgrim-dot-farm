@@ -570,7 +570,7 @@ class Station(PublicSurface):
             try:
                 self._idle_check()
             except Exception as e:  # noqa: BLE001 - idle must never break radio
-                log.warning("idle check failed: %s", e)
+                log.warning("idle.check_failed: %s", e)
             await asyncio.sleep(self.cfg.idle.check_s)
 
     def hot_tick(self) -> dict | None:

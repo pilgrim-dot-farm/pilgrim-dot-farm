@@ -367,7 +367,7 @@ class Producer:
                 made += 1
                 usable += 1
             except Exception as e:
-                log.warning("liner production failed (%.0fs bucket): %s",
+                log.warning("liner.production_failed: %.0fs bucket: %s",
                             bucket, err_text(e))
                 continue
 
@@ -380,7 +380,7 @@ class Producer:
             try:
                 item = await self.voice.produce_item("liner", 4.0, context=STATION_ID_BRIEF)
             except Exception as e:
-                log.warning("station id production failed: %s", err_text(e))
+                log.warning("station_id.production_failed: %s", err_text(e))
                 return
             meta = {"text": (item.get("meta") or {}).get("text")}
             self.store.add_item(
@@ -405,7 +405,7 @@ class Producer:
                 self._store_voice(item, role)
                 log.info("produced commercial %.1fs", item["duration_s"])
             except Exception as e:
-                log.warning("commercial production failed: %s", err_text(e))
+                log.warning("commercial.production_failed: %s", err_text(e))
                 return
 
     async def ensure_dj(self) -> None:
@@ -484,7 +484,7 @@ class Producer:
                                   expires_at=expires)
                 log.info("produced dj_talk %.1fs", item["duration_s"])
             except Exception as e:
-                log.warning("dj talk production failed: %s", err_text(e))
+                log.warning("dj_talk.production_failed: %s", err_text(e))
                 return
 
     def _day_part(self, hour: int) -> str:
@@ -578,7 +578,7 @@ class Producer:
                 self._store_voice(item, "field_report", evergreen=False)
                 log.info("produced field_report %.1fs", item["duration_s"])
             except Exception as e:
-                log.warning("field report production failed: %s", err_text(e))
+                log.warning("field_report.production_failed: %s", err_text(e))
                 return
 
     # --------------------------------------------------------------- promos
@@ -659,7 +659,7 @@ class Producer:
                     if await maker() is None:
                         break
                 except Exception as e:
-                    log.warning("promo production failed (%s): %s", name, err_text(e))
+                    log.warning("promo.production_failed: %s: %s", name, err_text(e))
                     break
 
     async def _make_campaign_promo(self, camp) -> dict | None:
@@ -811,7 +811,7 @@ class Producer:
                 rendered = await self.voice.render(
                     copy, "time_check", 4.0, voice=host.voice if host else None)
             except Exception as e:
-                log.warning("time_check production failed: %s", err_text(e))
+                log.warning("time_check.production_failed: %s", err_text(e))
                 return
             item = self.voice.item_dict("time_check", copy, rendered)
             item["meta"]["bucket"] = bucket
@@ -961,7 +961,7 @@ class Producer:
             self._news_ok = bulletin
             log.info("produced news bulletin (gravity=%s)", bulletin["gravity"])
         except Exception as e:
-            log.warning("news production failed: %s", err_text(e))
+            log.warning("news.production_failed: %s", err_text(e))
 
     def _not_expired(self, item: dict) -> bool:
         exp = item.get("expires_at")
@@ -1013,7 +1013,7 @@ class Producer:
                 await self.ensure_commercials()
                 await self.ensure_field_reports()
             except Exception as e:
-                log.warning("producer voice cycle error: %s", e)
+                log.warning("producer.voice_cycle_failed: %s", e)
             await self._sleep(6.0)
 
     async def sfx_loop(self) -> None:
@@ -1027,7 +1027,7 @@ class Producer:
             try:
                 did = await self.sfx_step()
             except Exception as e:
-                log.warning("sfx loop error: %s", err_text(e))
+                log.warning("sfx.loop_failed: %s", err_text(e))
                 did = False
             await self._sleep(1.0 if did else 5.0)
 
@@ -1061,7 +1061,7 @@ class Producer:
             try:
                 await self.ensure_news()
             except Exception as e:
-                log.warning("news loop error: %s", e)
+                log.warning("news.loop_failed: %s", e)
             await self._sleep(5.0)
 
     async def song_loop(self) -> None:
@@ -1141,10 +1141,10 @@ class Producer:
             outcome = "ok"
         elif isinstance(exc, (httpx.TransportError, LLMTruncated)):
             outcome = "outage"
-            log.warning("song backend unavailable: %s", err_text(exc))
+            log.warning("song.backend_unavailable: %s", err_text(exc))
         else:
             outcome = "failed"
-            log.warning("song production failed: %s", err_text(exc))
+            log.warning("song.production_failed: %s", err_text(exc))
         log.info("song.job.reaped", extra={
             "kind": job.kind, "request_id": rid, "outcome": outcome,
             "jobs": len(self._jobs)})

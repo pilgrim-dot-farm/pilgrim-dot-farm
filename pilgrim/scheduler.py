@@ -707,7 +707,7 @@ class Scheduler:
             if type_ == "station_id":
                 return self._pick_liner(st)
         except Exception as e:  # inventory race or constraint: skip
-            log.warning("materialize %s failed: %s", type_, e)
+            log.warning("scheduler.materialize_failed: %s: %s", type_, e)
         return []
 
     # -------------------------------------------------------------- pickers
@@ -1401,7 +1401,7 @@ class Scheduler:
                 self.commit_lookahead()
                 self._drain_phrases()
             except Exception as e:
-                log.exception("scheduler cycle failed: %s", e)
+                log.exception("scheduler.cycle_failed: %s", e)
             await asyncio.sleep(self.REFILL_INTERVAL_S)
 
 
