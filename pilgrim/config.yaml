@@ -264,6 +264,15 @@ voting:
   max_voters_per_ip: 3       # distinct voter ids per IP per request
   bury_threshold: -3         # free queued request at/below this score is skipped
 
+# Queue benchmark on the live station (docs/systems/queue-bench.md). Bench
+# requests use the real queue, brief LLM and render pool; the audio is thrown
+# away (no library item, no upload, never aired, never on the public board).
+# Added only through the admin listener: POST /api/admin/bench.
+bench:
+  enabled: true
+  short_duration_s: 30   # `short: true` renders; the default is full length (songs.max_duration_s)
+  max_batch: 60          # bench requests one POST may add
+
 # Five-turkey song ratings (docs/plans/voting.md). One rating per (epoch, seq, voter) — an
 # airing, not the item — open only while that song is audible (+ grace_s).
 ratings:

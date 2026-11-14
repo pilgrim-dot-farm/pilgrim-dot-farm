@@ -50,6 +50,12 @@ QUEUE_ORDER = queue_order()
 QUEUE_ORDER_R = queue_order("r")
 
 
+# Benchmark rows (docs/systems/queue-bench.md) are left out of everything a
+# listener can see or that counts: the board, the hit counter, the free cap
+# and the scheduler's hold. The producer's own queue queries keep them in.
+NOT_BENCH = "COALESCE(bench, 0)=0"
+
+
 def _part_values(parts: RequestParts | None) -> tuple[str | None, ...]:
     """The three paid-request columns: NULL for a legacy row, `""` for a box
     the listener left empty (docs/shipped/prompt-upgrade.md Step 2)."""
@@ -484,7 +490,13 @@ class Store:
                              # request, kept alongside the composed `text`
                              ("lyrics_text", "TEXT"),
                              ("music_text", "TEXT"),
-                             ("art_text", "TEXT")):
+                             ("art_text", "TEXT"),
+                             # docs/systems/queue-bench.md: a benchmark row. It
+                             # uses the real queue but never airs, is never on
+                             # the board and never counts; `bench_opts` is JSON
+                             # (run, duration_s, replay_of, result)
+                             ("bench", "INTEGER DEFAULT 0"),
+                             ("bench_opts", "TEXT")):
                 if col not in req_cols:
                     self._conn.execute(f"ALTER TABLE requests ADD COLUMN {col} {ddl}")
             self._conn.execute(
@@ -1027,9 +1039,9 @@ class Store:
         with self._lock:
             paid = self._conn.execute(
                 "SELECT COUNT(*) FROM requests WHERE priority=1 "
-                "AND paid_at IS NOT NULL").fetchone()[0]
+                f"AND paid_at IS NOT NULL AND {NOT_BENCH}").fetchone()[0]
             total = self._conn.execute(
-                "SELECT COUNT(*) FROM requests").fetchone()[0]
+                f"SELECT COUNT(*) FROM requests WHERE {NOT_BENCH}").fetchone()[0]
         return int(paid), int(total)
 
     # -------------------------------------------------------------- requests
@@ -1197,7 +1209,7 @@ class Store:
         is uncommitted so it can air as soon as its song + intro are ready.
         Buried free rows are excluded (docs/plans/voting.md V7): nothing is produced for
         them, so the window must not be held for one either."""
-        where = "status IN ('queued','producing','ready')"
+        where = f"status IN ('queued','producing','ready') AND {NOT_BENCH}"
         params: tuple[Any, ...] = ()
         if bury_threshold is not None:
             where += (" AND NOT (priority = 0 AND status = 'queued' AND "
@@ -1260,6 +1272,7 @@ class Store:
                 "SELECT r.*, i.title AS song_title FROM requests r "
                 "LEFT JOIN items i ON i.id = r.song_item_id "
                 "WHERE r.status IN ('queued','producing','ready') "
+                "AND COALESCE(r.bench, 0)=0 "
                 f"{QUEUE_ORDER_R} LIMIT ?", (cap,)).fetchall()]
             scores = {int(r[0]): int(r[1]) for r in self._conn.execute(
                 "SELECT request_id, COALESCE(SUM(value), 0) FROM request_votes "
@@ -1474,7 +1487,7 @@ class Store:
         with self._lock:
             r = self._conn.execute(
                 "SELECT COUNT(*) FROM requests WHERE COALESCE(priority, 0)=0 "
-                "AND status IN ('queued','producing','ready')").fetchone()
+                f"AND status IN ('queued','producing','ready') AND {NOT_BENCH}").fetchone()
         return int(r[0])
 
     def paid_rows_needing_summary(self) -> list[dict[str, Any]]:
@@ -1683,6 +1696,100 @@ class Store:
             rows = self._conn.execute(
                 "SELECT * FROM requests ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
+
+    # ------------------------------------------ queue benchmark (queue-bench.md)
+    def add_bench_request(self, text: str, *, paid: bool, opts: dict[str, Any],
+                          parts: RequestParts | None = None) -> dict[str, Any]:
+        """Insert a benchmark request straight into the queue (RADIO §6.1).
+        A paid one is shaped like an operator comp (priority 1, `paid_at` now,
+        amount 0, no Stripe ids), so it sorts exactly like a real paid row."""
+        now = _now_iso()
+        lyrics, music, art = _part_values(parts)
+        with self._lock:
+            cur = self._conn.execute(
+                "INSERT INTO requests (text, status, created_at, updated_at, priority, "
+                "paid_at, amount_cents, livemode, comped, lyrics_text, music_text, "
+                "art_text, bench, bench_opts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+                "RETURNING id",
+                (text, "queued", now, now, 1 if paid else 0, now if paid else None,
+                 0 if paid else None, 0 if paid else None, 1 if paid else 0,
+                 lyrics, music, art, 1, json.dumps(opts)))
+            rid = int(cur.fetchone()[0])
+            self._conn.commit()
+        row = self.get_request(rid)
+        assert row is not None
+        return row
+
+    def finish_bench_request(self, request_id: int, result: dict[str, Any]) -> None:
+        """A benchmark request's song rendered and was thrown away: record the
+        timings in `bench_opts.result` and close the row (`bench_done`)."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT bench_opts FROM requests WHERE id=?", (request_id,)).fetchone()
+            opts = json.loads(r["bench_opts"] or "{}") if r else {}
+            opts["result"] = result
+            self._conn.execute(
+                "UPDATE requests SET status='bench_done', bench_opts=?, updated_at=? "
+                "WHERE id=? AND bench=1", (json.dumps(opts), _now_iso(), request_id))
+            self._conn.commit()
+
+    def bench_requests(self, limit: int = 2000) -> list[dict[str, Any]]:
+        """Every benchmark row, oldest first, with its vote score."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT r.*, (SELECT COALESCE(SUM(v.value), 0) FROM request_votes v "
+                "WHERE v.request_id = r.id) AS score FROM requests r "
+                "WHERE r.bench=1 ORDER BY r.id ASC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def request_song_brief(self, request_id: int) -> dict[str, Any] | None:
+        """The brief (title, artist, genre, caption, lyrics) a past request's
+        song was rendered from, or None. A bench replay renders from it again
+        instead of asking the brief LLM for new words."""
+        with self._lock:
+            r = self._conn.execute(
+                "SELECT i.meta_json FROM requests r JOIN items i ON i.id = r.song_item_id "
+                "WHERE r.id=?", (request_id,)).fetchone()
+        if r is None:
+            return None
+        brief = (json.loads(r["meta_json"] or "{}")).get("brief")
+        if not isinstance(brief, dict) or not brief.get("style_prompt"):
+            return None
+        return {k: v for k, v in brief.items() if k not in ("seed", "request_id")}
+
+    def replay_candidates(self, limit: int) -> list[dict[str, Any]]:
+        """Newest aired listener requests that have a song: what a bench run
+        can replay (text, and the words the song was made from)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT r.id, r.text, r.priority FROM requests r "
+                "JOIN items i ON i.id = r.song_item_id "
+                "WHERE r.status='aired' AND COALESCE(r.bench, 0)=0 "
+                "ORDER BY r.id DESC LIMIT ?", (int(limit),)).fetchall()
+        return [{"id": int(r["id"]), "text": str(r["text"])[:120],
+                 "paid": bool(r["priority"])} for r in rows]
+
+    def purge_bench_requests(self, *, apply: bool) -> dict[str, int]:
+        """Delete benchmark rows and their votes. Queued rows go too (that is
+        how a run is cancelled); a row the producer is working on right now is
+        kept, so purge again once it finishes. `apply=False` only counts."""
+        with self._lock:
+            total = int(self._conn.execute(
+                "SELECT COUNT(*) FROM requests WHERE bench=1").fetchone()[0])
+            active = int(self._conn.execute(
+                "SELECT COUNT(*) FROM requests WHERE bench=1 "
+                "AND status = 'producing'").fetchone()[0])
+            votes = int(self._conn.execute(
+                "SELECT COUNT(*) FROM request_votes WHERE request_id IN "
+                "(SELECT id FROM requests WHERE bench=1)").fetchone()[0])
+            if apply:
+                self._conn.execute(
+                    "DELETE FROM request_votes WHERE request_id IN "
+                    "(SELECT id FROM requests WHERE bench=1 AND status <> 'producing')")
+                self._conn.execute(
+                    "DELETE FROM requests WHERE bench=1 AND status <> 'producing'")
+                self._conn.commit()
+        return {"requests": total, "votes": votes, "producing_kept": active}
 
     # ---------------------------------------------------------- promo codes
     # Paid-request promo codes (2026-11-08): N uses per code, one redemption

@@ -1,4 +1,15 @@
-# systemd units for the model fleet — DRAFTS, NOT INSTALLED
+# Model fleet: registry, restart runbook, and the old systemd drafts
+
+**Current (2026-11-14):** models run in tmux sessions `pg-<service>`, started
+by `python -m pilgrim.tools.fleetctl` from `fleet.yaml` in this directory and
+kept up by the launchd watchdog (`pilgrim/deploy/mac/fleet.sh`).
+`RESTART.md` is the runbook the watchdog hands a pi agent when a scripted
+restart fails. See `docs/systems/model-fleet.md` §0 and §6.0.
+
+The `units/` drafts below were never installed and are **superseded**; the
+rest of this file is their original description.
+
+## systemd units — DRAFTS, NOT INSTALLED (superseded)
 
 Operator requirement (2026-11-10): every fleet service starts on boot and
 restarts on failure **via systemd**, except DeepSeek (stays manual).

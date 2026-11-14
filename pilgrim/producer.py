@@ -112,6 +112,24 @@ STOCK_RENDER_KEY = (1,)
 BRIEFS_AHEAD = 1
 
 
+def _bench_opts(req: dict) -> dict[str, Any] | None:
+    """A benchmark row's options, or None for a listener's request
+    (docs/systems/queue-bench.md)."""
+    if not req.get("bench"):
+        return None
+    try:
+        opts = json.loads(req.get("bench_opts") or "{}")
+    except ValueError:
+        opts = {}
+    return opts if isinstance(opts, dict) else {}
+
+
+@contextlib.asynccontextmanager
+async def _no_gate() -> AsyncIterator[None]:
+    """Stands in for the brief gate when no brief is written."""
+    yield
+
+
 class SlotGate:
     """`capacity()` holders at a time, granted to the waiter with the LOWEST
     key, not the earliest (RADIO §6.1: a paid request must not wait for a
@@ -1423,13 +1441,24 @@ class Producer:
         art_task = None
         attached = False
         brief_s = 0.0
+        # a benchmark row (docs/systems/queue-bench.md): same claim, same turn
+        # at the brief LLM, same render slot; then its audio is thrown away
+        bench = _bench_opts(req)
+        marks: dict[str, Any] = {"claimed": self.clock.wall()}
         try:
             backlog = len(self.store.queued_requests(
                 bury_threshold=self.cfg.voting.bury_threshold))
             # Paid requests are never shortened by the backlog rule (§0.5).
             short = backlog >= 3 and not paid
+            reused = None
+            if bench is not None and bench.get("replay_of") and bench.get("reuse_lyrics", True):
+                # a replay renders the words its original was made from: the
+                # brief LLM is not asked again (no turn at the gate either)
+                reused = self.store.request_song_brief(int(bench["replay_of"]))
             # turns go in queue order (paid first, then oldest), whoever asked first
-            async with self._brief_gate.hold(SongJob("request", req).queue_key()):
+            turn = (self._brief_gate.hold(SongJob("request", req).queue_key())
+                    if reused is None else _no_gate())
+            async with turn:
                 self.request_stage[req["id"]] = "writing"
                 # Prep Time on the board starts here: lyrics/brief writing, not
                 # submission (RADIO §11) — queue idle is not prep work. If the
@@ -1438,21 +1467,29 @@ class Producer:
                 self.store.mark_request_writing(req["id"])
                 written_at = self.clock.wall()
                 parts = from_row(req)
-                brief = await self.songs.brief(self._genre_context(),
-                                               request_text=req["text"],
-                                               short=short, paid=paid,
-                                               parts=parts)
+                marks["write_start"] = written_at
+                if reused is not None:
+                    brief = dict(reused)
+                else:
+                    brief = await self.songs.brief(self._genre_context(),
+                                                   request_text=req["text"],
+                                                   short=short, paid=paid,
+                                                   parts=parts)
+                marks["write_end"] = self.clock.wall()
                 # how long the words took: Prep Time counts it, the wait for a
                 # render slot below does not (RADIO §11)
                 brief_s = max(0.0, self.clock.wall() - written_at)
                 if job is not None:  # inside the lock: the next brief sees it
                     job.genre = brief.get("genre")
             brief["request_id"] = req["id"]
+            if bench is not None and bench.get("duration_s"):
+                brief["max_duration_s"] = float(bench["duration_s"])
             # start the cover now, in parallel with the song render: the brief
             # already has everything FLUX needs (title/artist/genre/lyrics/style)
-            art_task = self._start_early_art(
-                brief, f"req{req['id']}", request_text=req["text"], paid=paid,
-                parts=parts)
+            if bench is None:  # a benchmark song is never shown: no cover
+                art_task = self._start_early_art(
+                    brief, f"req{req['id']}", request_text=req["text"], paid=paid,
+                    parts=parts)
             # its words are written: in line for a generator slot (RADIO §11)
             self.request_stage[req["id"]] = "waiting"
             if job is not None:
@@ -1466,10 +1503,14 @@ class Producer:
                 # the wait for a slot is queue idle, not prep (RADIO §11)
                 self.store.mark_request_writing(
                     req["id"], at=self.clock.wall() - brief_s)
+                marks["render_start"] = self.clock.wall()
                 item = await self.songs.produce_song(brief, prefer="fast")
+                marks["render_end"] = self.clock.wall()
             if job is not None:
                 job.phase = "done"
                 self._render_done.set()
+            if bench is not None:
+                return self._finish_bench(req, item, marks, reused is not None)
             # the generator is done; what is left (intro, waiting behind the
             # requests ahead of it) must not read "being generated"
             self.request_stage[req["id"]] = "rendered"
@@ -1522,12 +1563,29 @@ class Producer:
             if art_task is not None and not attached:
                 art_task.cancel()
 
+    def _finish_bench(self, req: dict, item: dict, marks: dict[str, Any],
+                      reused: bool) -> bool:
+        """Close a benchmark request: delete the audio it rendered (the file
+        never became a library item, so hard rule 5 does not cover it), record
+        the timings on the row. No item, no intro, no upload, nothing airs."""
+        with contextlib.suppress(OSError):
+            Path(str(item["media_path"])).unlink()
+        meta = dict(item.get("meta") or {})
+        result = {**{k: round(float(v), 3) for k, v in marks.items()},
+                  "reused_lyrics": reused, "audio_s": item.get("duration_s"),
+                  "backend": meta.get("backend"), "generator": meta.get("generator"),
+                  "title": item.get("title"), "genre": item.get("genre")}
+        self.store.finish_bench_request(req["id"], result)
+        log.info("bench.done", extra={"request_id": req["id"], **{
+            k: result[k] for k in ("audio_s", "backend", "generator", "reused_lyrics")}})
+        return True
+
     def _fail_request_attempt(self, req: dict, paid: bool, e: BaseException) -> None:
         max_attempts = self.cfg.payments.max_attempts if paid else 3
         n = self.store.request_failed_attempt(req["id"], max_attempts=max_attempts)
         log.warning("request.failed", extra={
             "request_id": req["id"], "attempt": n, "error": err_text(e)})
-        if paid and n >= max_attempts:
+        if paid and n >= max_attempts and not req.get("bench"):
             log.warning("payment.refund_due", extra={
                 "request_id": req["id"],
                 "payment_intent_id": req.get("payment_intent_id")})

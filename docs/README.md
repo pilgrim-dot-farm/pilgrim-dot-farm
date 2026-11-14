@@ -87,7 +87,8 @@ full mapping is:
 | [systems/console.md](systems/console.md) | The Textual DJ console and its admin routes | reference |
 | [systems/search.md](systems/search.md) | Web search via the Brave Search API; why searxng was retired | shipped 2026-11-04 |
 | [systems/aws-access.md](systems/aws-access.md) | How to read or change the station's AWS account from this checkout | reference |
-| [systems/model-fleet.md](systems/model-fleet.md) | The model fleet (twr, spx0/spx1 Sparks, yuri): launcher scripts, /models, `_reset_driver`, systemd drafts | reference |
+| [systems/model-fleet.md](systems/model-fleet.md) | The model fleet (twr, spx0/spx1 Sparks, yuri, M5): `pg-<service>` tmux sessions, `fleetctl` + the restart watchdog, launcher scripts, /models, `_reset_driver` | reference |
+| [systems/queue-bench.md](systems/queue-bench.md) | Queue benchmark on the live station: flagged requests, real renders, audio discarded; the rule checks and the purge | reference |
 | [plans/idle.md](plans/idle.md) | Freeze playout and pause production when nobody is listening; wake on PLAY/heartbeat | active |
 | [plans/voting.md](plans/voting.md) | Turkey song ratings and request-queue votes | active |
 | [plans/ratings.md](plans/ratings.md) | Rating UI amendment to `voting.md`: fractional community average, `avg · n`, grace window | active |

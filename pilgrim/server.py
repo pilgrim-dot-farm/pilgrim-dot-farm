@@ -856,6 +856,21 @@ class RequestIn(BaseModel):
     text: str = Field(..., min_length=1)
 
 
+class BenchItemIn(BaseModel):
+    """One benchmark request (docs/systems/queue-bench.md)."""
+    text: str | None = Field(default=None, max_length=4000)
+    paid: bool = False
+    votes: int = Field(default=0, ge=-20, le=20)   # synthetic up/down votes (free only)
+    replay_of: int | None = None                   # reuse a past request's text
+    reuse_lyrics: bool = True                      # ...and the words its song was made from
+    short: bool = False                            # render bench.short_duration_s, not full length
+
+
+class BenchIn(BaseModel):
+    run: str = Field(min_length=1, max_length=60, pattern=r"^[A-Za-z0-9._-]+$")
+    requests: list[BenchItemIn] = Field(min_length=1)
+
+
 class PaidRequestIn(BaseModel):
     """`{lyrics, music, art}` (docs/shipped/prompt-upgrade.md) or the legacy `{text}`.
     `promo` is a promo code (or the operator comp token) from its own UI box
@@ -1704,6 +1719,83 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
                 "ratings": station.db.recent_ratings(limit),
                 "buried": (station.db.buried_requests(threshold, limit)
                            if threshold is not None else [])}
+
+    # ---- Queue benchmark (docs/systems/queue-bench.md, RADIO §11). Admin
+    # listener only. Bench rows use the real queue, brief LLM and render pool;
+    # their audio is thrown away and they are never on the public board.
+    @app.post("/api/admin/bench", dependencies=[Depends(require_dj)])
+    async def bench_add(body: BenchIn):
+        if not cfg.bench.enabled:
+            raise HTTPException(status_code=404, detail="bench is disabled")
+        if len(body.requests) > cfg.bench.max_batch:
+            raise HTTPException(status_code=422, detail={
+                "code": "too_many", "max_batch": cfg.bench.max_batch})
+        # resolve every row first: a bad one must not leave half a batch queued
+        resolved: list[tuple[BenchItemIn, str, RequestParts | None]] = []
+        for i, item in enumerate(body.requests):
+            text, parts = (item.text or "").strip(), None
+            if item.replay_of is not None:
+                src = station.db.get_request(item.replay_of)
+                if src is None:
+                    raise HTTPException(status_code=422, detail={
+                        "code": "replay_not_found", "index": i, "replay_of": item.replay_of})
+                text = text or str(src["text"])
+                parts = parts_from_row(src) if item.paid else None
+            if not text:
+                raise HTTPException(status_code=422, detail={
+                    "code": "empty", "index": i})
+            resolved.append((item, text, parts))
+        # no await below: the producer shares this loop, so it sees the whole
+        # batch with its votes at once, never a half-voted queue
+        out = []
+        for i, (item, text, parts) in enumerate(resolved):
+            opts: dict[str, Any] = {"run": body.run, "index": i}
+            if item.short:
+                opts["duration_s"] = cfg.bench.short_duration_s
+            if item.replay_of is not None:
+                opts.update(replay_of=item.replay_of, reuse_lyrics=item.reuse_lyrics)
+            row = station.db.add_bench_request(text, paid=item.paid, opts=opts, parts=parts)
+            if not item.paid:  # paid rows are not votable (docs/plans/voting.md V4)
+                for v in range(abs(item.votes)):
+                    station.db.cast_request_vote(
+                        int(row["id"]), f"bench-{body.run}-{i}-{v}", None,
+                        1 if item.votes > 0 else -1,
+                        max_voters_per_ip=cfg.voting.max_voters_per_ip)
+            out.append({"id": row["id"], "paid": item.paid, "votes": item.votes})
+        log.info("bench.added", extra={"run": body.run, "count": len(out)})
+        return {"run": body.run, "requests": out}
+
+    @app.get("/api/admin/bench", dependencies=[Depends(require_dj)])
+    async def bench_list(run: str | None = Query(default=None, max_length=60),
+                         candidates: int = Query(default=0, ge=0, le=200)):
+        """Benchmark rows with their timings, oldest first (the report tool
+        reads this). `stage` is the producer's live stage for a row in flight;
+        `candidates=N` adds the N newest aired listener requests to replay."""
+        rows = []
+        for r in station.db.bench_requests():
+            try:
+                opts = json.loads(r.get("bench_opts") or "{}")
+            except ValueError:
+                opts = {}
+            if run is not None and opts.get("run") != run:
+                continue
+            rows.append({"id": r["id"], "status": r["status"], "paid": bool(r["priority"]),
+                         "score": int(r.get("score") or 0), "attempts": r.get("attempts") or 0,
+                         "created_at": r["created_at"], "claimed_at": r.get("claimed_at"),
+                         "updated_at": r.get("updated_at"),
+                         "stage": station.producer.request_stage.get(int(r["id"])),
+                         "text": str(r["text"])[:120], "opts": opts})
+        return {"requests": rows,
+                "candidates": station.db.replay_candidates(candidates) if candidates else [],
+                "limits": {"briefs": cfg.models.max_concurrency.get(cfg.models.briefs, 1),
+                           "render_slots": station.producer._capacity(),
+                           "free_request_slots": cfg.songs.free_request_slots}}
+
+    @app.delete("/api/admin/bench", dependencies=[Depends(require_dj)])
+    async def bench_purge(apply: bool = Query(default=False)):
+        """Delete benchmark rows and their votes (dry run unless apply=true).
+        Queued rows are deleted too, which cancels the rest of a run."""
+        return {"applied": apply, **station.db.purge_bench_requests(apply=apply)}
 
     @app.get("/api/admin/dj/state", response_model=dj.DjState,
              dependencies=[Depends(require_dj)])

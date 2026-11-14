@@ -750,9 +750,11 @@ class SongPipeline:
         prompt+lyrics+seed reproduces the same audio on the same generator."""
         b = backend or self.cfg.songs.gen_backends[0]
         url = b.url.rstrip("/") + GEN_PATH
-        # ask for the ceiling; the model may end sooner (songs.max_duration_s)
+        # ask for the ceiling; the model may end sooner (songs.max_duration_s).
+        # A bench request may ask for less (bench.short_duration_s, RADIO §6.1).
         payload: dict = {"prompt": brief["style_prompt"],
-                         "duration_seconds": float(self.cfg.songs.max_duration_s)}
+                         "duration_seconds": float(brief.get("max_duration_s")
+                                                   or self.cfg.songs.max_duration_s)}
         headers: dict[str, str] = {}
         if b.auth == "litellm":
             payload["model"] = self.cfg.models.music

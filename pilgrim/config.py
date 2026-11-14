@@ -518,6 +518,22 @@ class Cache(BaseModel):
         return self
 
 
+class Bench(BaseModel):
+    """Queue benchmark on the live station (docs/systems/queue-bench.md, RADIO
+    §6.1, §11, §14). Bench requests go through the real queue, brief LLM and
+    render pool, but their audio is discarded: no library item, no upload, no
+    airing, and they never show on the public board."""
+    enabled: bool = True
+    short_duration_s: int = 30   # `short` bench renders; the default is full length
+    max_batch: int = 60          # bench requests one POST may add
+
+    @model_validator(mode="after")
+    def _validate(self) -> Bench:
+        if self.short_duration_s < 1 or self.max_batch < 1:
+            raise ValueError("bench.short_duration_s and bench.max_batch must be positive")
+        return self
+
+
 class Voting(BaseModel):
     """Community request-queue votes (docs/plans/voting.md, RADIO §11, §14).
 
@@ -1017,6 +1033,7 @@ class Config(BaseModel):
     cache: Cache = Field(default_factory=Cache)
     chat: Chat = Field(default_factory=Chat)
     voting: Voting = Field(default_factory=Voting)
+    bench: Bench = Field(default_factory=Bench)
     ratings: Ratings = Field(default_factory=Ratings)
     audio: Audio = Field(default_factory=Audio)
     media: Media = Field(default_factory=Media)

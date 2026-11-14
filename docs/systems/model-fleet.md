@@ -12,6 +12,49 @@ page is the system description of what is behind those doors — which box
 runs what, how each service is launched, and how to keep a box healthy when
 the GPU memory is stuck.
 
+## 0. Services and supervision (surveyed 2026-11-14)
+
+This section is the current truth; §1–§5 below are the 2026-11-10 survey and
+are kept for the hardware and launcher detail.
+
+Every model service runs in a tmux session named **`pg-<service>`** on its
+host, started only by `fleetctl` (`make fleet`), from the registry
+`pilgrim/deploy/model-fleet/fleet.yaml`. A launchd agent on the M5
+(`farm.pilgrim.fleet`, `pilgrim/deploy/mac/fleet.sh install`) runs one
+watchdog pass a minute (§6.0).
+
+| Service | Host | Session | Port | Launcher (in tmux) | Station uses it for |
+|---|---|---|---|---|---|
+| `qwen38` | twr | `pg-qwen38` | 8081 | `~/local_llm/ninfer/run.sh` | news, song briefs, DJ talk |
+| `ornith` | yuri | `pg-ornith` | 8080 | `~/local_llm/llama.cpp/ornith15_run.sh` | commercials, liners, lyrics fallback |
+| `kokoro` | yuri | `pg-kokoro` | 8001 | `~/local_llm/kokoro/server/run.sh` | all speech |
+| `music-spx0` | spx0 | `pg-music-spx0` | 8080 (+UI 8321) | `~/local_llm/audio.cpp/run.sh` | song pool |
+| `music-spx1` | spx1 | `pg-music-spx1` | 8080 (+UI 8321) | `~/local_llm/audio.cpp/run.sh` | song pool |
+| `music-m5` | M5 (local) | `pg-music-m5` | 11234 | `~/local_llm/minimax-music-3/run.sh` (mlx-serve) | song pool + local fallback |
+| `flux3` | M5 (local) | `pg-flux3` | 8084 | `serve.py --model 6bit --port 8084` (foreground form of `serve.sh start`) | cover art |
+| `sfx` | spx0 | `pg-sfx` | 8000 | `~/local_llm/MOSS-sfx/run_server.sh` | SFX — **down, not watched** (§4.1) |
+
+Survey findings, 2026-11-14:
+
+- **No model is under systemd on any box.** systemd runs only
+  infrastructure: ollama (twr, spx0, yuri; not station-facing), the node and
+  Spark Prometheus exporters, `gitea-runner`, and on spx1 `vllm-fn-tunnel` and
+  `cx7-nat`. LiteLLM is a Docker container with `restart=on-failure`. On the
+  M5, launchd runs the station and the gateway.
+- All seven watched services answered `/health`. Before adoption they ran in
+  ad-hoc places: twr tmux `ninfer` (shared with an operator pi pane and
+  nvtop), spx0 and spx1 tmux `music`, yuri tmux `llm` and `kokoro`, the M5's
+  mlx-serve in a pane of the operator's `jams` session, and flux3 as an
+  orphaned `nohup` process with no session. `fleetctl status` shows such a
+  service as `unmanaged` until `fleetctl restart <service>` moves it.
+- Both Sparks serve MiniMax; DeepSeek is stopped (nothing on spx1 :8888).
+- **yuri:** `yuri.local` does not resolve from the M5 or from twr. It is
+  reached by address with the host key already known as `yuri.local`:
+  `ssh -o HostName=192.168.68.89 -o HostKeyAlias=yuri.local yuri` (the
+  registry carries these options).
+- twr: the container `test_kokoro-kokoro-fastapi-gpu-1` is crash-looping
+  (`restart=always`). Not station-facing; the station's Kokoro is on yuri.
+
 ## 1. Fleet at a glance (verified 2026-11-10)
 
 | Box | SSH | LAN IP | Hardware | Serving today | Launcher | Ports | Supervisor |
@@ -145,11 +188,18 @@ survey (the boxes were hosting DeepSeek). Model loads at startup (~30–60 s).
 
 ### 4.6 tmux is the de facto supervisor
 
-Session names: `ninfer` (twr), `llm` + `kokoro` (yuri), `sfx` (spx0, holds
-the dead SFX server), plus long-lived numbered sessions on the Sparks.
-Nothing fleet-side is systemd-managed yet.
+Since 2026-11-14 the supervisor is tmux **plus the fleet watchdog** (§0,
+§6.0), and model sessions are named `pg-<service>`. The older names (`ninfer`
+on twr, `music` on the Sparks, `llm` + `kokoro` on yuri, `sfx` on spx0) and
+the numbered sessions are the operator's own: nothing here kills them.
 
-## 5. systemd requirement (operator, 2026-11-10)
+## 5. systemd requirement (operator, 2026-11-10) — superseded 2026-11-14
+
+**Superseded.** The operator chose named tmux sessions plus the watchdog
+(§6.0) instead: it also restarts a process that is alive but no longer
+answers `/health`, which `Restart=on-failure` does not, and a missing session
+after a reboot counts as down. The unit drafts stay in
+`pilgrim/deploy/model-fleet/units/` uninstalled. The original text:
 
 Every fleet service must start on boot and restart on failure via systemd,
 **except DeepSeek** (§4.2). Drafts live in
@@ -160,7 +210,52 @@ directory has the install/rollover procedure, including why you must stop
 the tmux-hosted instance before enabling a unit (the `run.sh` port guards
 make the unit exit 0 while the old instance still serves).
 
-## 6. Fire drill — restarting a model service by hand (for agents)
+## 6. Restarting a model
+
+### 6.0 The normal lever: `fleetctl` and the watchdog
+
+```
+make fleet                                # status of every service
+make fleet FLEET_ARGS="restart ornith"    # stop, start in pg-ornith, wait for /health
+make fleet FLEET_ARGS="stop music-spx0"
+make fleet FLEET_ARGS="pause flux3"       # watchdog leaves it alone (resume to undo)
+make fleet FLEET_ARGS="pause"             # ...or everything (maintenance)
+pilgrim/deploy/mac/fleet.sh install       # the every-minute launchd watchdog
+pilgrim/deploy/mac/fleet.sh status
+```
+
+States: `up` (session + `/health`), `down`, `unmanaged` (`/health` answers
+but there is no `pg-` session: started by hand. A working model is never
+killed to tidy it up; if it later dies it reads `down` and is restarted into
+`pg-<service>`), `blocked` (down while DeepSeek
+answers on spx1 :8888 — expected, never restarted), `unreachable` (ssh
+failed; nothing is done).
+
+What a restart does, on the model's own host: kill the `pg-` session, TERM
+whatever of ours still listens on the service's ports (KILL after 20 s),
+start `tmux new-session -d -s pg-<service>` running the box's own run script
+in a login shell, output teed to `~/pg-fleet-logs/<service>.log`, then poll
+`/health` up to the service's cold-start budget.
+
+Watchdog rules (`fleet.yaml` `defaults`): three failed passes in a row
+(≈3 min) trigger a restart; at most three restarts per service per hour. A
+restart that does not come back, or a fourth failure inside the hour,
+**escalates once per incident**: a pi agent is started on the M5 in the tmux
+session `pg-fix-<service>`, on `qwen38` (or `Ornith-1.5-9B` when qwen38 is
+the patient or is down), with `pilgrim/deploy/model-fleet/RESTART.md` as its
+runbook. Its transcript is `~/Library/Logs/pilgrim/fleet-fix-<service>-*.log`;
+the session is killed after 30 minutes. Watchdog events are JSON lines in
+`~/Library/Logs/pilgrim/fleet.log`; its state (failure counts, restart times)
+is `~/pilgrim-origin/fleet/state.json`.
+
+Nothing in this path uses `sudo` or reboots a box. No email or Grafana alert
+is in the loop: the watchdog probes each model itself.
+
+### 6.1 Fire drill — restarting a model service by hand (for agents)
+
+When `fleetctl restart` itself fails. In step 2B below, the session name is
+now `pg-<service>` and the start is `fleetctl start <service>`; the raw
+`tmux new-session ... <svc>-fd` form is the fallback when the tool cannot run.
 
 When the normal levers fail: the service's `/health` is dead AND (systemd is
 not installed or its unit is wedged) AND the box's run script is broken, the
@@ -277,8 +372,13 @@ reboots; the agent never does.
    is still the way to bring the backend up first, if (b) is chosen.
 2. Restore DeepSeek vs. keep the Sparks free for MiniMax + qwen flash (§4.2)
    — operator's call; they don't coexist.
-3. Write `run-serve.sh` on the Sparks and install the draft units (practice:
-   ornith).
+3. ~~Install the draft units~~ — superseded by the watchdog (§5, §6.0).
+   `run-serve.sh` for qwen flash on the Sparks is still unwritten.
 4. Stale ssh forward holding spx1 :8000 (owned by an sshd child, pid 2886)
    — unknown owner, clean up on next login.
 5. `docs/backlog/monitoring-infra.md` §1.1 host table: spx1 `.90` → `.56` (LAN IP changed).
+6. The crash-looping `test_kokoro-kokoro-fastapi-gpu-1` container on twr (§0)
+   — operator: remove it or fix it.
+7. Fix `Host yuri` in `~/.ssh/config` (`HostName 192.168.68.89`,
+   `HostKeyAlias yuri.local`) so plain `ssh yuri` works again; the registry
+   already carries the options.

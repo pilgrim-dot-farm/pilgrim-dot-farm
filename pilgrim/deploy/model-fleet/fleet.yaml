@@ -1,0 +1,102 @@
+# Model fleet registry — read by `python -m pilgrim.tools.fleetctl`
+# (docs/systems/model-fleet.md §6). One row per model service.
+#
+# Invariant the watchdog holds: every `watch: true` service has its tmux
+# session `pg-<name>` on its host AND answers /health on its port. Either one
+# missing for `fail_threshold` checks in a row = restart.
+#
+#   host        ssh alias from ~/.ssh/config, or `local` for this Mac
+#   ssh_opts    extra ssh options (yuri: its .local name does not resolve)
+#   cwd/start   the box's own run script, run in the foreground inside tmux.
+#               Box run scripts are human-owned: never edit them from here,
+#               and re-read them on the box before changing a `start` line.
+#   ports       first port is the /health port; all are freed on stop
+#   budget_s    cold-start budget: how long a restart waits for /health
+#   blocked_by  a listener that owns the box (DeepSeek on the Sparks): while
+#               it answers, the service is expected-down and never restarted
+#   pi_model    the pi model id this service backs (escalation never picks a
+#               model whose own service is the one that is down)
+#
+# Probes run ON the host (ssh + curl 127.0.0.1), so no LAN address lives here
+# except yuri's, which is the only way to reach it.
+
+defaults:
+  fail_threshold: 3          # consecutive failed checks before a restart
+  max_restarts_per_hour: 3   # per service; beyond this the watchdog escalates
+  stop_grace_s: 20           # TERM, wait this long, then KILL
+  login_shell: "bash -lc"
+
+escalation:
+  enabled: true
+  models: [qwen38, Ornith-1.5-9B]   # first one whose service is up and not the patient
+  provider: litellm
+  timeout_s: 1800                   # a pg-fix-* session older than this is killed
+
+services:
+  qwen38:
+    host: twr
+    cwd: /home/justin/local_llm/ninfer
+    start: ./run.sh
+    ports: [8081]
+    budget_s: 240
+    pi_model: qwen38
+
+  ornith:
+    host: yuri
+    ssh_opts: ["-o", "HostName=192.168.68.89", "-o", "HostKeyAlias=yuri.local"]
+    cwd: /home/yuri/local_llm/llama.cpp
+    start: ./ornith15_run.sh
+    ports: [8080]
+    budget_s: 180
+    pi_model: Ornith-1.5-9B
+
+  kokoro:
+    host: yuri
+    ssh_opts: ["-o", "HostName=192.168.68.89", "-o", "HostKeyAlias=yuri.local"]
+    cwd: /home/yuri/local_llm/kokoro/server
+    start: ./run.sh
+    ports: [8001]
+    budget_s: 120
+
+  music-spx0:
+    host: spx0
+    cwd: /home/justin/local_llm/audio.cpp
+    start: ./run.sh
+    ports: [8080, 8321]      # hot server + web UI
+    budget_s: 300
+    blocked_by: {host: spx1, port: 8888}   # DeepSeek 2x-Spark API
+
+  music-spx1:
+    host: spx1
+    cwd: /home/justin/local_llm/audio.cpp
+    start: ./run.sh
+    ports: [8080, 8321]
+    budget_s: 300
+    blocked_by: {host: spx1, port: 8888}
+
+  music-m5:
+    host: local
+    login_shell: "zsh -lc"
+    cwd: /Users/justinherter/local_llm/minimax-music-3
+    start: ./run.sh
+    ports: [11234]
+    budget_s: 240
+
+  flux3:
+    host: local
+    login_shell: "zsh -lc"
+    cwd: /Users/justinherter/local_llm/flux3
+    # serve.sh daemonizes (nohup + pidfile); tmux needs the foreground form
+    # of the same command (serve.sh `start`, MODEL=6bit PORT=8084).
+    start: "source .venv/bin/activate && exec python serve.py --model 6bit --port 8084"
+    ports: [8084]
+    budget_s: 300
+
+  sfx:
+    host: spx0
+    cwd: /home/justin/local_llm/MOSS-sfx
+    start: ./run_server.sh
+    ports: [8000]
+    budget_s: 300
+    watch: false             # down since 2026-11 by operator decision (docs/backlog/sfx-bug.md)
+    blocked_by: {host: spx1, port: 8888}
