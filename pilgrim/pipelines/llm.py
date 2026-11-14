@@ -1,10 +1,13 @@
 """LLM client (LiteLLM proxy). Handles reasoning models -> parse JSON strictly (AGENTS §5)."""
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 import re
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -54,12 +57,37 @@ class LLM:
     def __init__(self, cfg: Config, api_key: str, client: httpx.AsyncClient | None = None) -> None:
         self.cfg = cfg
         self.api_key = api_key
+        self._slots: dict[str, asyncio.Semaphore] = {}
         # A song brief is a 250-450-word structured caption plus a lyric sheet
         # from a reasoning model: 120 s is not enough headroom (§6.2). Voice and
         # news calls are fast; a longer read timeout only matters when the
         # backend stalls.
         self._client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(300.0, connect=10.0))
+
+    def _slot(self, model: str) -> asyncio.Semaphore | None:
+        """The model's concurrency cap (models.max_concurrency, RADIO §12):
+        None when the model is unlisted, so unlisted models are unbounded.
+        Lazy per model: the semaphore is created on the event loop a call
+        actually runs on, never in __init__ (which the tests call off-loop)."""
+        cap = (self.cfg.models.max_concurrency or {}).get(model)
+        if cap is None:
+            return None
+        if model not in self._slots:
+            self._slots[model] = asyncio.Semaphore(cap)
+        return self._slots[model]
+
+    @contextlib.asynccontextmanager
+    async def _hold_slot(self, model: str) -> AsyncIterator[None]:
+        sem = self._slot(model)
+        if sem is None:
+            yield
+            return
+        await sem.acquire()
+        try:
+            yield
+        finally:
+            sem.release()
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -125,6 +153,16 @@ class LLM:
 
     async def _complete(self, model: str, system: str, user: str,
                         max_tokens: int | None, temperature: float = 0.8) -> str:
+        """One completion, bounded by the model's max_concurrency (RADIO §12):
+        a held slot covers the whole streaming read, so in-flight calls per
+        model never exceed the cap. Callers may retry on LLMTruncated; each
+        retry re-enters the cap."""
+        async with self._hold_slot(model):
+            return await self._complete_once(model, system, user, max_tokens,
+                                             temperature)
+
+    async def _complete_once(self, model: str, system: str, user: str,
+                             max_tokens: int | None, temperature: float = 0.8) -> str:
         """One completion, read as an SSE stream.
 
         Streaming is deliberate: qwen38 is a reasoning model, and a full

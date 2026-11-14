@@ -45,6 +45,13 @@ models:
   # 4x the 8192 default that cut long briefs off.
   output_tokens:
     qwen38: 32768
+  # Max concurrent in-flight calls per model (RADIO §6.1/§12): qwen38's
+  # server reserves each call's whole max_tokens at admission, so three
+  # concurrent calls is the ceiling the station enforces itself. Song
+  # briefs may then be written 3 at a time (2026-11-14). Unlisted models
+  # (ornith) stay unbounded as before.
+  max_concurrency:
+    qwen38: 3
 
 voices:
   dj: am_liam
@@ -109,6 +116,12 @@ songs:
     # models.music that answer /health, so a box that is down or removed from
     # the proxy stops being a slot; 1 until the first count.
     - {name: litellm, slots: auto, auth: litellm}   # url derived: hosts.litellm minus /v1, plus /vllm
+  # Fallback generator (RADIO §6.2, 2026-11-14): when the LiteLLM pass-through
+  # can't serve the pool (down/cooled off), renders go directly to the local
+  # M5 mlx-serve (1 slot — it serializes music jobs in one queue). Active
+  # only while the primaries are down: the M5 is also one of the fan-out
+  # deployments, so the pool never double-routes it while the proxy works.
+  local_fallback: {name: m5, url: "http://127.0.0.1:11234", slots: 1, rtf_hint: 0.6}
   free_request_slots: 2   # free requests rendering at once; the last slot always stays open for a paid one
   submit_stagger_s: 5     # min seconds between render submissions: LiteLLM only fans them out across the boxes with a delay
   backend_cooldown_s: 60 # unreachable generator sits out this long (flat, no doubling)

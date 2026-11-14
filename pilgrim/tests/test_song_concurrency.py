@@ -33,10 +33,11 @@ class _T:
         await asyncio.sleep(0)
 
 
-def _pool(backends, stagger=0.0, cooldown=120.0) -> tuple[MusicPool, _T]:
+def _pool(backends, stagger=0.0, cooldown=120.0, fallback=None) -> tuple[MusicPool, _T]:
     t = _T()
     return MusicPool([MusicBackend(**b) for b in backends], cooldown, stagger,
-                     now=t.now, sleep=t.sleep), t
+                     now=t.now, sleep=t.sleep,
+                     fallback=MusicBackend(**fallback) if fallback else None), t
 
 
 def test_pool_capacity_is_sum_of_slots_and_drops_while_down():
@@ -107,6 +108,59 @@ def test_pool_staggers_submissions():
     assert sorted(t.slept) == [3.0, 6.0]
 
 
+def test_pool_fallback_only_while_every_primary_is_down():
+    """RADIO §6.2 fallback (2026-11-14): the local M5 box takes over only
+    while every primary is in cooldown, and gives the slot back on recovery."""
+    pool, t = _pool([{"name": "litellm", "url": "http://litellm", "slots": 3}],
+                    fallback={"name": "m5", "url": "http://127.0.0.1:11234", "slots": 1})
+    assert pool.capacity() == 3          # primaries healthy: the fallback counts for nothing
+
+    async def take():
+        async with pool.lease() as b:
+            return b.name
+    assert asyncio.run(take()) == "litellm"
+
+    pool.mark_down("litellm")           # the pass-through stops serving the pool
+    assert pool.capacity() == 1
+    assert asyncio.run(take()) == "m5"  # the local box renders while the proxy is down
+
+    t.t += 120.0                         # cooldown over: the proxy is back
+    assert pool.capacity() == 3
+    assert asyncio.run(take()) == "litellm"
+
+
+def test_pool_fallback_not_preempted_by_busy_primaries():
+    """A busy-but-healthy primary never yields to the fallback: the M5 is one
+    of the proxy's deployments, so the pool must not double-route it."""
+    pool, _ = _pool([{"name": "litellm", "url": "http://litellm", "slots": 1}],
+                    fallback={"name": "m5", "url": "http://127.0.0.1:11234", "slots": 1})
+
+    async def main():
+        cm = pool.lease()
+        first = await cm.__aenter__()
+        assert first.name == "litellm"
+        second = asyncio.ensure_future(pool.lease().__aenter__())
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert not second.done()         # waits for the primary; never the fallback
+        await cm.__aexit__(None, None, None)
+        b = await asyncio.wait_for(second, 1.0)
+        assert b.name == "litellm"
+    asyncio.run(main())
+
+
+def test_pool_fallback_transport_failure_cools_the_fallback():
+    """A failed render on the local box cools it down too: capacity drops to 0
+    (no render source at all) until its cooldown runs out."""
+    pool, t = _pool([{"name": "litellm", "url": "http://litellm", "slots": 3}],
+                    fallback={"name": "m5", "url": "http://127.0.0.1:11234", "slots": 1})
+    pool.mark_down("litellm")
+    assert pool.capacity() == 1
+    pool.mark_down("m5")
+    assert pool.capacity() == 0
+    t.t += 120.0
+    assert pool.capacity() == 3         # both back up: the primaries own the slots again
+
 # --------------------------------------------------------------------------- #
 # transport
 # --------------------------------------------------------------------------- #
@@ -159,7 +213,11 @@ def test_direct_backend_sends_no_model_or_auth(cfg, tmp_path):
 
 @pytest.mark.parametrize("status", [429, 500, 502, 503, 504])
 def test_overloaded_generator_is_a_transport_error_and_cools_down(cfg, tmp_path, status):
-    """An outage must re-queue a request without burning an attempt."""
+    """An outage must re-queue a request without burning an attempt.
+
+    The fallback is pinned off: it is covered by the dedicated pool tests
+    (test_pool_fallback_*), and this test isolates the primary's cooldown."""
+    cfg.songs.local_fallback = None
     sp = _sp(cfg, tmp_path, _Resp(status=status),
              [{"name": "a", "url": "http://a", "slots": 2}])
     with pytest.raises(GeneratorUnavailable) as ei:
@@ -708,7 +766,11 @@ def test_two_paid_and_a_free_request_fill_all_three_slots(cfg, tmp_env):
 
 
 def test_parallel_stock_briefs_see_in_flight_genres(cfg, tmp_env):
+    # Serial brief gate: the property under test is the genre context the
+    # SECOND brief sees; with models.max_concurrency > 1 the two stock briefs
+    # may be written concurrently (test_briefs_run_concurrently_below).
     cfg, store, _ = tmp_env
+    cfg.models.max_concurrency = {"qwen38": 1}
     cfg.inventory.fresh_songs_ready = 10
     cfg.songs.stock_gap_s = 0
     songs = GateSong(cap=3)
@@ -848,9 +910,12 @@ def test_cut_off_briefs_requeue_free_then_count_attempts(cfg, tmp_env):
 
 
 def test_request_waiting_for_the_brief_llm_shows_waiting(cfg, tmp_env):
-    """Briefs run one at a time: the request whose brief hasn't started is
-    `waiting` ("in line" on the board), not "being written"."""
+    """Serial brief model (max_concurrency 1): the request whose brief hasn't
+    started is `waiting` ("in line" on the board), not "being written". With
+    the production qwen38 cap of 3 both briefs below would write at once
+    (covered by test_briefs_run_concurrently_below)."""
     cfg, store, _ = tmp_env
+    cfg.models.max_concurrency = {"qwen38": 1}
     cfg.inventory.fresh_songs_ready = 0
     a = store.add_request("first song", cap=10)
     b = store.add_request("second song", cap=10)
@@ -867,6 +932,27 @@ def test_request_waiting_for_the_brief_llm_shows_waiting(cfg, tmp_env):
         assert prod.request_stage == {a["id"]: "generating", b["id"]: "generating"}
     _run(prod, scenario)
 
+
+
+def test_briefs_run_concurrently_at_max_concurrency(cfg, tmp_env):
+    """qwen38 cap of 3 (2026-11-14, RADIO §6.1): two request briefs are
+    written at the SAME time — both `writing` while the fake LLM holds them —
+    where the one-at-a-time gate used to make the second one `waiting`."""
+    cfg, store, _ = tmp_env
+    cfg.inventory.fresh_songs_ready = 0
+    a = store.add_request("first song", cap=10)
+    b = store.add_request("second song", cap=10)
+    songs = GateSong(cap=3)
+    songs.brief_gate = asyncio.Event()
+    prod = _loop_producer(cfg, store, songs)
+
+    async def scenario():
+        await _until(lambda: len(songs.briefs) == 2)
+        assert prod.request_stage == {a["id"]: "writing", b["id"]: "writing"}
+        songs.brief_gate.set()
+        await _until(lambda: songs.active == 2)
+        assert prod.request_stage == {a["id"]: "generating", b["id"]: "generating"}
+    _run(prod, scenario)
 
 
 def test_priority_gate_grants_lowest_key_not_first_come():
@@ -893,6 +979,36 @@ def test_priority_gate_grants_lowest_key_not_first_come():
     assert order == ["holder", "paid", "free", "stock"]
 
 
+def test_priority_gate_holds_capacity_concurrent():
+    """models.max_concurrency (2026-11-14): the brief gate holds that many
+    briefs at a time; the next grant still goes to the lowest key."""
+    from pilgrim.producer import PriorityGate
+    gate = PriorityGate(capacity=2)
+    order: list[str] = []
+    started = asyncio.Event()
+
+    async def take(name, key, ev: asyncio.Event | None = None):
+        async with gate.hold(key):
+            order.append(name)
+            if ev is not None:
+                ev.set()
+            await asyncio.sleep(0.02)
+
+    async def main():
+        a = asyncio.create_task(take("first", (0, "a", 1), started))
+        b = asyncio.create_task(take("second", (0, "b", 2)))
+        await started.wait()
+        await asyncio.sleep(0.01)   # both in: the gate holds two at capacity 2
+        third = asyncio.create_task(take("third", (-1, "c", 3)))
+        await asyncio.gather(a, b, third)
+        fourth = asyncio.create_task(take("fourth", (0, "d", 4)))
+        await fourth
+    asyncio.run(main())
+    assert order[0] == "first" and order[1] == "second"
+    assert order[2] == "third"     # the lowest key cut in front of free "d"
+    assert order[3] == "fourth"
+
+
 def test_priority_gate_survives_a_cancelled_waiter():
     from pilgrim.producer import PriorityGate
     gate = PriorityGate()
@@ -909,8 +1025,11 @@ def test_priority_gate_survives_a_cancelled_waiter():
 
 def test_paid_request_briefs_before_an_older_free_one(cfg, tmp_env):
     """Live incident 2026-11-01: paid 494 re-queued after a cut-off waited
-    behind free 493 for the brief LLM."""
+    behind free 493 for the brief LLM. Serial gate pinned: with the qwen38
+    cap of 3 both would write concurrently, and the gate's key ordering is
+    only observable when it is full."""
     cfg, store, _ = tmp_env
+    cfg.models.max_concurrency = {"qwen38": 1}
     cfg.inventory.fresh_songs_ready = 0
     cfg.songs.free_request_slots = 2
     first = store.add_request("free first", cap=10)
