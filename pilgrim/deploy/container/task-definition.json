@@ -25,6 +25,11 @@
           "containerPort": 8080,
           "protocol": "tcp",
           "appProtocol": "http"
+        },
+        {
+          "name": "metrics",
+          "containerPort": 9102,
+          "protocol": "tcp"
         }
       ],
       "environment": [
