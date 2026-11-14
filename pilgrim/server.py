@@ -35,7 +35,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from pilgrim import dj_contracts as dj
-from pilgrim import voting
+from pilgrim import station_metrics, voting
 from pilgrim.album_art import ArtWorker
 from pilgrim.chat import identity
 from pilgrim.chat.actions import ChatActions
@@ -724,6 +724,13 @@ class Station(PublicSurface):
             # docs/plans/idle.md D2: a heartbeat is a listener; wake before the handler
             # reads anything so the response reflects the thawed programme.
             self.wake("heartbeat")
+
+    def listener_count(self) -> int:
+        """Live players, read-only: the same union `active_listeners()`
+        returns, without pruning, so a metrics tick never mutates station
+        state (MONITORING.md §6 rule 6). Stale entries leave on the next
+        heartbeat, which is where they are pruned today."""
+        return len(set(self._listeners) | self._remote_listeners)
 
     def active_listeners(self) -> int:
         """Live players: the in-memory map plus the heartbeat keys another tier
@@ -2089,6 +2096,7 @@ def main() -> None:
 
     async def _serve() -> None:
         await station.startup()  # exactly once per process
+        station_metrics.start(cfg, station)  # MONITORING.md: own socket + task
         await asyncio.gather(*(s.serve() for s in servers))
 
     asyncio.run(_serve())
