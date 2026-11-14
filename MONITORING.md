@@ -29,9 +29,14 @@ wakes a frozen station"), RADIO.md §11 (`/api/health` on the admin listener,
   scrapes node exporters on `spx0`, `spx1`, `twr` and `yuri` by IP with a `host`
   label (since 2026-11-12; `.local` names do not resolve inside the Prometheus
   container). It has **no** `pilgrim_*` series.
-- The NAS is on the tailnet as `tag:monitoring`. The live tailnet policy grants
-  `tag:monitoring -> pilgrim-vpc tcp:9102` (the web tier's metrics port, through
-  the bastion's subnet route). The NAS runs `tailscale up --accept-routes`.
+- The tailnet policy grants `tag:monitoring -> pilgrim-vpc tcp:9102` (the web
+  tier's metrics port, through the bastion's subnet route). The NAS
+  (`lilnas`) runs `tailscale up --accept-routes` (`RouteAll: true`), but as of
+  2026-11-14 it is **untagged** (`Tags: None`), so the grant cannot match it
+  and the control plane's netmap for it contains only `justins-mac-studio` —
+  no bastion, no `172.31.0.0/16` route. **Tagging `lilnas` `tag:monitoring`
+  in the admin console is the missing step**; the ACL text itself is already
+  correct.
 - The bastion is SSH alias **`pf2`** (`52.13.70.63`). The alias `pf` in
   `~/.ssh/config` is the retired account's box; do not use it (§8 Q1).
 - The station logs one dotted event name per record (`program.starved`,
