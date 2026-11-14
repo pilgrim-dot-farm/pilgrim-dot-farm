@@ -1,6 +1,7 @@
 # MONITORING.md — application metrics, in-process
 
-Status: plan, rewritten 2026-11-11. Nothing in §4 is built. The earlier
+Status: plan, rewritten 2026-11-11, revised 2026-11-13 with the operator's
+answers to §8. Nothing in §4 is built. The earlier
 version of this file planned a whole monitoring stack (two Prometheus, yace,
 blackbox, host exporters, alert routing). Most of that already exists on the
 operator's side or is out of scope here; it is parked, unchanged, in
@@ -27,7 +28,7 @@ wakes a frozen station"), RADIO.md §11 (`/api/health` on the admin listener,
 - Prometheus and Grafana run on the operator's **NAS**, on the home LAN. It
   scrapes node exporters on `spx0`, `spx1`, `twr` and `yuri` by IP with a `host`
   label (since 2026-11-12; `.local` names do not resolve inside the Prometheus
-  container). It has **no** `pg_*` series.
+  container). It has **no** `pilgrim_*` series.
 - The NAS is on the tailnet as `tag:monitoring`. The live tailnet policy grants
   `tag:monitoring -> pilgrim-vpc tcp:9102` (the web tier's metrics port, through
   the bastion's subnet route). The NAS runs `tailscale up --accept-routes`.
@@ -52,21 +53,23 @@ wakes a frozen station"), RADIO.md §11 (`/api/health` on the admin listener,
 | D2 | No new dependency. `pilgrim/metrics.py` is a ~200-line registry + text format + stdlib `http.server` | AGENTS §3 |
 | D3 | `/metrics` is on **its own port**: `9101` on the Mac, `9102` in the container. Not on the public, admin or ALB port | admin must stay loopback; the ALB target group only knows 8080 |
 | D4 | The metrics server and loop start **only** from `server.main()` and `web_app.main()`. `build_station`, `Station.startup`, `create_app`, `create_web_app` are unchanged, so tests, `make sim` and the e2e servers never open the port | AGENTS §1.2 |
-| D5 | Log events become counters through a `logging.Handler` on the root logger. **No edit to `scheduler.py`, `producer.py`, `selector.py`, `payments.py` or any pipeline** | AGENTS §1.1, §1.3, §1.11 |
-| D6 | Station gauges come from two cadences on the event loop: in-memory values every `metrics.live_s` (5 s), `await station.health()` every `metrics.refresh_s` (30 s). A scrape does no I/O: it renders the registry | playout never waits on monitoring |
-| D7 | Metric prefix `pg_`. Web-tier-only families are `pg_web_*`. The Prometheus `job` label (`pg-origin`, `pg-web`) tells the tiers apart for shared families | matches `pg-app`, `pg-db`, `pg-cache` |
+| D5 | Log events become counters through a `logging.Handler` on the root logger. Metrics code never changes playout behaviour; the only edits to `scheduler.py`, `producer.py` and the pipelines are **log-message renames** (Step 5) that give the non-dotted warnings a dotted event name | AGENTS §1.1, §1.3, §1.11 |
+| D6 | Station gauges come from two cadences on the event loop: in-memory values every `metrics.live_s` (5 s), `await station.health()` every `metrics.refresh_s` (60 s). A scrape does no I/O: it renders the registry | playout never waits on monitoring |
+| D7 | Metric prefix `pilgrim_`. Web-tier-only families are `pilgrim_web_*`. The Prometheus `job` label (`pg-origin`, `pg-web`) tells the tiers apart for shared families; `job` keeps the short infra form because it mirrors `pg-app`/`pg-db`/`pg-cache` | operator, 2026-11-13: `pg_` collides with `postgres_exporter` (`pg_up`, `pg_stat_*`, `pg_settings_*`) if RDS is ever scraped |
 | D8 | The web tier is found by Prometheus `aws_sd_configs` `role: ecs`, kept by the service tag `prometheus_scrape=true`, scraped over the bastion's tailnet route | operator, 2026-11-11 |
 | D9 | Alerting, probes from outside, and AWS-side failsafes are **not** in this plan | parked in `docs/backlog/monitoring-infra.md` |
 
 ### 0.3 Non-goals
 
 - No change to any HTTP route in RADIO §11's table. `/metrics` is a new socket,
-  documented in a new §11 subsection.
+  documented in a new §11 "Metrics" paragraph.
 - No Grafana dashboard JSON in the repo. The operator (or Claude through the
   Grafana MCP) builds the **Station** dashboard after Step 4 ships (§5.6).
 - No alert rules. No blackbox or host exporters. No CloudWatch changes.
-- No metrics for the chat worker process (`pilgrim/chat_worker.py`); revisit
-  after this ships.
+- No metrics socket for the chat worker process (`pilgrim/chat_worker.py`)
+  itself. The web tier reports its liveness from the `worker:heartbeat` key the
+  worker already writes to Valkey (§2.3), so a dead worker is visible without a
+  third process to scrape.
 - The local agent does **not** apply terraform, edit the live tailnet policy,
   touch the NAS, build images or restart the station. Those are §5, operator.
 
@@ -78,16 +81,21 @@ wakes a frozen station"), RADIO.md §11 (`/api/health` on the admin listener,
 | `pilgrim/tests/test_metrics.py` | 1 | new |
 | `pilgrim/config.py`, `pilgrim/config.yaml`, `pilgrim/deploy/container/overlay.yaml`, `pilgrim/tests/test_config.py` | 2 | edit |
 | `pilgrim/station_metrics.py`, `pilgrim/tests/test_station_metrics.py` | 3 | new |
-| `pilgrim/server.py` | 3 | edit (2 lines) |
+| `pilgrim/server.py` | 3 | edit (3 edits: import, `station_metrics.start`, `listener_count`) |
 | `pilgrim/web_metrics.py`, `pilgrim/tests/test_web_metrics.py` | 4 | new |
 | `pilgrim/web_app.py` | 4 | edit (2 lines) |
-| `RADIO.md`, `AGENTS.md`, `Dockerfile`, `pilgrim/deploy/container/task-definition.json`, `pilgrim/deploy/tailscale/policy.example.hujson`, `docs/README.md` | 5 | edit |
+| `pilgrim/producer.py`, `pilgrim/scheduler.py`, `pilgrim/server.py`, `pilgrim/web_app.py`, `pilgrim/seed.py`, `pilgrim/pipelines/operator_phrase.py`, `pilgrim/tools/import_song.py` | 5 | edit (log-message renames only) |
+| `RADIO.md`, `AGENTS.md`, `Dockerfile`, `pilgrim/deploy/container/task-definition.json`, `pilgrim/deploy/tailscale/policy.example.hujson`, `docs/README.md` | 6 | edit |
 
-**The code in Steps 1, 3 and 4 was prototyped on 2026-11-11 against commit
-`b73cf46`: the three new test files pass (22 tests), `ruff check .` and
-`mypy .` pass with the edits in place. The whole unit suite, `make sim` and
-`make e2e` were not run on the prototype; the agent runs them per step.**
-Copy the code blocks exactly.
+**The code in Steps 1–4 was prototyped on 2026-11-11 against commit `b73cf46`
+and re-applied on 2026-11-13 against commit `4f81212`; it was revised on
+2026-11-13 for the operator's §8 answers (`pilgrim_` prefix, 60 s refresh,
+dead-air gauges, no redundant metrics, origin-only histograms off the web
+tier, read-only listener count, chat-worker heartbeat). Every anchor in Steps
+2–4 matches exactly once, `ruff check .` and `mypy .` pass, the whole unit
+suite passes and `make sim` passes with the edits in place. `make e2e` and
+`make deploy-check` were not run; the agent runs them per step.** Copy the
+code blocks exactly.
 
 ---
 
@@ -99,7 +107,7 @@ Copy the code blocks exactly.
  │ Prometheus             │──────────────▶│ python -m pilgrim.server      │
  │  job pg-origin         │               │  metrics thread: GET /metrics │
  │  job pg-web (ECS SD)   │               │  metrics task: live 5 s,      │
- │ Grafana                │               │   health 30 s  → registry     │
+ │ Grafana                │               │   health 60 s  → registry     │
  └───────────┬────────────┘               │  LogMetrics handler → registry│
              │ tailnet, tcp:9102 only     └───────────────────────────────┘
              ▼
@@ -124,48 +132,55 @@ request id or chat text (§6 rule 3; `metrics.FORBIDDEN_LABELS` enforces it).
 
 | Metric | Type | Labels | Source |
 |--------|------|--------|--------|
-| `pg_log_events_total` | counter | `logger`, `event`, `level` | every log record whose message starts with a dotted event name; non-event records only at WARNING and above, as `event="other"` |
-| `pg_llm_call_seconds` | histogram | `model`, `status` | `llm.call` records (`duration_ms`) |
-| `pg_process_start_timestamp_seconds` | gauge | | set at start |
-| `pg_metrics_refresh_timestamp_seconds`, `pg_metrics_refresh_failures_total` | gauge / counter | | the metrics loop about itself |
+| `pilgrim_log_events_total` | counter | `logger`, `event`, `level` | every log record whose message starts with a dotted event name; non-event records only at WARNING and above, as `event="other"` |
+| `pilgrim_llm_call_seconds` | histogram | `model`, `status` | `llm.call` records (`duration_ms`) |
+| `pilgrim_process_start_timestamp_seconds` | gauge | | set at start |
+| `pilgrim_metrics_refresh_timestamp_seconds`, `pilgrim_metrics_refresh_failures_total` | gauge / counter | | the metrics loop about itself |
 
-`pg_log_events_total` is the workhorse. Examples the dashboard will use:
+`pilgrim_log_events_total` is the workhorse. Examples the dashboard will use:
 `program.starved`, `program.low_coverage`, `song.produced`, `song.rejected`,
 `song.backend.down`, `sfx.failed`, `request.received`, `request.failed`,
 `request.aired`, `vote.cast`, `rating.cast`, `payment.applied`,
 `payment.refund_due`, `moderation.decision`, `hotstate.down`, `station.wake`,
 `station.idle`, `media.published`, `chat.*`, `web.*`.
 
+`event="other"` is the escape hatch: a WARNING-or-above record whose message
+is not a dotted event. Step 5 renames the twenty such lines in the station so
+that only third-party noise (uvicorn, redis, the AWS SDK) lands in `other`.
+
 ### 2.2 Origin only (`job="pg-origin"`)
 
 | Metric | Type | Labels | Cadence |
 |--------|------|--------|---------|
-| `pg_on_air`, `pg_idle`, `pg_listeners` | gauge | | live |
-| `pg_committed_coverage_seconds`, `pg_committed_items`, `pg_program_revision` | gauge | | live |
-| `pg_current_type` | gauge (1) | `type` | live |
-| `pg_request_stage` | gauge | `stage` (`waiting`, `writing`, `generating`, `rendered`) | live |
-| `pg_idle_since_timestamp_seconds`, `pg_idle_wakes_total` | gauge / counter | | health |
-| `pg_listeners_reporting`, `pg_listeners_hidden`, `pg_listeners_not_running`, `pg_listeners_sink_element`, `pg_listeners_resumed`, `pg_listeners_by_platform` | gauge | `platform` on the last | health |
-| `pg_inventory_have`, `pg_inventory_target`, `pg_rotation` | gauge | `type` | health |
-| `pg_backend_up` | gauge | `backend` (`litellm`, `kokoro`, `music`, `search`, `sfx`) | health |
-| `pg_music_backend_up`, `pg_music_slots` | gauge | `name` | health |
-| `pg_search_last_ok`, `pg_search_last_timestamp_seconds` | gauge | | health (Brave is never probed) |
-| `pg_song_realtime_ratio` | gauge | | health |
-| `pg_art_backend` (1), `pg_art_items` | gauge | `state` / `with_art` | health |
-| `pg_db_engine` (1) | gauge | `engine` | health |
-| `pg_cache_enabled`, `pg_cache_healthy`, `pg_cache_ticks_total`, `pg_cache_failures_total`, `pg_cache_last_publish_timestamp_seconds`, `pg_cache_pending_players` | gauge / counter | | health |
-| `pg_song_render_seconds`, `pg_song_render_rtf` | histogram | `generator` | `song.produced` records that carry `wall_s` |
-| `pg_reel_ledgers`, `pg_reel_failed_ledgers`, `pg_reel_last_posted_timestamp_seconds`, `pg_reel_quota_usage`, `pg_reel_quota_total` | gauge | `status` / `stage` | health; read from `pilgrim/logs/reels/*.json`, never the Graph API |
-| `pg_metrics_refresh_duration_seconds` | gauge | | health |
+| `pilgrim_on_air`, `pilgrim_idle`, `pilgrim_listeners` | gauge | | live |
+| `pilgrim_committed_coverage_seconds`, `pilgrim_committed_items`, `pilgrim_program_revision` | gauge | | live |
+| `pilgrim_current_type` | gauge (1) | `type` | live |
+| `pilgrim_request_stage` | gauge | `stage` (`waiting`, `writing`, `generating`, `rendered`) | live |
+| `pilgrim_starved` | gauge | | live: 1 when coverage is zero and the station is not frozen (dead air, not idle) |
+| `pilgrim_last_starve_timestamp_seconds`, `pilgrim_starve_gap_seconds` | gauge / histogram | | a `program.starved` record (`created` time, `gap_s`) |
+| `pilgrim_idle_since_timestamp_seconds`, `pilgrim_idle_wakes_total` | gauge / counter | | health |
+| `pilgrim_listeners_reporting`, `pilgrim_listeners_hidden`, `pilgrim_listeners_not_running`, `pilgrim_listeners_sink_element`, `pilgrim_listeners_resumed`, `pilgrim_listeners_by_platform` | gauge | `platform` on the last | health |
+| `pilgrim_inventory_have`, `pilgrim_inventory_target`, `pilgrim_rotation` | gauge | `type` | health |
+| `pilgrim_backend_up` | gauge | `backend` (`litellm`, `kokoro`, `music`, `search`, `sfx`) | health |
+| `pilgrim_music_backend_up`, `pilgrim_music_slots` | gauge | `name` | health |
+| `pilgrim_search_last_timestamp_seconds` | gauge | | health (Brave is never probed; `pilgrim_backend_up{backend="search"}` is the health signal) |
+| `pilgrim_song_realtime_ratio` | gauge | | health |
+| `pilgrim_art_backend` (1), `pilgrim_art_items` | gauge | `state` / `with_art` | health |
+| `pilgrim_db_engine` (1) | gauge | `engine` | health |
+| `pilgrim_cache_enabled`, `pilgrim_cache_healthy`, `pilgrim_cache_ticks_total`, `pilgrim_cache_failures_total`, `pilgrim_cache_last_publish_timestamp_seconds`, `pilgrim_cache_pending_players` | gauge / counter | | health |
+| `pilgrim_song_render_seconds`, `pilgrim_song_render_rtf` | histogram | `generator` | `song.produced` records that carry `wall_s` |
+| `pilgrim_reel_ledgers`, `pilgrim_reel_failed_ledgers`, `pilgrim_reel_last_posted_timestamp_seconds`, `pilgrim_reel_quota_usage`, `pilgrim_reel_quota_total` | gauge | `status` / `stage` | health; read from `pilgrim/logs/reels/*.json`, never the Graph API |
+| `pilgrim_metrics_refresh_duration_seconds` | gauge | | health |
 
 ### 2.3 Web tier only (`job="pg-web"`)
 
 | Metric | Type | Labels | Source |
 |--------|------|--------|--------|
-| `pg_web_http_requests_total` | counter | `route`, `method`, `status` | middleware; `route` is the template (`/api/requests/{request_id}/vote`), `static` for everything outside `/api/` |
-| `pg_web_http_request_seconds` | histogram | `route` | middleware |
-| `pg_web_cache_up`, `pg_web_station_on_air` | gauge | | one Valkey read of the `health` document every `live_s` |
-| `pg_web_chat_sockets` | gauge | | `len(chat_hub.sockets)` |
+| `pilgrim_web_http_requests_total` | counter | `route`, `method`, `status` | middleware; `route` is the template (`/api/requests/{request_id}/vote`), `static` for everything outside `/api/` |
+| `pilgrim_web_http_request_seconds` | histogram | `route` | middleware |
+| `pilgrim_web_cache_up`, `pilgrim_web_station_on_air` | gauge | | one Valkey read of the `health` document every `live_s` |
+| `pilgrim_web_chat_sockets` | gauge | | `len(chat_hub.sockets)` |
+| `pilgrim_web_chat_worker_up`, `pilgrim_web_chat_worker_heartbeat_timestamp_seconds` | gauge | | one Valkey read of `worker:heartbeat` every `live_s`; 0 when chat is disabled or the worker is down |
 
 ---
 
@@ -346,7 +361,8 @@ REGISTRY = Registry()
 LLM_BUCKETS = (0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0, 120.0, 300.0)
 RENDER_BUCKETS = (30.0, 60.0, 90.0, 120.0, 180.0, 240.0, 300.0, 420.0, 600.0, 900.0)
 RTF_BUCKETS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0)
-MAX_EVENTS = 400
+STARVE_BUCKETS = (0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0)
+MAX_EVENTS = 9000
 
 
 def event_name(record: logging.LogRecord) -> str | None:
@@ -361,27 +377,40 @@ def event_name(record: logging.LogRecord) -> str | None:
 
 
 class LogMetrics(logging.Handler):
-    """Counts log events and feeds two histograms from their `extra` fields.
+    """Counts log events and feeds the histograms from their `extra` fields.
 
     Reads the record, never the formatted line, and never raises: a metrics
     bug must not break logging. Only the event name, logger name and level
     become labels; `extra` values are used as numbers, plus the three
     config-bounded strings `model`, `status` and `generator`.
+
+    `station_histograms=False` (the web tier) skips the families only the
+    origin can produce (`song.produced`, `program.starved`), so the web tier
+    exports no empty HELP/TYPE lines for them (MONITORING §2).
     """
 
-    def __init__(self, registry: Registry) -> None:
+    def __init__(self, registry: Registry, *,
+                 station_histograms: bool = True) -> None:
         super().__init__(level=logging.INFO)
         self.registry = registry
+        self._station = station_histograms
         self._seen: set[str] = set()
-        registry.counter("pg_log_events_total",
+        registry.counter("pilgrim_log_events_total",
                          "Log records by logger, dotted event name and level.")
-        registry.histogram("pg_llm_call_seconds",
+        registry.histogram("pilgrim_llm_call_seconds",
                            "LLM call wall time by model and status.", LLM_BUCKETS)
-        registry.histogram("pg_song_render_seconds",
+        if not station_histograms:
+            return
+        registry.histogram("pilgrim_song_render_seconds",
                            "Song render wall time by generator.", RENDER_BUCKETS)
-        registry.histogram("pg_song_render_rtf",
+        registry.histogram("pilgrim_song_render_rtf",
                            "Audio seconds rendered per wall second, by generator.",
                            RTF_BUCKETS)
+        registry.histogram("pilgrim_starve_gap_seconds",
+                           "Dead-air gap at a program.starved splice.", STARVE_BUCKETS)
+        registry.gauge("pilgrim_last_starve_timestamp_seconds",
+                       "When the last dead-air gap was logged; 0 when none.")
+        registry.set("pilgrim_last_starve_timestamp_seconds", 0)
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -395,33 +424,42 @@ class LogMetrics(logging.Handler):
                     event = "other"
                 else:
                     self._seen.add(event)
-            self.registry.inc("pg_log_events_total", logger=record.name,
+            self.registry.inc("pilgrim_log_events_total", logger=record.name,
                               event=event, level=record.levelname)
             extra = record.__dict__
             if event == "llm.call" and isinstance(extra.get("duration_ms"), (int, float)):
                 self.registry.observe(
-                    "pg_llm_call_seconds", float(extra["duration_ms"]) / 1000.0,
+                    "pilgrim_llm_call_seconds", float(extra["duration_ms"]) / 1000.0,
                     model=str(extra.get("model") or "unknown"),
                     status=str(extra.get("status") or "unknown"))
-            elif event == "song.produced" and isinstance(extra.get("wall_s"), (int, float)):
+            elif self._station and event == "song.produced" \
+                    and isinstance(extra.get("wall_s"), (int, float)):
                 generator = str(extra.get("generator") or "unknown")
-                self.registry.observe("pg_song_render_seconds", float(extra["wall_s"]),
+                self.registry.observe("pilgrim_song_render_seconds", float(extra["wall_s"]),
                                       generator=generator)
                 if isinstance(extra.get("rtf"), (int, float)) and extra["rtf"] > 0:
-                    self.registry.observe("pg_song_render_rtf", float(extra["rtf"]),
+                    self.registry.observe("pilgrim_song_render_rtf", float(extra["rtf"]),
                                           generator=generator)
+            elif self._station and event == "program.starved":
+                self.registry.set("pilgrim_last_starve_timestamp_seconds",
+                                  record.created)
+                if isinstance(extra.get("gap_s"), (int, float)):
+                    self.registry.observe("pilgrim_starve_gap_seconds",
+                                          float(extra["gap_s"]))
         except Exception:  # noqa: BLE001 - never break logging
             pass
 
 
-def install_log_metrics(registry: Registry = REGISTRY) -> LogMetrics:
+def install_log_metrics(registry: Registry = REGISTRY, *,
+                        station_histograms: bool = True) -> LogMetrics:
     """Attach one LogMetrics handler to the root logger (idempotent). Call
-    after `setup_logging`, which removes every root handler."""
+    after `setup_logging`, which removes every root handler. The web tier
+    passes `station_histograms=False`."""
     root = logging.getLogger()
     for h in root.handlers:
         if isinstance(h, LogMetrics):
             return h
-    handler = LogMetrics(registry)
+    handler = LogMetrics(registry, station_histograms=station_histograms)
     root.addHandler(handler)
     return handler
 
@@ -479,58 +517,58 @@ from pilgrim.metrics import (
 
 def test_gauge_counter_render_and_escaping():
     reg = Registry()
-    reg.gauge("pg_on_air", "On air.")
-    reg.counter("pg_things_total", "Things.")
-    reg.set("pg_on_air", True)
-    reg.inc("pg_things_total", kind='a"b\\c')
-    reg.inc("pg_things_total", 2, kind='a"b\\c')
+    reg.gauge("pilgrim_on_air", "On air.")
+    reg.counter("pilgrim_things_total", "Things.")
+    reg.set("pilgrim_on_air", True)
+    reg.inc("pilgrim_things_total", kind='a"b\\c')
+    reg.inc("pilgrim_things_total", 2, kind='a"b\\c')
     text = reg.render()
-    assert "# HELP pg_on_air On air.\n# TYPE pg_on_air gauge\npg_on_air 1\n" in text
-    assert "# TYPE pg_things_total counter\n" in text
-    assert 'pg_things_total{kind="a\\"b\\\\c"} 3\n' in text
+    assert "# HELP pilgrim_on_air On air.\n# TYPE pilgrim_on_air gauge\npilgrim_on_air 1\n" in text
+    assert "# TYPE pilgrim_things_total counter\n" in text
+    assert 'pilgrim_things_total{kind="a\\"b\\\\c"} 3\n' in text
     assert text.endswith("\n")
 
 
 def test_none_is_no_sample_and_clear_drops_series():
     reg = Registry()
-    reg.gauge("pg_by_platform", "x")
-    reg.set("pg_by_platform", None, platform="ios")
-    assert "pg_by_platform{" not in reg.render()
-    reg.set("pg_by_platform", 2, platform="ios")
-    reg.clear("pg_by_platform")
-    reg.set("pg_by_platform", 1, platform="android")
+    reg.gauge("pilgrim_by_platform", "x")
+    reg.set("pilgrim_by_platform", None, platform="ios")
+    assert "pilgrim_by_platform{" not in reg.render()
+    reg.set("pilgrim_by_platform", 2, platform="ios")
+    reg.clear("pilgrim_by_platform")
+    reg.set("pilgrim_by_platform", 1, platform="android")
     text = reg.render()
-    assert 'platform="ios"' not in text and 'pg_by_platform{platform="android"} 1' in text
+    assert 'platform="ios"' not in text and 'pilgrim_by_platform{platform="android"} 1' in text
 
 
 def test_float_and_timestamp_values_keep_precision():
     reg = Registry()
-    reg.gauge("pg_ts", "x")
-    reg.set("pg_ts", 1794435172.317)
-    assert "pg_ts 1794435172.317\n" in reg.render()
+    reg.gauge("pilgrim_ts", "x")
+    reg.set("pilgrim_ts", 1794435172.317)
+    assert "pilgrim_ts 1794435172.317\n" in reg.render()
 
 
 def test_histogram_is_cumulative_with_sum_and_count():
     reg = Registry()
-    reg.histogram("pg_wait_seconds", "x", (1.0, 5.0))
+    reg.histogram("pilgrim_wait_seconds", "x", (1.0, 5.0))
     for v in (0.5, 2.0, 9.0):
-        reg.observe("pg_wait_seconds", v, model="m")
+        reg.observe("pilgrim_wait_seconds", v, model="m")
     text = reg.render()
-    assert 'pg_wait_seconds_bucket{model="m",le="1"} 1\n' in text
-    assert 'pg_wait_seconds_bucket{model="m",le="5"} 2\n' in text
-    assert 'pg_wait_seconds_bucket{model="m",le="+Inf"} 3\n' in text
-    assert 'pg_wait_seconds_sum{model="m"} 11.5\n' in text
-    assert 'pg_wait_seconds_count{model="m"} 3\n' in text
+    assert 'pilgrim_wait_seconds_bucket{model="m",le="1"} 1\n' in text
+    assert 'pilgrim_wait_seconds_bucket{model="m",le="5"} 2\n' in text
+    assert 'pilgrim_wait_seconds_bucket{model="m",le="+Inf"} 3\n' in text
+    assert 'pilgrim_wait_seconds_sum{model="m"} 11.5\n' in text
+    assert 'pilgrim_wait_seconds_count{model="m"} 3\n' in text
 
 
 def test_counter_name_and_private_labels_are_refused():
     reg = Registry()
     with pytest.raises(ValueError):
-        reg.counter("pg_things", "x")
-    reg.gauge("pg_x", "x")
+        reg.counter("pilgrim_things", "x")
+    reg.gauge("pilgrim_x", "x")
     for label in sorted(FORBIDDEN_LABELS):
         with pytest.raises(ValueError):
-            reg.set("pg_x", 1, **{label: "v"})
+            reg.set("pilgrim_x", 1, **{label: "v"})
 
 
 def _record(msg, level=logging.INFO, name="radio.test", args=(), **extra):
@@ -554,9 +592,10 @@ def test_log_handler_counts_events_and_skips_plain_info():
     h.emit(_record('%s - "%s %s HTTP/%s" %d', logging.INFO, "uvicorn.access"))
     h.emit(_record("LITELLM_TOKEN not set", logging.WARNING, "radio.server"))
     text = reg.render()
-    assert ('pg_log_events_total{event="program.starved",level="WARNING",'
+    assert ('pilgrim_log_events_total{event="program.starved",level="WARNING",'
             'logger="radio.scheduler"} 2\n') in text
-    assert 'pg_log_events_total{event="other",level="WARNING",logger="radio.server"} 1\n' in text
+    assert ('pilgrim_log_events_total{event="other",level="WARNING",'
+            'logger="radio.server"} 1\n') in text
     assert "uvicorn.access" not in text
 
 
@@ -570,11 +609,34 @@ def test_log_handler_feeds_histograms_and_leaks_no_extra():
     h.emit(_record("song.produced", title="Imported", duration_s=120.0))  # no wall_s
     h.emit(_record("listener.telemetry", player_id="abcdef0123456789", platform="ios"))
     text = reg.render()
-    assert 'pg_llm_call_seconds_bucket{model="qwen38",status="ok",le="2"} 1\n' in text
-    assert 'pg_song_render_seconds_count{generator="audiocpp"} 1\n' in text
-    assert 'pg_song_render_rtf_sum{generator="audiocpp"} 1.8\n' in text
+    assert 'pilgrim_llm_call_seconds_bucket{model="qwen38",status="ok",le="2"} 1\n' in text
+    assert 'pilgrim_song_render_seconds_count{generator="audiocpp"} 1\n' in text
+    assert 'pilgrim_song_render_rtf_sum{generator="audiocpp"} 1.8\n' in text
     for private in ("secret text", "A Private Title", "abcdef0123456789", "request_id"):
         assert private not in text
+
+
+def test_starve_records_feed_the_dead_air_gauges():
+    """MONITORING §2.2: dead air is a first-class gauge, not only a log rate."""
+    reg = Registry()
+    h = LogMetrics(reg)
+    h.emit(_record("program.starved", logging.WARNING, "radio.scheduler", gap_s=12.5))
+    text = reg.render()
+    assert "pilgrim_last_starve_timestamp_seconds 0\n" not in text
+    assert "pilgrim_last_starve_timestamp_seconds " in text
+    assert "pilgrim_starve_gap_seconds_count 1\n" in text
+    assert 'pilgrim_starve_gap_seconds_bucket{le="30"} 1\n' in text
+
+
+def test_web_handler_skips_origin_only_families():
+    """MONITORING §2: the web tier exports no empty origin-only HELP/TYPE."""
+    reg = Registry()
+    LogMetrics(reg, station_histograms=False)
+    text = reg.render()
+    assert "pilgrim_log_events_total" in text and "pilgrim_llm_call_seconds" in text
+    for name in ("pilgrim_song_render_seconds", "pilgrim_song_render_rtf",
+                 "pilgrim_starve_gap_seconds", "pilgrim_last_starve_timestamp_seconds"):
+        assert name not in text
 
 
 def test_log_handler_never_raises_and_install_is_idempotent():
@@ -594,14 +656,14 @@ def test_log_handler_never_raises_and_install_is_idempotent():
 
 def test_server_serves_metrics_and_404s_everything_else():
     reg = Registry()
-    reg.gauge("pg_on_air", "x")
-    reg.set("pg_on_air", 1)
+    reg.gauge("pilgrim_on_air", "x")
+    reg.set("pilgrim_on_air", 1)
     server = serve(reg, "127.0.0.1", 0)
     try:
         base = f"http://127.0.0.1:{server.server_address[1]}"
         with urllib.request.urlopen(base + "/metrics", timeout=3) as r:
             assert r.status == 200 and r.headers["Content-Type"] == CONTENT_TYPE
-            assert b"pg_on_air 1\n" in r.read()
+            assert b"pilgrim_on_air 1\n" in r.read()
         for path in ("/", "/api/health", "/api/station/program"):
             with pytest.raises(urllib.error.HTTPError) as e:
                 urllib.request.urlopen(base + path, timeout=3)
@@ -632,7 +694,7 @@ class Metrics(BaseModel):
     host: str = "127.0.0.1"
     port: int = 9101
     live_s: float = Field(default=5.0, gt=0)
-    refresh_s: float = Field(default=30.0, gt=0)
+    refresh_s: float = Field(default=60.0, gt=0)
 
 ```
 
@@ -656,7 +718,7 @@ metrics:
   host: "0.0.0.0"
   port: 9101
   live_s: 5                # in-memory gauges (coverage, listeners, idle)
-  refresh_s: 30            # admin-health gauges (backend probes, inventory)
+  refresh_s: 60            # admin-health gauges (backend probes, inventory)
 
 ```
 
@@ -679,6 +741,7 @@ def test_metrics_block_defaults_off_and_overlay_moves_the_port():
     from pilgrim.config import ROOT, Metrics, load_config
     m = Metrics()
     assert (m.enabled, m.host, m.port) == (False, "127.0.0.1", 9101)
+    assert (m.live_s, m.refresh_s) == (5.0, 60.0)
     assert load_config().metrics.port == 9101
     overlay = ROOT / "deploy" / "container" / "overlay.yaml"
     assert load_config(overlay=overlay).metrics.port == 9102
@@ -687,7 +750,7 @@ def test_metrics_block_defaults_off_and_overlay_moves_the_port():
 Checks: `make lint`, `make test`. Commit:
 `feat(config): metrics block — enabled/host/port/live_s/refresh_s; container overlay port 9102 (RADIO §12; MONITORING Step 2)`
 
-(RADIO §12 itself is updated in Step 5, in the same PR/branch; say so in the
+(RADIO §12 itself is updated in Step 6, in the same PR/branch; say so in the
 report, AGENTS §1.8.)
 
 ### Step 3 — the origin station
@@ -728,126 +791,133 @@ REEL_STATUSES = ("building", "built", "captioned", "uploaded", "container",
 
 def declare(reg: Registry) -> None:
     g, c = reg.gauge, reg.counter
-    g("pg_process_start_timestamp_seconds", "When this process declared its metrics.")
-    g("pg_on_air", "1 while the committed programme has coverage.")
-    g("pg_idle", "1 while the playhead is frozen (nobody listening).")
-    g("pg_idle_since_timestamp_seconds", "When the current freeze began; 0 when awake.")
-    c("pg_idle_wakes_total", "Wakes served by this process.")
-    g("pg_listeners", "Live players (in-memory map plus the web tier's keys).")
-    g("pg_listeners_reporting", "Live players sending playback telemetry.")
-    g("pg_listeners_by_platform", "Reporting players by platform.")
-    g("pg_listeners_hidden", "Reporting players whose page is hidden or locked.")
-    g("pg_listeners_not_running", "Reporting players whose audio context is not running.")
-    g("pg_listeners_sink_element", "Reporting players on the element sink.")
-    g("pg_listeners_resumed", "Interruption recoveries summed over live players.")
-    g("pg_committed_coverage_seconds", "Seconds of committed programme ahead of the playhead.")
-    g("pg_committed_items", "Rows in the committed window.")
-    g("pg_current_type", "1 for the item type on air now.")
-    g("pg_program_revision", "Scheduler revision (bumps on a splice).")
-    g("pg_request_stage", "Requests in production, by stage.")
-    g("pg_inventory_have", "Inventory the producer counts, by type.")
-    g("pg_inventory_target", "Inventory target, by type.")
-    g("pg_rotation", "Items that can air now, by type.")
-    g("pg_backend_up", "1 when the station's own probe of a backend passes.")
-    g("pg_music_backend_up", "1 per healthy song generator.")
-    g("pg_music_slots", "Effective render slots per song generator.")
-    g("pg_search_last_ok", "1 when the last real Brave call did not degrade.")
-    g("pg_search_last_timestamp_seconds", "When the last real Brave call ran.")
-    g("pg_song_realtime_ratio", "Compute seconds per audio second (station estimate).")
-    g("pg_art_backend", "1 for the art worker's current backend state.")
-    g("pg_art_items", "Songs with and without cover art.")
-    g("pg_db_engine", "1 for the store engine this process opened.")
-    g("pg_cache_enabled", "1 when the hot-state publisher is configured.")
-    g("pg_cache_healthy", "1 when the last hot-state publish succeeded.")
-    c("pg_cache_ticks_total", "Hot-state publishes attempted.")
-    c("pg_cache_failures_total", "Hot-state publishes failed.")
-    g("pg_cache_last_publish_timestamp_seconds", "When the last publish succeeded.")
-    g("pg_cache_pending_players", "Player keys waiting for the next publish.")
-    g("pg_reel_ledgers", "Reel ledgers on disk, by status.")
-    g("pg_reel_failed_ledgers", "Failed Reel ledgers, by the stage they failed at.")
-    g("pg_reel_last_posted_timestamp_seconds", "Newest published Reel; 0 when none.")
-    g("pg_reel_quota_usage", "Publishing quota used, as of the last publish attempt.")
-    g("pg_reel_quota_total", "Publishing quota size, as of the last publish attempt.")
-    g("pg_metrics_refresh_timestamp_seconds", "When refresh() last succeeded.")
-    g("pg_metrics_refresh_duration_seconds", "How long the last refresh() took.")
-    c("pg_metrics_refresh_failures_total", "refresh() or live() raised.")
-    reg.set("pg_process_start_timestamp_seconds", time.time())
-    reg.inc("pg_metrics_refresh_failures_total", 0)
+    g("pilgrim_process_start_timestamp_seconds", "When this process declared its metrics.")
+    g("pilgrim_on_air", "1 while the committed programme has coverage.")
+    g("pilgrim_idle", "1 while the playhead is frozen (nobody listening).")
+    g("pilgrim_idle_since_timestamp_seconds", "When the current freeze began; 0 when awake.")
+    c("pilgrim_idle_wakes_total", "Wakes served by this process.")
+    g("pilgrim_listeners", "Live players (in-memory map plus the web tier's keys).")
+    g("pilgrim_listeners_reporting", "Live players sending playback telemetry.")
+    g("pilgrim_listeners_by_platform", "Reporting players by platform.")
+    g("pilgrim_listeners_hidden", "Reporting players whose page is hidden or locked.")
+    g("pilgrim_listeners_not_running", "Reporting players whose audio context is not running.")
+    g("pilgrim_listeners_sink_element", "Reporting players on the element sink.")
+    g("pilgrim_listeners_resumed", "Interruption recoveries summed over live players.")
+    g("pilgrim_committed_coverage_seconds", "Seconds of committed programme ahead of the playhead.")
+    g("pilgrim_committed_items", "Rows in the committed window.")
+    g("pilgrim_current_type", "1 for the item type on air now.")
+    g("pilgrim_program_revision", "Scheduler revision (bumps on a splice).")
+    g("pilgrim_request_stage", "Requests in production, by stage.")
+    g("pilgrim_starved", "1 while the programme is dry and the station is not frozen.")
+    g("pilgrim_inventory_have", "Inventory the producer counts, by type.")
+    g("pilgrim_inventory_target", "Inventory target, by type.")
+    g("pilgrim_rotation", "Items that can air now, by type.")
+    g("pilgrim_backend_up", "1 when the station's own probe of a backend passes.")
+    g("pilgrim_music_backend_up", "1 per healthy song generator.")
+    g("pilgrim_music_slots", "Effective render slots per song generator.")
+    g("pilgrim_search_last_timestamp_seconds", "When the last real Brave call ran.")
+    g("pilgrim_song_realtime_ratio", "Compute seconds per audio second (station estimate).")
+    g("pilgrim_art_backend", "1 for the art worker's current backend state.")
+    g("pilgrim_art_items", "Songs with and without cover art.")
+    g("pilgrim_db_engine", "1 for the store engine this process opened.")
+    g("pilgrim_cache_enabled", "1 when the hot-state publisher is configured.")
+    g("pilgrim_cache_healthy", "1 when the last hot-state publish succeeded.")
+    c("pilgrim_cache_ticks_total", "Hot-state publishes attempted.")
+    c("pilgrim_cache_failures_total", "Hot-state publishes failed.")
+    g("pilgrim_cache_last_publish_timestamp_seconds", "When the last publish succeeded.")
+    g("pilgrim_cache_pending_players", "Player keys waiting for the next publish.")
+    g("pilgrim_reel_ledgers", "Reel ledgers on disk, by status.")
+    g("pilgrim_reel_failed_ledgers", "Failed Reel ledgers, by the stage they failed at.")
+    g("pilgrim_reel_last_posted_timestamp_seconds", "Newest published Reel; 0 when none.")
+    g("pilgrim_reel_quota_usage", "Publishing quota used, as of the last publish attempt.")
+    g("pilgrim_reel_quota_total", "Publishing quota size, as of the last publish attempt.")
+    g("pilgrim_metrics_refresh_timestamp_seconds", "When refresh() last succeeded.")
+    g("pilgrim_metrics_refresh_duration_seconds", "How long the last refresh() took.")
+    c("pilgrim_metrics_refresh_failures_total", "refresh() or live() raised.")
+    reg.set("pilgrim_process_start_timestamp_seconds", time.time())
+    reg.inc("pilgrim_metrics_refresh_failures_total", 0)
 
 
 def live(reg: Registry, station: Any) -> None:
-    """In-memory values only: no database, no network (every `live_s`)."""
+    """In-memory values only: no database, no network (every `live_s`).
+
+    Reads through the station's public surface and never mutates it:
+    `listener_count()` is the read-only twin of `active_listeners()` (no
+    prune), so a metrics tick cannot influence idle detection (§6 rule 6).
+    """
     sched = station.scheduler
-    reg.set("pg_on_air", station.on_air)
-    reg.set("pg_idle", station.is_idle())
-    reg.set("pg_listeners", station.active_listeners())
-    reg.set("pg_committed_coverage_seconds", round(sched.coverage(), 1))
-    reg.set("pg_committed_items", len(sched._items))
-    reg.set("pg_program_revision", sched.revision)
-    reg.clear("pg_current_type")
+    coverage = sched.coverage()
+    frozen = station.is_idle()
+    reg.set("pilgrim_on_air", coverage > 0)
+    reg.set("pilgrim_idle", frozen)
+    reg.set("pilgrim_starved", coverage <= 0 and not frozen)
+    reg.set("pilgrim_listeners", station.listener_count())
+    reg.set("pilgrim_committed_coverage_seconds", round(coverage, 1))
+    reg.set("pilgrim_committed_items", len(sched._items))
+    reg.set("pilgrim_program_revision", sched.revision)
+    reg.clear("pilgrim_current_type")
     seq, _ = sched.on_air()
     row = next((r for r in list(sched._items) if r["seq"] == seq), None)
     if row is not None:
-        reg.set("pg_current_type", 1, type=str(row["type"]))
-    reg.clear("pg_request_stage")
+        reg.set("pilgrim_current_type", 1, type=str(row["type"]))
+    reg.clear("pilgrim_request_stage")
     stages: dict[str, int] = {}
     for stage in list(station.producer.request_stage.values()):
         stages[str(stage)] = stages.get(str(stage), 0) + 1
     for stage, n in stages.items():
-        reg.set("pg_request_stage", n, stage=stage)
+        reg.set("pilgrim_request_stage", n, stage=stage)
 
 
 def apply_health(reg: Registry, h: dict[str, Any]) -> None:
     """Map the admin health body (RADIO §11) onto gauges. Pure."""
     idle = h.get("idle") or {}
-    reg.set("pg_idle_since_timestamp_seconds", idle.get("since") or 0)
-    reg.set("pg_idle_wakes_total", idle.get("wakes") or 0)
+    reg.set("pilgrim_idle_since_timestamp_seconds", idle.get("since") or 0)
+    reg.set("pilgrim_idle_wakes_total", idle.get("wakes") or 0)
 
     lis = h.get("listeners") or {}
-    reg.set("pg_listeners_reporting", lis.get("reporting"))
-    reg.set("pg_listeners_hidden", lis.get("hidden"))
-    reg.set("pg_listeners_not_running", lis.get("not_running"))
-    reg.set("pg_listeners_sink_element", lis.get("sink_element"))
-    reg.set("pg_listeners_resumed", lis.get("resumed_total"))
-    reg.clear("pg_listeners_by_platform")
+    reg.set("pilgrim_listeners_reporting", lis.get("reporting"))
+    reg.set("pilgrim_listeners_hidden", lis.get("hidden"))
+    reg.set("pilgrim_listeners_not_running", lis.get("not_running"))
+    reg.set("pilgrim_listeners_sink_element", lis.get("sink_element"))
+    reg.set("pilgrim_listeners_resumed", lis.get("resumed_total"))
+    reg.clear("pilgrim_listeners_by_platform")
     for platform, n in (lis.get("by_platform") or {}).items():
-        reg.set("pg_listeners_by_platform", n, platform=platform)
+        reg.set("pilgrim_listeners_by_platform", n, platform=platform)
 
     for kind, level in (h.get("inventory") or {}).items():
-        reg.set("pg_inventory_have", level.get("have"), type=kind)
-        reg.set("pg_inventory_target", level.get("target"), type=kind)
+        reg.set("pilgrim_inventory_have", level.get("have"), type=kind)
+        reg.set("pilgrim_inventory_target", level.get("target"), type=kind)
     for kind, n in (h.get("rotation") or {}).items():
-        reg.set("pg_rotation", n, type=kind)
+        reg.set("pilgrim_rotation", n, type=kind)
 
     b = h.get("backends") or {}
     for backend in ("litellm", "kokoro", "music", "search", "sfx"):
-        reg.set("pg_backend_up", bool(b.get(backend)), backend=backend)
-    reg.clear("pg_music_backend_up")
+        reg.set("pilgrim_backend_up", bool(b.get(backend)), backend=backend)
+    reg.clear("pilgrim_music_backend_up")
     for name, ok in (b.get("music_backends") or {}).items():
-        reg.set("pg_music_backend_up", bool(ok), name=name)
-    reg.clear("pg_music_slots")
+        reg.set("pilgrim_music_backend_up", bool(ok), name=name)
+    reg.clear("pilgrim_music_slots")
     for name, slots in (b.get("music_slots") or {}).items():
-        reg.set("pg_music_slots", slots, name=name)
+        reg.set("pilgrim_music_slots", slots, name=name)
     last = b.get("search_last") or {}
-    reg.set("pg_search_last_ok", last.get("status") != "degraded")
-    reg.set("pg_search_last_timestamp_seconds", last.get("at") or 0)
+    reg.set("pilgrim_search_last_timestamp_seconds", last.get("at") or 0)
 
-    reg.set("pg_song_realtime_ratio", h.get("song_realtime"))
+    reg.set("pilgrim_song_realtime_ratio", h.get("song_realtime"))
     art = h.get("art") or {}
-    reg.clear("pg_art_backend")
-    reg.set("pg_art_backend", 1, state=str(art.get("backend") or "disabled"))
-    reg.set("pg_art_items", art.get("with_art"), with_art="yes")
-    reg.set("pg_art_items", art.get("without_art"), with_art="no")
+    reg.clear("pilgrim_art_backend")
+    reg.set("pilgrim_art_backend", 1, state=str(art.get("backend") or "disabled"))
+    reg.set("pilgrim_art_items", art.get("with_art"), with_art="yes")
+    reg.set("pilgrim_art_items", art.get("without_art"), with_art="no")
 
-    reg.clear("pg_db_engine")
-    reg.set("pg_db_engine", 1, engine=str((h.get("db") or {}).get("engine") or "unknown"))
+    reg.clear("pilgrim_db_engine")
+    reg.set("pilgrim_db_engine", 1, engine=str((h.get("db") or {}).get("engine") or "unknown"))
     cache = h.get("cache") or {}
-    reg.set("pg_cache_enabled", bool(cache.get("enabled")))
-    reg.set("pg_cache_healthy", bool(cache.get("healthy")))
-    reg.set("pg_cache_ticks_total", cache.get("ticks") or 0)
-    reg.set("pg_cache_failures_total", cache.get("failures") or 0)
-    reg.set("pg_cache_last_publish_timestamp_seconds", cache.get("last_publish_at") or 0)
-    reg.set("pg_cache_pending_players", cache.get("pending_players") or 0)
+    reg.set("pilgrim_cache_enabled", bool(cache.get("enabled")))
+    reg.set("pilgrim_cache_healthy", bool(cache.get("healthy")))
+    reg.set("pilgrim_cache_ticks_total", cache.get("ticks") or 0)
+    reg.set("pilgrim_cache_failures_total", cache.get("failures") or 0)
+    reg.set("pilgrim_cache_last_publish_timestamp_seconds", cache.get("last_publish_at") or 0)
+    reg.set("pilgrim_cache_pending_players", cache.get("pending_players") or 0)
 
 
 def read_reels(directory: Path) -> dict[str, Any]:
@@ -882,14 +952,14 @@ def read_reels(directory: Path) -> dict[str, Any]:
 
 def apply_reels(reg: Registry, reels: dict[str, Any]) -> None:
     for status, n in reels["by_status"].items():
-        reg.set("pg_reel_ledgers", n, status=status)
-    reg.clear("pg_reel_failed_ledgers")
+        reg.set("pilgrim_reel_ledgers", n, status=status)
+    reg.clear("pilgrim_reel_failed_ledgers")
     for stage, n in reels["failed_at"].items():
-        reg.set("pg_reel_failed_ledgers", n, stage=stage)
-    reg.set("pg_reel_last_posted_timestamp_seconds", reels["last_posted"])
+        reg.set("pilgrim_reel_failed_ledgers", n, stage=stage)
+    reg.set("pilgrim_reel_last_posted_timestamp_seconds", reels["last_posted"])
     quota = reels["quota"] or {}
-    reg.set("pg_reel_quota_usage", quota.get("quota_usage"))
-    reg.set("pg_reel_quota_total", quota.get("quota_total"))
+    reg.set("pilgrim_reel_quota_usage", quota.get("quota_usage"))
+    reg.set("pilgrim_reel_quota_total", quota.get("quota_total"))
 
 
 async def refresh(reg: Registry, station: Any, cfg: Config) -> None:
@@ -897,8 +967,8 @@ async def refresh(reg: Registry, station: Any, cfg: Config) -> None:
     apply_health(reg, await station.health())
     reels = await asyncio.to_thread(read_reels, ROOT / cfg.logging.dir / "reels")
     apply_reels(reg, reels)
-    reg.set("pg_metrics_refresh_duration_seconds", round(time.monotonic() - t0, 3))
-    reg.set("pg_metrics_refresh_timestamp_seconds", time.time())
+    reg.set("pilgrim_metrics_refresh_duration_seconds", round(time.monotonic() - t0, 3))
+    reg.set("pilgrim_metrics_refresh_timestamp_seconds", time.time())
 
 
 async def run(reg: Registry, station: Any, cfg: Config) -> None:
@@ -912,7 +982,7 @@ async def run(reg: Registry, station: Any, cfg: Config) -> None:
                 next_refresh = time.monotonic() + cfg.metrics.refresh_s
                 await refresh(reg, station, cfg)
         except Exception as e:  # noqa: BLE001
-            reg.inc("pg_metrics_refresh_failures_total")
+            reg.inc("pilgrim_metrics_refresh_failures_total")
             log.warning("metrics.refresh_failed", extra={"error": f"{type(e).__name__}: {e}"[:300]})
         await asyncio.sleep(cfg.metrics.live_s)
 
@@ -935,7 +1005,7 @@ def start(cfg: Config, station: Any, reg: Registry = REGISTRY) -> bool:
     return True
 ```
 
-**Edit `pilgrim/server.py`, two lines.**
+**Edit `pilgrim/server.py`, three edits.**
 
 1. Replace the import line `from pilgrim import voting` with:
 
@@ -948,6 +1018,20 @@ from pilgrim import station_metrics, voting
 
 ```python
         station_metrics.start(cfg, station)  # MONITORING.md: own socket + task
+```
+
+3. Immediately above `    def active_listeners(self) -> int:` add the
+   read-only twin (MONITORING §6 rule 6: a metrics tick never mutates station
+   state):
+
+```python
+    def listener_count(self) -> int:
+        """Live players, read-only: the same union `active_listeners()`
+        returns, without pruning, so a metrics tick never mutates station
+        state (MONITORING.md §6 rule 6). Stale entries leave on the next
+        heartbeat, which is where they are pruned today."""
+        return len(set(self._listeners) | self._remote_listeners)
+
 ```
 
 Change nothing else in `server.py`. Do not touch `listener_configs`,
@@ -1001,20 +1085,22 @@ def test_apply_health_maps_the_admin_body():
     sm.apply_health(reg, HEALTH)
     text = reg.render()
     for line in (
-        'pg_inventory_have{type="song"} 0', 'pg_inventory_target{type="song"} 2',
-        'pg_rotation{type="song"} 412',
-        'pg_backend_up{backend="sfx"} 0', 'pg_backend_up{backend="kokoro"} 1',
-        'pg_music_backend_up{name="spx1"} 0', 'pg_music_slots{name="litellm"} 3',
-        "pg_search_last_ok 1", "pg_search_last_timestamp_seconds 1794000000.5",
-        "pg_song_realtime_ratio 0.62",
-        'pg_art_backend{state="ok"} 1', 'pg_art_items{with_art="no"} 12',
-        'pg_db_engine{engine="postgres"} 1',
-        "pg_cache_healthy 1", "pg_cache_ticks_total 38779", "pg_cache_failures_total 1",
-        "pg_idle_since_timestamp_seconds 1793990000", "pg_idle_wakes_total 4",
-        'pg_listeners_by_platform{platform="ios"} 1', "pg_listeners_resumed 3",
+        'pilgrim_inventory_have{type="song"} 0', 'pilgrim_inventory_target{type="song"} 2',
+        'pilgrim_rotation{type="song"} 412',
+        'pilgrim_backend_up{backend="sfx"} 0', 'pilgrim_backend_up{backend="kokoro"} 1',
+        'pilgrim_music_backend_up{name="spx1"} 0', 'pilgrim_music_slots{name="litellm"} 3',
+        "pilgrim_search_last_timestamp_seconds 1794000000.5",
+        "pilgrim_song_realtime_ratio 0.62",
+        'pilgrim_art_backend{state="ok"} 1', 'pilgrim_art_items{with_art="no"} 12',
+        'pilgrim_db_engine{engine="postgres"} 1',
+        "pilgrim_cache_healthy 1", "pilgrim_cache_ticks_total 38779",
+        "pilgrim_cache_failures_total 1",
+        "pilgrim_idle_since_timestamp_seconds 1793990000", "pilgrim_idle_wakes_total 4",
+        'pilgrim_listeners_by_platform{platform="ios"} 1', "pilgrim_listeners_resumed 3",
     ):
         assert line + "\n" in text, line
     assert "pg-db.example" not in text            # the DB host is not a metric
+    assert "pilgrim_search_last_ok" not in text    # backend_up{search} is the health signal
 
 
 def test_apply_health_drops_label_values_that_went_away():
@@ -1027,13 +1113,13 @@ def test_apply_health_drops_label_values_that_went_away():
     sm.apply_health(reg, later)
     text = reg.render()
     assert 'platform="ios"' not in text and 'state="ok"' not in text
-    assert 'name="spx1"' not in text and 'pg_art_backend{state="down"} 1' in text
+    assert 'name="spx1"' not in text and 'pilgrim_art_backend{state="down"} 1' in text
 
 
 def test_apply_health_tolerates_a_minimal_body():
     reg = _reg()
     sm.apply_health(reg, {"on_air": False, "cache": {"enabled": False}})
-    assert "pg_cache_enabled 0\n" in reg.render()
+    assert "pilgrim_cache_enabled 0\n" in reg.render()
 
 
 def test_live_reads_a_real_station_without_waking_it(tmp_env):
@@ -1046,12 +1132,23 @@ def test_live_reads_a_real_station_without_waking_it(tmp_env):
     reg = _reg()
     sm.live(reg, station)
     text = reg.render()
-    assert "pg_on_air 1\n" in text and "pg_idle 0\n" in text
-    assert "pg_listeners 1\n" in text
-    assert "pg_committed_coverage_seconds 0\n" not in text
-    assert 'pg_current_type{type="' in text
+    assert "pilgrim_on_air 1\n" in text and "pilgrim_idle 0\n" in text
+    assert "pilgrim_listeners 1\n" in text
+    assert "pilgrim_committed_coverage_seconds 0\n" not in text
+    assert 'pilgrim_current_type{type="' in text
     assert "p-live-0001" not in text
     assert station.idle_wakes == wakes
+
+
+def test_live_flags_dead_air_when_the_programme_is_dry(tmp_env):
+    """MONITORING §2.2: starved is a dry programme, not the idle freeze."""
+    cfg, _, _ = tmp_env
+    station = build_station(cfg)          # nothing seeded, nothing committed
+    reg = _reg()
+    sm.live(reg, station)
+    text = reg.render()
+    assert "pilgrim_on_air 0\n" in text and "pilgrim_starved 1\n" in text
+    assert "pilgrim_idle 0\n" in text     # not frozen: dead air, not idle
 
 
 def test_read_reels_summarises_ledgers(tmp_path: Path):
@@ -1066,11 +1163,11 @@ def test_read_reels_summarises_ledgers(tmp_path: Path):
     reg = _reg()
     sm.apply_reels(reg, sm.read_reels(d))
     text = reg.render()
-    assert 'pg_reel_ledgers{status="published"} 1\n' in text
-    assert 'pg_reel_ledgers{status="failed"} 1\n' in text
-    assert 'pg_reel_failed_ledgers{stage="container"} 1\n' in text
-    assert "pg_reel_last_posted_timestamp_seconds 1794225600\n" in text
-    assert "pg_reel_quota_usage 3\n" in text and "pg_reel_quota_total 100\n" in text
+    assert 'pilgrim_reel_ledgers{status="published"} 1\n' in text
+    assert 'pilgrim_reel_ledgers{status="failed"} 1\n' in text
+    assert 'pilgrim_reel_failed_ledgers{stage="container"} 1\n' in text
+    assert "pilgrim_reel_last_posted_timestamp_seconds 1794225600\n" in text
+    assert "pilgrim_reel_quota_usage 3\n" in text and "pilgrim_reel_quota_total 100\n" in text
     assert "private caption" not in text and "example/p" not in text
 
 
@@ -1114,7 +1211,8 @@ Create `pilgrim/web_metrics.py` with exactly this content:
 """The Fargate web tier's metrics (MONITORING.md §2; RADIO §11 "Metrics").
 
 Request counts and latency per route template, what this task sees in the
-cache, and its open chat sockets. Served on `metrics.port`, a second socket
+cache, its open chat sockets, and whether the separate chat worker process is
+alive (its `worker:heartbeat` key). Served on `metrics.port`, a second socket
 that is never registered with the ALB (terraform: the target group knows only
 `station.port`). `install()` is called from `web_app.main()` only, so tests
 and `create_web_app` are unchanged unless a test installs it itself.
@@ -1141,18 +1239,22 @@ HTTP_BUCKETS = (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
 
 
 def declare(reg: Registry) -> None:
-    reg.gauge("pg_process_start_timestamp_seconds", "When this process declared its metrics.")
-    reg.counter("pg_web_http_requests_total",
+    reg.gauge("pilgrim_process_start_timestamp_seconds", "When this process declared its metrics.")
+    reg.counter("pilgrim_web_http_requests_total",
                 "HTTP requests by route template, method and status.")
-    reg.histogram("pg_web_http_request_seconds",
+    reg.histogram("pilgrim_web_http_request_seconds",
                   "HTTP request wall time by route template.", HTTP_BUCKETS)
-    reg.gauge("pg_web_cache_up", "1 when this task can read the hot state from Valkey.")
-    reg.gauge("pg_web_station_on_air", "1 when the published health says on air.")
-    reg.gauge("pg_web_chat_sockets", "Open chat WebSockets on this task.")
-    reg.gauge("pg_metrics_refresh_timestamp_seconds", "When refresh() last succeeded.")
-    reg.counter("pg_metrics_refresh_failures_total", "refresh() raised.")
-    reg.set("pg_process_start_timestamp_seconds", time.time())
-    reg.inc("pg_metrics_refresh_failures_total", 0)
+    reg.gauge("pilgrim_web_cache_up", "1 when this task can read the hot state from Valkey.")
+    reg.gauge("pilgrim_web_station_on_air", "1 when the published health says on air.")
+    reg.gauge("pilgrim_web_chat_sockets", "Open chat WebSockets on this task.")
+    reg.gauge("pilgrim_web_chat_worker_up",
+              "1 when the chat worker's heartbeat key is present.")
+    reg.gauge("pilgrim_web_chat_worker_heartbeat_timestamp_seconds",
+              "The chat worker's last heartbeat; 0 when none.")
+    reg.gauge("pilgrim_metrics_refresh_timestamp_seconds", "When refresh() last succeeded.")
+    reg.counter("pilgrim_metrics_refresh_failures_total", "refresh() raised.")
+    reg.set("pilgrim_process_start_timestamp_seconds", time.time())
+    reg.inc("pilgrim_metrics_refresh_failures_total", 0)
 
 
 def route_label(request: Request) -> str:
@@ -1178,9 +1280,9 @@ def add_middleware(app: FastAPI, reg: Registry) -> None:
             return response
         finally:
             route = route_label(request)
-            reg.inc("pg_web_http_requests_total", route=route,
+            reg.inc("pilgrim_web_http_requests_total", route=route,
                     method=request.method, status=str(status))
-            reg.observe("pg_web_http_request_seconds", time.perf_counter() - t0, route=route)
+            reg.observe("pilgrim_web_http_request_seconds", time.perf_counter() - t0, route=route)
 
 
 def read_cache(station: Any) -> tuple[bool, bool]:
@@ -1192,13 +1294,36 @@ def read_cache(station: Any) -> tuple[bool, bool]:
     return True, isinstance(doc, dict) and bool(doc.get("on_air"))
 
 
+async def read_worker(reg: Registry, station: Any) -> None:
+    """The chat worker runs in its own launchd process (`pilgrim/chat_worker.py`)
+    and writes `worker:heartbeat` to Valkey every 30 s with a 120 s TTL. Its
+    presence is the liveness signal; a missing key is a dead worker, not a
+    missing metric (MONITORING §2.3)."""
+    cache = getattr(station, "chat_cache", None)
+    value: float | None = None
+    if cache is not None:
+        try:
+            beat = await cache.get("worker:heartbeat")
+        except Exception:  # noqa: BLE001 - a cache outage is the signal
+            beat = None
+        if isinstance(beat, bytes | bytearray):
+            beat = beat.decode("utf-8", "replace")
+        try:
+            value = float(beat)
+        except (TypeError, ValueError):
+            value = None
+    reg.set("pilgrim_web_chat_worker_up", value is not None)
+    reg.set("pilgrim_web_chat_worker_heartbeat_timestamp_seconds", value or 0)
+
+
 async def refresh(reg: Registry, station: Any) -> None:
     up, on_air = await asyncio.to_thread(read_cache, station)
-    reg.set("pg_web_cache_up", up)
-    reg.set("pg_web_station_on_air", on_air)
+    reg.set("pilgrim_web_cache_up", up)
+    reg.set("pilgrim_web_station_on_air", on_air)
     hub = getattr(station, "chat_hub", None)
-    reg.set("pg_web_chat_sockets", len(hub.sockets) if hub is not None else 0)
-    reg.set("pg_metrics_refresh_timestamp_seconds", time.time())
+    reg.set("pilgrim_web_chat_sockets", len(hub.sockets) if hub is not None else 0)
+    await read_worker(reg, station)
+    reg.set("pilgrim_metrics_refresh_timestamp_seconds", time.time())
 
 
 async def run(reg: Registry, station: Any, cfg: Config) -> None:
@@ -1206,7 +1331,7 @@ async def run(reg: Registry, station: Any, cfg: Config) -> None:
         try:
             await refresh(reg, station)
         except Exception as e:  # noqa: BLE001
-            reg.inc("pg_metrics_refresh_failures_total")
+            reg.inc("pilgrim_metrics_refresh_failures_total")
             log.warning("metrics.refresh_failed", extra={"error": f"{type(e).__name__}: {e}"[:300]})
         await asyncio.sleep(cfg.metrics.live_s)
 
@@ -1217,7 +1342,7 @@ def install(cfg: Config, app: FastAPI, station: Any, reg: Registry = REGISTRY) -
     if not cfg.metrics.enabled:
         return False
     declare(reg)
-    install_log_metrics(reg)
+    install_log_metrics(reg, station_histograms=False)
     add_middleware(app, reg)
 
     @app.on_event("startup")
@@ -1284,12 +1409,12 @@ def test_requests_are_counted_by_route_template(tmp_env, monkeypatch):
     assert c.get("/api/nope/secret-path").status_code == 404
     assert c.get("/").status_code == 200
     text = reg.render()
-    assert ('pg_web_http_requests_total{method="GET",route="/api/health",status="200"} 1\n'
+    assert ('pilgrim_web_http_requests_total{method="GET",route="/api/health",status="200"} 1\n'
             in text)
     assert 'route="/api/requests/{request_id}/vote"' in text
     assert 'route="/api/{rest:path}",status="404"' in text
-    assert 'pg_web_http_requests_total{method="GET",route="static",status="200"} 1\n' in text
-    assert 'pg_web_http_request_seconds_count{route="/api/health"} 1\n' in text
+    assert 'pilgrim_web_http_requests_total{method="GET",route="static",status="200"} 1\n' in text
+    assert 'pilgrim_web_http_request_seconds_count{route="/api/health"} 1\n' in text
     assert "987654" not in text and "secret-path" not in text
 
 
@@ -1303,15 +1428,40 @@ def test_refresh_reports_cache_and_station(tmp_env, monkeypatch):
     _, web, _, reg = _client(tmp_env, monkeypatch)
     asyncio.run(wm.refresh(reg, web))
     text = reg.render()
-    assert "pg_web_cache_up 1\n" in text and "pg_web_station_on_air 1\n" in text
-    assert "pg_web_chat_sockets 0\n" in text
+    assert "pilgrim_web_cache_up 1\n" in text and "pilgrim_web_station_on_air 1\n" in text
+    assert "pilgrim_web_chat_sockets 0\n" in text
+    assert "pilgrim_web_chat_worker_up 0\n" in text      # no chat cache in this fixture
 
     def boom(name):
         raise ConnectionError("cache down")
     monkeypatch.setattr(web.hot, "read", boom)
     asyncio.run(wm.refresh(reg, web))
     text = reg.render()
-    assert "pg_web_cache_up 0\n" in text and "pg_web_station_on_air 0\n" in text
+    assert "pilgrim_web_cache_up 0\n" in text and "pilgrim_web_station_on_air 0\n" in text
+
+
+def test_chat_worker_heartbeat_is_reported(tmp_env, monkeypatch):
+    """MONITORING §2.3: the chat worker is a separate process; its heartbeat
+    key is the liveness signal, so a dead worker is visible from the web tier."""
+    _, web, _, reg = _client(tmp_env, monkeypatch)
+
+    class FakeChat:
+        async def get(self, name):
+            return b"1794000000.5" if name == "worker:heartbeat" else None
+
+    web.chat_cache = FakeChat()
+    asyncio.run(wm.refresh(reg, web))
+    text = reg.render()
+    assert "pilgrim_web_chat_worker_up 1\n" in text
+    assert "pilgrim_web_chat_worker_heartbeat_timestamp_seconds 1794000000.5\n" in text
+
+    class DeadChat:
+        async def get(self, name):
+            return None
+
+    web.chat_cache = DeadChat()
+    asyncio.run(wm.refresh(reg, web))
+    assert "pilgrim_web_chat_worker_up 0\n" in reg.render()
 
 
 def test_install_is_a_no_op_when_disabled(tmp_env, monkeypatch):
@@ -1324,17 +1474,82 @@ def test_install_is_a_no_op_when_disabled(tmp_env, monkeypatch):
 ```
 
 Checks: `make lint`, `make test`, `make sim`, `make e2e`. Commit:
-`feat(metrics): web tier request counters, cache view, chat sockets on :9102; installed by web_app.main (RADIO §11; MONITORING Step 4)`
+`feat(metrics): web tier request counters, cache view, chat sockets + worker heartbeat on :9102; installed by web_app.main (RADIO §11; MONITORING Step 4)`
 
-### Step 5 — docs and deploy references
+### Step 5 — normalise the non-event warnings
 
-**5a. `RADIO.md` §11.** Find the paragraph heading or sentence that introduces
-the web tier (search for `Web tier`). Immediately **before** that subsection,
-add:
+The station logs one dotted event name per record, but twenty WARNING-or-above
+lines predate that convention. Without this step they all collapse into
+`pilgrim_log_events_total{event="other"}`, so `scheduler cycle failed` and
+`song production failed` are indistinguishable on the dashboard (§2.1). This
+step changes **message literals only**: same level, same arguments, the same
+`%` placeholders in the same order, no control-flow change. That is the one
+exception to D5.
+
+Rename exactly these (search for the current string; the line numbers are from
+the pre-Step-3 tree and will have shifted):
+
+| File | Now | Event |
+|------|-----|-------|
+| `pilgrim/server.py` | `idle check failed: %s` | `idle.check_failed: %s` |
+| `pilgrim/web_app.py` | `LITELLM_TOKEN not set; request moderation and paid summaries will fail` | `llm.token_missing: request moderation and paid summaries will fail` |
+| `pilgrim/producer.py` | `liner production failed (%.0fs bucket): %s` | `liner.production_failed: %.0fs bucket: %s` |
+| `pilgrim/producer.py` | `station id production failed: %s` | `station_id.production_failed: %s` |
+| `pilgrim/producer.py` | `commercial production failed: %s` | `commercial.production_failed: %s` |
+| `pilgrim/producer.py` | `dj talk production failed: %s` | `dj_talk.production_failed: %s` |
+| `pilgrim/producer.py` | `field report production failed: %s` | `field_report.production_failed: %s` |
+| `pilgrim/producer.py` | `promo production failed (%s): %s` | `promo.production_failed: %s: %s` |
+| `pilgrim/producer.py` | `time_check production failed: %s` | `time_check.production_failed: %s` |
+| `pilgrim/producer.py` | `news production failed: %s` | `news.production_failed: %s` |
+| `pilgrim/producer.py` | `producer voice cycle error: %s` | `producer.voice_cycle_failed: %s` |
+| `pilgrim/producer.py` | `sfx loop error: %s` | `sfx.loop_failed: %s` |
+| `pilgrim/producer.py` | `news loop error: %s` | `news.loop_failed: %s` |
+| `pilgrim/producer.py` | `song backend unavailable: %s` | `song.backend_unavailable: %s` |
+| `pilgrim/producer.py` | `song production failed: %s` | `song.production_failed: %s` |
+| `pilgrim/scheduler.py` | `materialize %s failed: %s` | `scheduler.materialize_failed: %s: %s` |
+| `pilgrim/scheduler.py` | `scheduler cycle failed: %s` | `scheduler.cycle_failed: %s` |
+| `pilgrim/seed.py` | `seed song failed: %s` | `seed.song_failed: %s` |
+| `pilgrim/pipelines/operator_phrase.py` | `phrase cycle failed: %s` | `operator_phrase.cycle_failed: %s` |
+| `pilgrim/tools/import_song.py` | `import failed: %s` | `import.failed: %s` |
+
+Rules:
+
+- Do not touch the `log.<level>(...)` call shape, the arguments, or the
+  surrounding code. `log.exception` stays `log.exception`.
+- Leave the INFO production lines (`produced liner`, `producer running`, …)
+  alone: INFO non-events are dropped by design (`LogMetrics` counts only
+  WARNING and above as `other`), and renaming them would add ~20 event series
+  for no dashboard value.
+- `pilgrim/seed.py`, `pilgrim/tools/import_song.py` and the pipelines run
+  outside the station process, so they are renamed for consistency only.
+- Nothing asserts on these strings (verified): no test needs updating.
+
+Checks: `make lint`, `make test`, `make sim`, `make e2e`. Also:
+
+```sh
+grep -rn 'log\.\(warning\|error\|exception\|critical\)(' pilgrim --include=*.py \
+  | grep -v /tests/ | grep -v 'event_name'
+```
+
+should show only dotted events (plus the variable-message calls that
+`event_name` already rejects). Commit:
+`refactor(logging): give the twenty non-event warnings dotted event names (MONITORING Step 5)`
+
+### Step 6 — docs and deploy references
+
+**6a. `RADIO.md` §11.** Find the one line that starts with exactly
+
+```
+**Web tier (docs/plans/scalability.md Step 5; `pilgrim/web_app.py`).** On Fargate the
+```
+
+(it is in §11, around line 1366; ignore the earlier table row near line 50 that
+mentions `§11 "Web tier"`). Immediately **above** that line, add this text
+followed by one blank line. It is a bold-lead paragraph like its neighbours,
+not a heading:
 
 ```markdown
-### Metrics (MONITORING.md)
-
+**Metrics (MONITORING.md).**
 Both processes export Prometheus metrics in-process, on a socket of their own:
 `GET /metrics` on `metrics.host:metrics.port` (§12; `9101` on the Mac, `9102`
 in the container). That socket answers nothing else (404), is not the public,
@@ -1346,8 +1561,12 @@ on the event loop: in-memory state every `metrics.live_s`, and the admin
 health body (`Station.health()`, which never wakes a frozen station) every
 `metrics.refresh_s`. The web tier fills it from a request middleware (route
 template, method, status, latency), one Valkey read of the `health` document
-per `live_s`, and its open chat sockets. Both attach a logging handler that
-counts every dotted log event as `pg_log_events_total{logger,event,level}`.
+and one of the chat worker's `worker:heartbeat` key per `live_s`, and its open
+chat sockets. Both attach a logging handler that counts every dotted log event
+as `pilgrim_log_events_total{logger,event,level}`; only the origin also feeds
+the render and dead-air histograms. Metric names use the `pilgrim_` prefix
+(`pilgrim_web_*` for web-only families); the Prometheus `job` labels stay
+`pg-origin`/`pg-web`, which mirror the `pg-app`/`pg-db` infra naming.
 The catalogue is MONITORING.md §2. No label carries a player id, voter id, IP,
 title, URL, request id or chat text; the registry refuses those label names.
 The metrics modules never import `scheduler.py`, `producer.py`, `selector.py`,
@@ -1355,7 +1574,7 @@ The metrics modules never import `scheduler.py`, `producer.py`, `selector.py`,
 (`metrics.refresh_failed`, `metrics.disabled`), never raised.
 ```
 
-**5b. `RADIO.md` §12.** In the YAML sketch, immediately above the line
+**6b. `RADIO.md` §12.** In the YAML sketch, immediately above the line
 `logging:` add:
 
 ```yaml
@@ -1364,17 +1583,17 @@ metrics:                   # MONITORING.md; §11 "Metrics". GET /metrics on its 
   host: "0.0.0.0"          # LAN-reachable for the NAS Prometheus; admin stays loopback
   port: 9101               # container overlay: 9102 (never in the ALB target group)
   live_s: 5                # in-memory gauges
-  refresh_s: 30            # admin-health gauges (backend probes, inventory counts)
+  refresh_s: 60            # admin-health gauges (backend probes, inventory counts)
 
 ```
 
-**5c. `AGENTS.md`.**
+**6c. `AGENTS.md`.**
 
 1. In the plan list at the top, add after the `sheep-pen-plan.md` bullet:
 
 ```markdown
 - `MONITORING.md` — in-process Prometheus metrics for the station (`:9101`)
-  and the web tier (`:9102`); Steps 1–5, then an operator handoff. The parked
+  and the web tier (`:9102`); Steps 1–6, then an operator handoff. The parked
   infrastructure plan is `docs/backlog/monitoring-infra.md`.
 ```
 
@@ -1390,16 +1609,20 @@ metrics:                   # MONITORING.md; §11 "Metrics". GET /metrics on its 
 - **`/metrics` has its own port and only `main()` opens it** (MONITORING.md):
   `9101` on the Mac, `9102` in the container. Never mount it on the public or
   admin app, never start it from `build_station`/`create_web_app`, and never
-  add a label that could hold a listener id or request text.
+  add a label that could hold a listener id or request text. Metric names use
+  the `pilgrim_` prefix (never `pg_`: that is `postgres_exporter`'s namespace);
+  the `job` labels stay `pg-origin`/`pg-web`. A metrics tick reads station state
+  through read-only accessors (`Station.listener_count()`), never the pruning
+  ones.
 ```
 
-**5d. `Dockerfile`.** Replace the line `EXPOSE 8080` with:
+**6d. `Dockerfile`.** Replace the line `EXPOSE 8080` with:
 
 ```dockerfile
 EXPOSE 8080 9102
 ```
 
-**5e. `pilgrim/deploy/container/task-definition.json`.** Replace
+**6e. `pilgrim/deploy/container/task-definition.json`.** Replace
 
 ```json
       "portMappings": [
@@ -1428,7 +1651,7 @@ with
       ],
 ```
 
-**5f. `pilgrim/deploy/tailscale/policy.example.hujson`** (mirrors what the
+**6f. `pilgrim/deploy/tailscale/policy.example.hujson`** (mirrors what the
 operator already applied on 2026-11-11). Replace
 
 ```hujson
@@ -1453,12 +1676,24 @@ and replace the line `    // No edge-to-edge grant. No SSH rules.` with:
     // No edge-to-edge grant. No SSH rules.
 ```
 
-**5g. `docs/README.md`.** Add one index line for `MONITORING.md` (application
-metrics plan) and one for `docs/backlog/monitoring-infra.md` (parked
-infrastructure and alerting plan), in the style of the neighbouring lines.
+**6g. `docs/README.md`.** Two table rows, in the document index table.
+
+1. Directly under the row that starts
+   `| [plans/scalability.md](plans/scalability.md) |` add:
+
+```markdown
+| [../MONITORING.md](../MONITORING.md) | In-process Prometheus metrics: station `:9101`, web tier `:9102`, then an operator handoff | active |
+```
+
+2. Directly under the row that starts
+   `| [backlog/fix-prompting.md](backlog/fix-prompting.md) |` add:
+
+```markdown
+| [backlog/monitoring-infra.md](backlog/monitoring-infra.md) | Parked monitoring infrastructure and alerting plan (the previous `MONITORING.md`) | backlog |
+```
 
 Checks: `make lint`, `make test`, `make deploy-check`. Commit:
-`docs: metrics — RADIO §11 "Metrics", §12 metrics block, AGENTS env + pitfall, container port 9102, tailnet tag:monitoring grant (MONITORING Step 5)`
+`docs: metrics — RADIO §11 "Metrics", §12 metrics block, AGENTS env + pitfall, container port 9102, tailnet tag:monitoring grant (MONITORING Step 6)`
 
 Then stop and write the AGENTS §8 report. **Do not deploy.**
 
@@ -1507,7 +1742,15 @@ and the container's `portMappings` (leave `load_balancer` alone):
           ]
 ```
 
-`iam.tf`:
+`iam.tf`: **operator, 2026-11-13: this should already exist** — `kenny-logger`
+already has ECS discovery read. Verify before applying anything:
+
+```sh
+aws iam list-user-policies --user-name kenny-logger
+aws iam get-user-policy --user-name kenny-logger --policy-name ecs-discovery-read
+```
+
+If it is present, skip the snippet below. If it is missing, add it:
 
 ```hcl
 data "aws_iam_policy_document" "ecs_discovery" {
@@ -1529,8 +1772,15 @@ resource "aws_iam_user_policy" "ecs_discovery" {
 }
 ```
 
-`terraform plan` should show: one ingress rule, one user policy, the service
-tag, and a new task definition revision (rolling deploy).
+`resources = ["*"]` is required: `ecs:List*`/`Describe*` and
+`ec2:DescribeNetworkInterfaces` have no resource-level ARNs. The real boundary
+is the `clusters` list in §5.4 (one cluster, `us-west-2`). A static key in the
+NAS Prometheus user's `~/.aws/credentials` is accepted (operator,
+2026-11-13).
+
+`terraform plan` should show: one ingress rule, the service tag, and a new task
+definition revision (rolling deploy); plus the user policy only if §5.1's
+verify step found it missing.
 
 ### 5.2 Ship the code
 
@@ -1543,12 +1793,12 @@ tag, and a new task definition revision (rolling deploy).
 
 ```sh
 # on the Mac
-curl -s 127.0.0.1:9101/metrics | grep -c '^pg_'            # > 50
-curl -s 127.0.0.1:9101/metrics | grep '^pg_on_air'
+curl -s 127.0.0.1:9101/metrics | grep -c '^pilgrim_'            # > 50
+curl -s 127.0.0.1:9101/metrics | grep '^pilgrim_on_air'
 curl -s -o /dev/null -w '%{http_code}\n' 127.0.0.1:9101/api/health   # 404
 
 # from the bastion (inside the VPC); TASK_IP from the ECS console
-ssh pf2 "curl -s http://TASK_IP:9102/metrics | grep '^pg_web_'"
+ssh pf2 "curl -s http://TASK_IP:9102/metrics | grep '^pilgrim_web_'"
 
 # the ALB must NOT serve it
 curl -s -o /dev/null -w '%{http_code}\n' https://pilgrim.farm/metrics  # 404 or the site's fallback, never metrics text
@@ -1598,18 +1848,22 @@ Done when `up{job="pg-origin"} == 1` and `up{job="pg-web"} == 1`.
 
 ### 5.5 What scraping costs the station
 
-Nothing on the playout path. The 30 s refresh makes the same backend `GET`s
-and inventory counts the admin `/api/health` makes on demand. If that ever
-shows up as load, raise `metrics.refresh_s`; the live gauges are unaffected.
+Nothing on the playout path. The 60 s refresh makes the same backend `GET`s
+and inventory counts the admin `/api/health` makes on demand (≈7 probes/min,
+not the ~17k/day a 30 s cadence would cost). If that ever shows up as load,
+raise `metrics.refresh_s` again; the live gauges are unaffected.
 
 ### 5.6 Station dashboard
 
 A third dashboard in the **Pilgrim Dot Farm** folder, built once real series
-exist. Suggested rows: on air / idle / listeners / coverage; inventory vs
-target and rotation; backends and music slots; requests (stage gauge, event
-rates); renders (`pg_song_render_seconds`, `pg_song_render_rtf`, LLM latency);
+exist. Suggested rows: **dead air** (`pilgrim_starved`, `pilgrim_last_starve_timestamp_seconds`,
+`pilgrim_starve_gap_seconds`, `rate(pilgrim_log_events_total{event="program.starved"}[5m])`),
+on air / idle / listeners / coverage; inventory vs target and rotation;
+backends and music slots; requests (stage gauge, event rates); renders
+(`pilgrim_song_render_seconds`, `pilgrim_song_render_rtf`, LLM latency);
 hot-state publisher; web tier (requests by route and status, p95 latency,
-cache view, chat sockets); log events by level; Reels.
+cache view, chat sockets, `pilgrim_web_chat_worker_up`); log events by level;
+Reels. Sum `pilgrim_web_*` across tasks (`sum by (job)`) during a rolling deploy.
 
 ---
 
@@ -1633,17 +1887,33 @@ In addition to AGENTS §1:
 5. A metrics failure is logged and counted. It never raises into the station
    or the web app, and a taken port means "no metrics", not "no station".
 6. Scrape handlers do no I/O beyond rendering the registry.
+7. A metrics tick never mutates station state. It reads through read-only
+   accessors (`Station.listener_count()`, `scheduler.coverage()`), never the
+   pruning ones (`Station.active_listeners()`), so monitoring cannot move the
+   idle decision.
 
 ---
 
 ## 7. Acceptance checklist
 
-- [ ] `make lint`, `make test`, `make sim`, `make e2e` pass after Step 4.
+- [ ] `make lint`, `make test`, `make sim`, `make e2e` pass after Step 6.
 - [ ] `make test` never binds `9101` or `9102` (it passes while the live
       station is running on this Mac).
 - [ ] `git diff` for `scheduler.py`, `producer.py`, `selector.py`,
-      `payments.py` and `pilgrim/pipelines/` is empty.
-- [ ] `server.py` and `web_app.py` each changed by exactly two lines.
+      `payments.py` and `pilgrim/pipelines/` shows **only log-message literals**
+      (Step 5); no control-flow or playout change.
+- [ ] `server.py` has three edits (import, `station_metrics.start`,
+      `listener_count`); `web_app.py` two lines.
+- [ ] Every metric name is `pilgrim_*`; no `pg_*` metric name remains; the
+      `job` labels are still `pg-origin`/`pg-web`.
+- [ ] `pilgrim_search_last_ok` does not exist (redundant with
+      `pilgrim_backend_up{backend="search"}`).
+- [ ] The web tier exports no `pilgrim_song_render_*` / `pilgrim_starve_*`
+      HELP/TYPE lines (`LogMetrics(station_histograms=False)`).
+- [ ] `pilgrim_starved`, `pilgrim_last_starve_timestamp_seconds` and
+      `pilgrim_starve_gap_seconds` appear on the origin.
+- [ ] `pilgrim_web_chat_worker_up` follows the chat worker's `worker:heartbeat`
+      key.
 - [ ] RADIO §11 has "Metrics"; RADIO §12 has the `metrics:` block.
 - [ ] (operator) §5.3 checks pass; both `up` series are 1; the Station
       dashboard exists.
@@ -1664,7 +1934,22 @@ In addition to AGENTS §1:
 4. **Prometheus version on the NAS** for `aws_sd_configs` `role: ecs` (§5.4).
 5. **Alerting.** Out of scope here. Once the series exist, the catalogue in
    `docs/backlog/monitoring-infra.md` §4 can be cut down to the rows that use
-   `pg_*` (#4, #7, #10–12, #15–17, #24–25, #31–33) as Grafana-managed alerts.
+   `pilgrim_*` (#4, #7, #10–12, #15–17, #24–25, #31–33) as Grafana-managed alerts.
+
+### 8.1 Resolved 2026-11-13
+
+| # | Question | Answer |
+|---|----------|--------|
+| 1 | `pg_` prefix vs `postgres_exporter` | **`pilgrim_`** for every metric name; `job` labels stay `pg-origin`/`pg-web` (D7) |
+| 2 | Non-dotted WARNING+ lines collapse to `other` | **Fixed** by renaming the twenty lines to dotted events (Step 5; D5 narrowed to log-message renames) |
+| 3 | `MAX_EVENTS = 400` | **`9000`** (≈226 events exist today; the cap is a safety valve) |
+| 4 | Redundant metrics | **Dropped** `pilgrim_search_last_ok`; `pilgrim_backend_up{backend="search"}` is the signal |
+| 5 | `refresh_s = 30` | **`60`** |
+| 6 | Dead air | **Added** `pilgrim_starved`, `pilgrim_last_starve_timestamp_seconds`, `pilgrim_starve_gap_seconds` |
+| 7 | Origin-only histograms on the web tier | **`LogMetrics(station_histograms=False)`** for the web tier |
+| 8 | `live()` mutating listener state | **`Station.listener_count()`** (read-only twin of `active_listeners()`); §6 rule 7 |
+| 9 | IAM scope for ECS discovery | **Verify first** — operator says it already exists; snippet is a fallback only (§5.1) |
+| 10 | Chat worker invisible | **Covered cheaply**: the web tier reads the worker's existing `worker:heartbeat` key → `pilgrim_web_chat_worker_up` (§2.3) |
 
 ---
 
