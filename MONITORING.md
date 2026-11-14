@@ -1701,6 +1701,27 @@ Then stop and write the AGENTS §8 report. **Do not deploy.**
 
 ## 5. Operator handoff (not the agent)
 
+### 5.0 Status 2026-11-14
+
+- **Origin: done.** The station was restarted; `GET :9101/metrics` serves 49
+  families / 97 samples, `pilgrim_on_air 1`, `pilgrim_starved 0`, and
+  `/metrics` 404s every other path. Origin-only histograms are present; no
+  `pilgrim_web_*` family appears.
+- **Web image: done.** `make image-smoke` PASS; the web image was built
+  (`pilgrim:web`, digest `sha256:1dba6575…`) and pushed as
+  `pilgrimdotfarm/front-end:5530a17` and `:latest`.
+- **Terraform: prepared, NOT applied.** The four edits below are in the
+  working tree of `~/projects/terraform-aws-pilgrim/modules/ec2` (unstaged,
+  on top of the operator's staged release-26 changes); `terraform fmt -check`
+  and `terraform validate` pass. **Blocked:** the operator's `aws login`
+  default session is `arn:aws:iam::821856822529:root` — the *pre-move*
+  account. `pg-ecs` does not exist there, and root may not assume a role into
+  `477688903218` (`AccessDenied: Roles may not be assumed by root accounts`).
+  Log in as an identity in account `477688903218`, then `terraform plan` /
+  `apply`.
+- **Not done:** the NAS Prometheus jobs (§5.4) and the Station dashboard
+  (§5.6).
+
 ### 5.1 Terraform, `~/projects/terraform-aws-pilgrim/modules/ec2`
 
 **Verified read-only 2026-11-14 — the ECS side is NOT done yet.** Current tree:
