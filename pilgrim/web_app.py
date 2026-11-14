@@ -36,6 +36,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from pilgrim import dj_contracts as dj
+from pilgrim import web_metrics
 from pilgrim.aws_secrets import STRIPE_SECRET_ARN_ENV, export_secret_env
 from pilgrim.chat.audit import AuditLog
 from pilgrim.chat.hub import ChatHub
@@ -329,6 +330,7 @@ def main() -> None:
     cfg = load_config()
     station = build_web_station(cfg)
     app = create_web_app(cfg, station)
+    web_metrics.install(cfg, app, station)  # MONITORING.md: own socket, never the ALB's
     # proxy_headers=False: the trusted-proxy decision is ours (RADIO §14),
     # never uvicorn's. log_config=None: lines go to the JSON root logger.
     uvicorn.run(app, host=cfg.station.host, port=cfg.station.port,
