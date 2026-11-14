@@ -684,6 +684,21 @@ class Logging(BaseModel):
     format: Literal["text", "json"] = "text"
 
 
+class Metrics(BaseModel):
+    """In-process Prometheus metrics (MONITORING.md; RADIO §11 "Metrics", §12).
+
+    `GET /metrics` on its own socket, started only by `server.main()` and
+    `web_app.main()`, so tests, the sim and the e2e servers never open it.
+    Off by default; `config.yaml` turns it on for the Mac and the container
+    overlay moves the port. `live_s` is the in-memory cadence, `refresh_s`
+    the admin-health cadence (backend probes, inventory counts)."""
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 9101
+    live_s: float = Field(default=5.0, gt=0)
+    refresh_s: float = Field(default=60.0, gt=0)
+
+
 class DjCharacter(BaseModel):
     """Operator-only character (docs/systems/console.md §6, §10; RADIO.md §12).
 
@@ -990,6 +1005,7 @@ class Config(BaseModel):
     art: Art = Field(default_factory=Art)
     instagram: Instagram = Field(default_factory=Instagram)
     logging: Logging = Field(default_factory=Logging)
+    metrics: Metrics = Field(default_factory=Metrics)
     talk: Talk = Field(default_factory=Talk)
     liners: Liners = Field(default_factory=Liners)
     promotions: Promotions = Field(default_factory=Promotions)
