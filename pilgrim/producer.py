@@ -59,26 +59,33 @@ LLM_FREE_CUTS = 4
 
 
 class PriorityGate:
-    """One holder at a time, granted to the waiter with the LOWEST key, not
-    the earliest (asyncio.Lock is FIFO: a paid request re-queued after a
-    cut-off brief waited behind a free one, 2026-11-01)."""
+    """Up to `capacity` holders at a time, each grant going to the waiter with
+    the LOWEST key, not the earliest (asyncio.Lock is FIFO: a paid request
+    re-queued after a cut-off brief waited behind a free one, 2026-11-01).
+    `capacity` 1 is the old one-holder gate; the song-brief gate takes the
+    brief model's `models.max_concurrency` (RADIO §6.1/§12) so several briefs
+    may be written at once (2026-11-14)."""
 
-    def __init__(self) -> None:
-        self._busy = False
+    def __init__(self, capacity: int = 1) -> None:
+        self._capacity = max(1, int(capacity))
+        self._busy = 0
         self._waiters: list[tuple[tuple, int, asyncio.Future]] = []
         self._seq = itertools.count()
 
     def _release(self) -> None:
-        while self._waiters:
+        self._busy -= 1
+        while self._busy < self._capacity and self._waiters:
             _, _, fut = heapq.heappop(self._waiters)
             if not fut.done():
-                fut.set_result(None)  # hand off: stays busy for the new holder
+                self._busy += 1  # hand off: the slot now belongs to the new holder
+                fut.set_result(None)
                 return
-        self._busy = False
 
     @contextlib.asynccontextmanager
     async def hold(self, key: tuple) -> AsyncIterator[None]:
-        if self._busy:
+        if self._busy < self._capacity:
+            self._busy += 1
+        else:
             fut = asyncio.get_running_loop().create_future()
             heapq.heappush(self._waiters, (key, next(self._seq), fut))
             try:
@@ -87,8 +94,6 @@ class PriorityGate:
                 if fut.done() and not fut.cancelled():
                     self._release()  # granted as we were cancelled: pass it on
                 raise
-        else:
-            self._busy = True
         try:
             yield
         finally:
@@ -269,10 +274,13 @@ class Producer:
         self._idle_stock_logged = False
         # song jobs in flight under song_loop (RADIO §6.1): task -> job
         self._jobs: dict[asyncio.Task, SongJob] = {}
-        # song briefs one at a time (requests and stock): parallel briefs
-        # slowed qwen38 into its ~120 s cutoff, and each brief sees the last
-        # one's genre
-        self._brief_gate = PriorityGate()
+        # song briefs, at most `models.max_concurrency[brief model]` at a time
+        # (requests and stock): one brief was the historical ceiling (2026-11-14
+        # raised it to 3 now that calls stream — the read timeout measures
+        # inactivity between chunks, not total wall time); each brief still
+        # sees the genres of the jobs still rendering
+        self._brief_gate = PriorityGate(
+            self.cfg.models.max_concurrency.get(self.cfg.models.briefs, 1))
         # generator slots, granted by queue order: a job waits here after its
         # brief, so the words are written while another song renders (§6.1)
         self._render_gate = SlotGate(self._capacity, self._paid_briefing,

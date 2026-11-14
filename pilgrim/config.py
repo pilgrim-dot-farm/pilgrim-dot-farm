@@ -135,6 +135,19 @@ class Models(BaseModel):
     # max_tokens at admission, and a near-context request never got admitted
     # while other calls ran ("expired while waiting for admission", 2026-11-01)
     output_tokens: dict[str, int] = Field(default_factory=dict)
+    # Max concurrent calls per model id. qwen38's server reserves a call's
+    # whole max_tokens at admission, so the station caps itself per model
+    # (enforced in the LLM client, RADIO §6.1/§12); unlisted models are
+    # unbounded.
+    max_concurrency: dict[str, int] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _concurrency_positive(self) -> Models:
+        for model, cap in (self.max_concurrency or {}).items():
+            if cap < 1:
+                raise ValueError(
+                    f"models.max_concurrency[{model!r}] must be >= 1")
+        return self
 
 
 class Voices(BaseModel):
@@ -327,6 +340,11 @@ class Songs(BaseModel):
     # Song generator pool (RADIO §6.2). Up to sum(slots) of the healthy
     # backends render at once; listener requests take the fastest idle one.
     gen_backends: list[MusicBackend] = Field(default_factory=list)
+    # Fallback generator (RADIO §6.2, 2026-11-14): when EVERY primary backend
+    # is in cooldown (e.g. the LiteLLM pass-through is down), renders go here
+    # directly — the local M5 mlx-serve. Never used while a primary is up
+    # (the M5 is also one of the primary's deployments; no double-routing).
+    local_fallback: MusicBackend | None = None
     # free listener requests rendering at once; they and stock never take the
     # pool's last slot, which stays open for a paid request (RADIO §6.1)
     free_request_slots: int = 2

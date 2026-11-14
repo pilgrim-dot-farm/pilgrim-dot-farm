@@ -306,22 +306,26 @@ class MusicPool:
                  stagger_s: float, now: Callable[[], float] = time.monotonic,
                  sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
                  discover: Discover | None = None,
-                 discover_interval_s: float = 300.0) -> None:
+                 discover_interval_s: float = 300.0,
+                 fallback: MusicBackend | None = None) -> None:
         self.backends = list(backends)
+        self._fallback = fallback
         self._cooldown_s = cooldown_s
         self._stagger_s = stagger_s
         self._now = now
         self._sleep = sleep
-        self._busy = {b.name: 0 for b in self.backends}
-        self._down_until = {b.name: 0.0 for b in self.backends}
-        self._fails = {b.name: 0 for b in self.backends}
-        self._rtf = {b.name: float(b.rtf_hint or 0.0) for b in self.backends}
+        known = list(backends) + ([fallback] if fallback else [])
+        self._busy = {b.name: 0 for b in known}
+        self._down_until = {b.name: 0.0 for b in known}
+        self._fails = {b.name: 0 for b in known}
+        self._rtf = {b.name: float(b.rtf_hint or 0.0) for b in known}
         self._next_submit = float("-inf")
         # Effective slots. A `slots: auto` backend starts at 1 (never 0: a
         # proxy blip must not stall the station) until `refresh` counts its
-        # healthy deployments (FIX: 2026-11-07, RADIO §6.2).
-        self._slots = {b.name: (1 if b.slots == "auto" else int(b.slots))
-                       for b in self.backends}
+        # healthy deployments (FIX: 2026-11-07, RADIO §6.2). The fallback is
+        # a plain int count (discovery is meaningless without the proxy).
+        self._slots = {b.name: (1 if b.slots == "auto" else max(1, int(b.slots)))
+                       for b in known}
         self._auto = [b for b in self.backends if b.slots == "auto"]
         self._discover = discover
         self._discover_interval_s = discover_interval_s
@@ -330,9 +334,24 @@ class MusicPool:
     def _up(self, b: MusicBackend) -> bool:
         return self._now() >= self._down_until[b.name]
 
+    def _fallback_active(self) -> bool:
+        """RADIO §6.2 fallback: only when EVERY primary backend is in
+        cooldown (e.g. the LiteLLM pass-through is down) and the local box
+        itself is up. A healthy proxy — even a shrunken fan-out — always
+        beats the direct box: the M5 is also one of the proxy's deployments,
+        so using the fallback while the proxy works would double-route it."""
+        if self._fallback is None:
+            return False
+        return (not any(self._up(b) for b in self.backends)
+                and self._up(self._fallback))
+
     def capacity(self) -> int:
         """Render slots on backends not in cooldown."""
-        return sum(self._slots[b.name] for b in self.backends if self._up(b))
+        n = sum(self._slots[b.name] for b in self.backends if self._up(b))
+        fb = self._fallback
+        if fb is not None and self._fallback_active():
+            n += self._slots[fb.name]
+        return n
 
     def slots(self) -> dict[str, int]:
         """Effective slots per backend (config, or discovered for `auto`)."""
@@ -369,6 +388,10 @@ class MusicPool:
             self._slots[b.name] = slots
 
     def _pick(self, prefer: str) -> MusicBackend | None:
+        fb = self._fallback
+        if fb is not None and self._fallback_active() \
+                and self._busy[fb.name] < self._slots[fb.name]:
+            return fb
         free = [b for b in self.backends
                 if self._up(b) and self._busy[b.name] < self._slots[b.name]]
         if not free:
@@ -481,7 +504,10 @@ async def song_backend_health(cfg: Config, client: httpx.AsyncClient,
     (the router needs `model` in a body; observed HTTP 500), so for those the
     proxy's /models list must carry models.music."""
     out: dict[str, bool] = {}
-    for b in cfg.songs.gen_backends:
+    backends = list(cfg.songs.gen_backends)
+    if cfg.songs.local_fallback is not None:
+        backends.append(cfg.songs.local_fallback)
+    for b in backends:
         try:
             if b.auth == "litellm":
                 r = await client.get(
@@ -513,7 +539,8 @@ class SongPipeline:
             cfg.songs.gen_backends, cfg.songs.backend_cooldown_s,
             cfg.songs.submit_stagger_s,
             discover=self._discover,
-            discover_interval_s=cfg.songs.discover_interval_s)
+            discover_interval_s=cfg.songs.discover_interval_s,
+            fallback=cfg.songs.local_fallback)
 
     async def _discover(self, backend: MusicBackend) -> int | None:
         """`slots: auto`: healthy deployments behind the proxy (RADIO §6.2)."""
