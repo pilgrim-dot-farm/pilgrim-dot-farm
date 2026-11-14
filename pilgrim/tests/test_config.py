@@ -152,3 +152,14 @@ def test_paid_max_length_must_fit_the_parts():
     assert Payments(paid_max_length=8000,
                     parts=PaidParts(lyrics_max=100, music_max=100,
                                     art_max=100)).paid_max_length == 8000
+
+
+def test_metrics_block_defaults_off_and_overlay_moves_the_port():
+    """MONITORING Step 2 (RADIO §12)."""
+    from pilgrim.config import ROOT, Metrics, load_config
+    m = Metrics()
+    assert (m.enabled, m.host, m.port) == (False, "127.0.0.1", 9101)
+    assert (m.live_s, m.refresh_s) == (5.0, 60.0)
+    assert load_config().metrics.port == 9101
+    overlay = ROOT / "deploy" / "container" / "overlay.yaml"
+    assert load_config(overlay=overlay).metrics.port == 9102

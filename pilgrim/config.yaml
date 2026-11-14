@@ -283,6 +283,17 @@ logging:
   backups: 5
   format: text           # text (Mac) | json (container overlay, Logs Insights)
 
+# In-process Prometheus metrics (MONITORING.md; RADIO §11 "Metrics"). Its own
+# socket, GET /metrics only, read-only, no listener ids in any label. The NAS
+# Prometheus scrapes it over the LAN, hence 0.0.0.0 (the admin listener stays
+# on loopback). Started by `python -m pilgrim.server` only, never by tests.
+metrics:
+  enabled: true
+  host: "0.0.0.0"
+  port: 9101
+  live_s: 5                # in-memory gauges (coverage, listeners, idle)
+  refresh_s: 60            # admin-health gauges (backend probes, inventory)
+
 media:                       # RADIO §8.4: S3 + CloudFront is the media source of truth
   publish: true              # uploader task in the station process
   bucket: pilgrim-dot-farm-public-2

@@ -29,6 +29,9 @@ library:
   dir: data/library        # /app/pilgrim/data is the one writable volume (Dockerfile)
   db: data/station.db
 
+metrics:
+  port: 9102               # second socket, never in the ALB target group (terraform ecs_metrics_port)
+
 logging:
   dir: data/logs           # stdout is the real log sink in a container; the file is a courtesy
   format: json             # Logs Insights queries the web tier's structured lines
