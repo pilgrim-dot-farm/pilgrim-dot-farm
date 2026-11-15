@@ -1087,7 +1087,7 @@ def _pen_producer(cfg, store, voice):
 
 
 def _say(store, p, n, text="the tractor song was grand", *, age_s=60.0,
-         status="pending_review", name="Ada", start=0):
+         status="accepted", name="Ada", start=0):
     now = p.clock.wall()
     for i in range(start, start + n):
         store.insert_chat_message(
@@ -1123,12 +1123,13 @@ def test_field_report_comments_on_the_pen_without_names(cfg, tmp_env):
     assert _field_meta(store)[0]["pen_chat"]["n"] == 4
 
 
-def test_field_report_skips_deleted_flagged_old_and_purged_messages(cfg, tmp_env):
+def test_field_report_skips_unreviewed_deleted_flagged_old_and_purged_messages(cfg, tmp_env):
     _, store, _ = tmp_env
     voice = FakeVoice()
     p = _pen_producer(cfg, store, voice)
     _say(store, p, 3, text="removed by a moderator", status="deleted")
     _say(store, p, 3, text="flagged by review", status="flagged", start=10)
+    _say(store, p, 3, text="not reviewed yet", status="pending_review", start=40)
     _say(store, p, 3, text="said yesterday", age_s=cfg.talk.field_pen_window_s + 60,
          start=20)
     for i in range(30, 33):                        # purged: the text is gone

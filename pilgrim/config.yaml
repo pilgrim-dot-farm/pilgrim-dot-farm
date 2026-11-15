@@ -417,7 +417,7 @@ talk:
       day_parts: [midday, afternoon, evening]
   field_reporter_name: Giles  # PLACEHOLDER until the user names him (docs/systems/sfx.md §10.1)
   # He comments on the Sheep Pen chat in his radio report (RADIO §6.1): a report
-  # is about the pen when this many listener messages are newer than his last
+  # is about the pen when this many reviewed (accepted) messages are newer than his last
   # pen report. He never posts in the chat.
   field_pen_min_messages: 3   # 0 = never
   field_pen_window_s: 3600    # only messages this recent

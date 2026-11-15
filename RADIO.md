@@ -40,7 +40,7 @@ without touching the rest of the system.
 
 | Host | Role | Endpoint |
 |------|------|----------|
-| Song generators | MiniMax Music 3 ×3: the M5 (mlx-serve, MLX 8-bit) and two audiocpp GPU boxes, reached as one LiteLLM model group (`models.music`) through the vLLM pass-through. The M5 also runs the station server. | `songs.gen_backends` → `{url}/v1/audio/music-generations` (§6.2) |
+| Song generators | MiniMax Music 3 ×3: the M5 (mlx-serve, MLX 8-bit), reached directly since 2026-11-14, and two audiocpp GPU boxes, reached as one LiteLLM model group (`models.music`) through the vLLM pass-through. The M5 also runs the station server. | `songs.gen_backends` → `{url}/v1/audio/music-generations` (§6.2) |
 | 5090 | `qwen38` (Qwen 3.8 27B): news (with search tools), song briefs/lyrics, just-in-time DJ talk | `<QWEN_HOST>` via LiteLLM |
 | 4070 Ti | `ornith`: commercials, liners (high volume, low stakes, inventory work) | `<ORNITH_HOST>` via LiteLLM |
 | Kokoro-82M | TTS, 16-bit mono 24 kHz | `192.168.68.89:8001` |
@@ -160,7 +160,9 @@ Segment types the selector chooses from:
 - `news` — the current bulletin, if one is valid.
 - `field_report` — the British field reporter, filing invented farm factoids
   from a literal field; always closes with his "outstanding in my field"
-  sign-off (enforced in code). Contextual: aired once, never recycled.
+  sign-off (enforced in code). Contextual: aired once, never recycled. When
+  the Sheep Pen chat has been talking, the report is about the pen instead
+  (§6.1 "Field reports and the pen").
 - `operator_phrase` — a phrase submitted **verbatim** by the station operator
   through the DJ console (docs/systems/console.md §6): the typed words are the copy, never
   rewritten or extended by an LLM. One deterministic exception: if the message
@@ -203,6 +205,50 @@ pure functions of state plus an injected RNG, so tests are deterministic with a
 seed.
 
 ### 5.2 RandomSelector rules
+
+**Break structure (2026-11-14, `playout.breaks`, shipped on).** With
+`playout.breaks.enabled` the station runs `BreakSelector`
+(`selector.make_selector`) and every break between two songs has one fixed
+shape: **lead, promo, then the song with its intro**. It replaces the
+weighted draw below whenever a song is airable; in a song drought the
+weighted draw and all of its rules take over unchanged. Measured before the
+change (three days of listener airplay): median break 15 s, 59% of breaks a
+single item, commercials and liners unchanged since 2026-10-01, an intro on
+5% of songs, news at random minutes.
+
+| Break | When | Lead | Typical length |
+|---|---|---|---|
+| News | the first break from `news_lead_s` (60 s) before to `news_lag_s` (240 s) after a `news_marks_min` mark (:00 :15 :30 :45), once per mark | the fresh bulletin | ~35 s |
+| Field | the first non-news break within `field_window_s` (480 s) after a `field_marks_min` mark (:00 :30), once per mark | a fresh field report | ~32 s |
+| Feature | every other remaining break | `dj_talk` and one `commercial`, taking turns | ~30 s |
+| Light | the breaks between features | a `liner` (station ID) | ~20 s |
+
+Rules of the shape:
+- **A promo closes every break** (it is a radio station: repetition is
+  fine). The per-kind gaps (`request_line_gap_s`, `paid_tier_gap_s`,
+  `tree_fiddy_gap_s`, `promo_min_spacing_s`) become an **order**, not a gate:
+  a kind past its gap goes first (most overdue wins), otherwise any promo not
+  among the last `promo_repeat_breaks` (6) aired, otherwise the one heard
+  longest ago. The promo may follow DJ talk; two promos never run together.
+  No promo after a `serious` bulletin: the song (with the usual
+  words-between-songs fallback) follows the news directly.
+- **The lead never waits.** No fresh bulletin or field report at its mark:
+  the break takes its ordinary lead. The feature whose turn it is has no
+  stock: the other one airs, then a liner. Nothing in stock at all: the promo
+  alone, then the weighted draw's fallbacks.
+- **One commercial per break** (the lead); `max_consecutive_non_song` stays 2.
+- **Every song is introduced.** A song's code-written intro ("Here's {title}
+  from {artist}") is rendered once and kept (`evergreen`), and replayed with
+  the song on every airing; the producer backfills songs that have none
+  (§6.1). A song without one airs without it. A request's own thank-you intro
+  stays one-shot (hard rule 10).
+- **No clock reads.** `time_check` is never drawn and never produced: the
+  quarter-hour news marks the time.
+- `news_min_spacing_s` and the weights are not consulted while a song is
+  airable. News adjacency to `field_report` cannot occur (different breaks).
+
+The rest of this section describes the weighted draw (`RandomSelector`),
+which runs when `playout.breaks.enabled` is false and during a song drought.
 
 Weighted random choice, **restricted to segment types that have ready
 inventory**. If the drawn type is unavailable, re-draw from the available
@@ -579,6 +625,42 @@ Workers:
 - **Kokoro worker:** renders approved copy in priority order (contextual >
   news > inventory).
 
+**Turnover of evergreen spots (2026-11-14).** Commercials and liners are
+produced only up to a target, so nothing new was written once the target was
+met. `ensure_turnover` keeps the pools changing: for a type at (or above) its
+target, when no item of that type was created for `86400 / per_day` seconds
+(`inventory.commercials_turnover_per_day` 2, `liners_turnover_per_day` 4),
+the most-played item with at least `turnover_min_plays` (10) airings is
+retired (`retire_item`, reason `turnover: most played`; the file stays) and
+the next `ensure_commercials` / `ensure_liners` pass writes a replacement.
+The pace comes from the newest item's age, so it needs no state and survives
+restarts. New commercials target `inventory.commercial_target_s` (15 s).
+
+**Retained song intros (2026-11-14).** `ensure_song_intros` gives every
+usable song without a reusable intro (one whose meta has no `request_id`) a
+code-written one, `inventory.intro_backfill_per_pass` (2) per producer pass.
+It is Kokoro only (no LLM, no song model), it does nothing while a listener
+request is queued or being produced, and it stops mid-pass when one arrives.
+A title whose render fails is not retried until restart.
+
+**Field reports and the pen (2026-11-15).** The field reporter comments on
+the Sheep Pen chat (§9.1) **on the radio, in his own spot; nobody from the
+station posts in the chat.** When `ensure_field_reports` writes a report it
+reads the durable chat copy (`chat_messages`, §14): listener messages the
+review worker has passed (`accepted` only; never `pending_review`, `flagged`
+or `deleted`, so with the chat worker down he files ordinary reports), with
+text, from the last `talk.field_pen_window_s` (3600) and
+newer than the last pen report. With at least `talk.field_pen_min_messages`
+(3; 0 = never) of them, the newest `talk.field_pen_max_messages` (30) are
+handed to the copy model through `prompts/field_pen.md` as data, **text
+only: no display names or ids**, and the report is about the pen: its mood
+and topics in his own words, nobody named, nothing quoted or read out.
+Otherwise he files the ordinary farm report. The item's meta records
+`pen_chat: {n, until_ts}`, which is the cursor: chatter is covered once. A
+failed chat read means an ordinary report. The report is still a normal
+`field_report` (voice, sign-off, SFX bed, the :00/:30 field break of §5.2),
+made ahead as stock, so it reflects the pen as it was when it was written.
+
 **Queue benchmark (docs/systems/queue-bench.md).** A request row flagged
 `bench=1` is a benchmark request, added only through the admin listener
 (`POST /api/admin/bench`, §11). The producer treats it as a listener request
@@ -709,7 +791,12 @@ scheduler's hold (§14). Failures follow the listener rules (`attempts`,
    mlx-serve at `127.0.0.1:11234`, one slot (it serializes music jobs in one
    queue) — until a primary recovers (2026-11-14); it is never used while a
    primary is up, because the M5 is also one of the proxy's fan-out
-   deployments and the pool must not double-route it. The song's `meta` records `backend` and `generator`
+   deployments and the pool must not double-route it. **Since 2026-11-14 the
+   shipped config has no fallback:** the operator took the M5 out of the
+   proxy's group and it is the first primary (`m5`, one slot), with `litellm`
+   (the two GPU boxes) second. Requests therefore go to the M5 first (it is
+   the fastest) and the excess to LiteLLM; stock takes the slowest idle
+   backend, leaving the M5 for requests. The song's `meta` records `backend` and `generator`
    (the `x-generated-by` header; a seed replays only on the same generator).
    Record wall-clock generation time for the rate metric.
 3. **QC** (§8.1).
@@ -1112,10 +1199,9 @@ the station name.
   listeners are distinguishable. Repeated rejected sends (rate or repeat)
   trigger a cool-off — 5 min, then 15 min, then 1 h for a repeat offence
   within 24 h — shown in the log with the compose row disabled until it
-  expires. Pen reports (`giles` frame flag) render exactly like ordinary
-  listener messages — a vague listener display name (`chat.pen_reporter_name`,
-  default Liam), no visual distinction (operator decision 2026-11-15: the
-  radio's field reporter stays on the radio; the pen reporter blends in). Read-only before naming; no IPs, user ids or moderation
+  expires. Only listeners post in the pen: there is no station character or
+  generated poster (operator decision 2026-11-15; the field reporter talks
+  about the pen on the radio, §6.1). Read-only before naming; no IPs, user ids or moderation
   metadata appear. No framework, no build step, and nothing in `chat.js`
   touches playback.
 - **ABOUT** (docs/plans/ui-refactor.md, 2026-11): one pane holding, in this order and
@@ -1334,7 +1420,7 @@ refill target.
 | POST | `/api/admin/dj/phrases` | `{command_id, character_id, text, cleaned_text_hash}` → validate, persist job, `202 {job_id, status, cleaned_text}` |
 | GET | `/api/admin/dj/phrases/{job_id}` | Phrase job: stage, character/voice snapshot, cleaned text, expiry, failure, or `{media_id, duration_s}` when ready |
 | POST | `/api/admin/dj/phrases/validate` | Pure cleaned-text validation → `{cleaned_text, changes, text_hash, ok, rejected_reason}`; no synthesis or scheduling |
-| WS | `/api/chat/ws` | The Sheep Pen socket (docs/plans/sheep-pen-brief.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts, giles}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `cooldown {until}`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. After
+| WS | `/api/chat/ws` | The Sheep Pen socket (docs/plans/sheep-pen-brief.md §0.7.6; web tier only). Client frames `hello {token, last_id, client_version}`, `name {name}`, `send {client_msg_id, text}`, `ping`, `pong`. Server frames `welcome {name, banned_until, slow_mode, last_id, history}`, `message {id, name, text, ts}`, `ack {client_msg_id, id}`, `deleted {id}`, `renamed`, `warned`, `banned`, `slow_mode`, `cooldown {until}`, `error {code, detail}`, `ping`, `pong`. Server pings every `chat.ping_s` and closes after two missed pongs; a full per-socket queue closes 1013; SIGTERM closes 1012. After
 `chat.spam_offense_limit` rate/repeat rejections inside
 `chat.spam_offense_window_s`, the user gets a cool-off (409-equivalent
 `cooldown` frame; error code `cooldown`) for the next `chat.cooldown_ladder_s`
@@ -1346,7 +1432,6 @@ duration (5 min → 15 min → 1 h by cool-offs in 24 h). No browser frame carri
 | POST | `/api/admin/chat/unban` | Operator: `{scope, target}` (a user unban also clears an automatic spam cool-off) |
 | POST | `/api/admin/chat/name` | Operator: rename `{user_id, name}` or release (`name` omitted) |
 | POST | `/api/admin/chat/posting` | Operator: `{enabled, ttl_s?}` posting switch |
-| POST | `/api/admin/chat/giles` | Operator: `{paused}` Giles switch |
 | POST | `/api/admin/chat/slow_mode` | Operator: `{interval_s}` or clear |
 | GET | `/api/admin/chat/state` | Operator: cursor, stream length, worker heartbeat, switches, pending review, recent decisions |
 
@@ -1509,7 +1594,6 @@ models:
   liners: ornith
   field_report: qwen38
   chat_moderation: Ornith-1.5-9B   # Layer B review worker (docs/plans/sheep-pen-brief.md §6)
-  chat_giles: Ornith-1.5-9B        # Giles's text-only chat dispatches (operator decision 2026-11-15: Ornith is the chat worker's model)
   instagram_caption: qwen38        # Reel caption line (INSTAGRAM.md)
   music: MiniMax-Music-3     # LiteLLM model group for `auth: litellm` song backends
   context_tokens: {qwen38: 262144}  # calls send max_tokens = context - prompt (no artificial
@@ -1553,12 +1637,6 @@ chat:                      # THE SHEEP PEN (docs/plans/sheep-pen-brief.md; RADIO
   spam_offense_limit: 5    # rate/repeat rejections before a cool-off
   spam_offense_window_s: 60
   cooldown_ladder_s: [300, 900, 3600]   # 5 min, 15 min, 1 h
-  giles_interval_s: 600
-  giles_idle_interval_s: 1800
-  giles_min_messages: 6
-  giles_cooldown_s: 900
-  giles_max_chars: 400
-  pen_reporter_name: Liam        # dispatch display name: vague listener, not the radio's field reporter
   retention_days: 7        # fixed at 7; equal to terraform chat_log_retention_days
   audit_log_group: /aws/pilgrim/chat-audit
 
@@ -1577,6 +1655,14 @@ playout:
   weights: {song: 0.55, dj_talk: 0.12, commercial_break: 0.15, liner: 0.10, news: 0.08,
             field_report: 0.05}
   max_consecutive_non_song: 2
+  breaks:                    # §5.2 "Break structure": lead + promo + song(+intro)
+    enabled: true            # false = the weighted draw
+    news_marks_min: [0, 15, 30, 45]
+    news_lead_s: 60
+    news_lag_s: 240
+    field_marks_min: [0, 30]
+    field_window_s: 480
+    promo_repeat_breaks: 6
   top_of_hour_window_s: 240   # a song gap this close to :00 leads with words
   news_min_spacing_s: 1200
   news_ttl_s: 2700
@@ -1594,7 +1680,12 @@ inventory:
   fresh_songs_ready: 2
   briefs_queued: 3
   commercials_min: 20
-  liners_per_bucket: 4
+  commercial_target_s: 15    # length asked of a new commercial
+  commercials_turnover_per_day: 2   # §6.1 turnover; 0 = never retire
+  liners_turnover_per_day: 4
+  turnover_min_plays: 10
+  intro_backfill_per_pass: 2 # retained code-written song intros (§6.1); 0 = off
+  liners_per_bucket: 16      # x5 buckets = 80 liners
   liner_buckets_s: [3, 5, 10, 15, 30]
   field_reports_min: 1       # unaired field reports kept ready
   station_ids_min: 3         # emergency station IDs (§8.3)
@@ -1607,11 +1698,11 @@ songs:
   stock_max_library: 100     # pause stock generation once the library holds this many songs;
                              # listener requests still produce. 0 = no ceiling
   gen_backends:              # song generator pool (§6.2); C = sum of healthy slots
-    - {name: litellm, slots: auto, auth: litellm}   # url: hosts.litellm minus /v1, plus /vllm;
-                             # auto = healthy deployments behind the proxy (int = fixed)
-    # direct mode: one entry per box, e.g. {name: m5, url: "http://127.0.0.1:11234"}
-  local_fallback:            # used only while EVERY primary is down (§6.2, 2026-11-14):
-    {name: m5, url: "http://127.0.0.1:11234", slots: 1, rtf_hint: 0.6}   # local M5 mlx-serve, 1 slot
+    - {name: m5, url: "http://127.0.0.1:11234", slots: 1, rtf_hint: 0.5}   # local mlx-serve, direct (2026-11-14)
+    - {name: litellm, slots: auto, auth: litellm, rtf_hint: 0.27}   # the two GPU boxes; url: hosts.litellm
+                             # minus /v1, plus /vllm; auto = healthy deployments behind the proxy
+  # local_fallback: optional, unset. A backend used only while EVERY primary is
+  # down; not needed while the M5 is itself a primary.
   free_request_slots: 2      # free requests rendering at once; last slot stays open for paid
   submit_stagger_s: 5        # min gap between render submissions (LiteLLM only fans out with a delay)
   backend_cooldown_s: 60     # transport-failed backend sits out (flat, no doubling)
@@ -1733,7 +1824,8 @@ audio:
   sample_rate: 48000         # MPEG-1 rate (WebKit ignores gapless on 24 kHz MP3s)
   mp3_kbps: 192              # stereo sources (songs)
   mp3_mono_source_kbps: 96   # mono sources (speech, SFX), delivered as stereo
-  max_words_per_s: 3.6   # speech-rate QC gate (truncation smell)
+  max_words_per_s: 4.2   # speech-rate QC gate (truncation smell)
+  time_check_max_words_per_s: 5.5   # clock reads (§6.3): short one-syllable words read clean at 4.2-4.5 w/s
   min_words_per_s: 1.2
 
 media:                       # §8.4: S3 + CloudFront media source of truth
@@ -1786,6 +1878,10 @@ talk:
       persona: dry and quick, a little conspiratorial
       day_parts: [midday, afternoon, evening]
   field_reporter_name: Giles  # placeholder until named
+  field_pen_min_messages: 3   # §6.1: chat messages newer than the last pen report that
+                              # make the field report about the Sheep Pen; 0 = never
+  field_pen_window_s: 3600    # only messages this recent
+  field_pen_max_messages: 30  # newest N handed to the copy model (text only)
 
 liners:                       # ANNOUNCER B4: the pool is small, so a repeat
   repeat_gap_items: 20        # window in items and wall time
@@ -2006,9 +2102,8 @@ server user id; `name:{name_norm}` is the reservation pre-check (`SET NX EX`);
 `ban:ip:{ip_hash}` carry TTLs; `rate:user:{id}`, `rate:ip:{ip_hash}`,
 `rate:conn:{ip_hash}` and `rate:offense:{user_id}` are single-key Lua
 `INCR`+`EXPIRE` counters; `cool:user:{id}` is an automatic spam cool-off (TTL,
-never a `chat_bans` row); `moderation:cursor`, `worker:heartbeat`, `slow_mode`,
-`posting_disabled`, `giles:paused`, `giles:last` and `giles:state` are the
-worker/operator keys. `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no
+never a `chat_bans` row); `moderation:cursor`, `worker:heartbeat`, `slow_mode`
+and `posting_disabled` are the worker/operator keys. `ip_hash = sha256(canonical_ip).hexdigest()[:16]`, no
 secret; the raw IP is never stored, logged or returned. Message text and IP
 hashes go only to the audit log group (`chat.audit_log_group`, 7-day
 retention), never to stdout.
@@ -2293,8 +2388,8 @@ too, and a display name also matches an embedded term), no profanity filtering, 
 and HTML rejection, Unicode length, canonical IP pseudonym only, rate limits
 across instances, socket lifecycle, Pub/Sub fan-out, replay after reconnect,
 duplicate suppression, deletion/ban propagation, Layer B checkpoints and
-malformed/outage paths, per-run caps, 7-day purge with an injected clock, Giles
-idle/active and exactly-once sign-off, and slow-client backpressure.
+malformed/outage paths, per-run caps, 7-day purge with an injected clock, and slow-client backpressure.
+`test_producer.py` covers the field report's pen context (§6.1).
 `tests/e2e/chat.spec.ts` covers the mobile UI in fresh browser contexts.
 
 **Simulated clock:** scheduler and producers take a `Clock` interface. Run

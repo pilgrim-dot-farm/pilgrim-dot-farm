@@ -1472,7 +1472,7 @@ summary: Giles is the field reporter of Pilgrim Dot Farm, a very British and ver
 
 - Giles ends every report by reminding the listener that he is outstanding in his field.
 - Giles treats farm trivia with the gravity of breaking news.
-- Giles also files dispatches from the sheep pen, the station's chat room.
+- Giles also reports on the goings-on in the sheep pen, the station's chat room, in his radio reports.
 ```
 
 Create `pilgrim/bible/wiki_seed/jimmany.md`:

@@ -649,9 +649,9 @@ class Producer:
         """Context for a field report about the Sheep Pen chat (RADIO §6.1
         "Field reports and the pen"), or None for an ordinary report.
 
-        Reads the durable chat copy only: listener messages that are still
-        visible (not deleted, not flagged by review), inside the window and
-        newer than the last pen report. Text only — no names or ids reach the
+        Reads the durable chat copy only: listener messages the review worker
+        has passed (`accepted`; never unreviewed, flagged or deleted), inside
+        the window and newer than the last pen report. Text only — no names or ids reach the
         copy model. A failed read means an ordinary report, never an error."""
         talk = self.cfg.talk
         tmpl = self.prompts.get("field_pen") or ""
@@ -665,7 +665,7 @@ class Producer:
             log.warning("field_report.pen_read_failed: %s", err_text(e))
             return None
         fresh = [r for r in rows
-                 if r.get("status") in ("pending_review", "accepted")
+                 if r.get("status") == "accepted"
                  and str(r.get("text") or "").strip()
                  and since < float(r.get("ts") or 0.0) <= now]
         if len(fresh) < talk.field_pen_min_messages:
