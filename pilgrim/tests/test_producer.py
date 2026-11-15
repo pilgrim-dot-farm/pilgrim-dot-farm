@@ -1074,3 +1074,106 @@ def test_parts_row_passes_parts_to_early_art(cfg, tmp_env):
     prod.art_worker = art
     assert asyncio.run(prod.song_step()) is True
     assert art.parts == parts
+
+
+# ------------------------------------------- field reports and the Sheep Pen
+PEN_PROMPT = "PEN REPORT\n<pen_messages>\n{messages}\n</pen_messages>"
+
+
+def _pen_producer(cfg, store, voice):
+    p = make_producer(cfg, store, voice)
+    p.prompts["field_pen"] = PEN_PROMPT
+    return p
+
+
+def _say(store, p, n, text="the tractor song was grand", *, age_s=60.0,
+         status="pending_review", name="Ada", start=0):
+    now = p.clock.wall()
+    for i in range(start, start + n):
+        store.insert_chat_message(
+            message_id=f"m{i}", user_id=f"u{i}", name=name, text=f"{text} {i}",
+            ts=now - age_s + i * 0.001, client_msg_id=f"c{i}", status=status)
+
+
+def _field_meta(store):
+    import json
+    return [json.loads(it["meta_json"] or "{}") for it in store.list_items("field_report")]
+
+
+def test_field_report_is_ordinary_when_the_pen_is_quiet(cfg, tmp_env):
+    _, store, _ = tmp_env
+    voice = FakeVoice()
+    p = _pen_producer(cfg, store, voice)
+    _say(store, p, cfg.talk.field_pen_min_messages - 1)
+    asyncio.run(p.ensure_field_reports())
+    assert voice.contexts == ["Do not mention the clock time."]
+    assert "pen_chat" not in _field_meta(store)[0]
+
+
+def test_field_report_comments_on_the_pen_without_names(cfg, tmp_env):
+    _, store, _ = tmp_env
+    voice = FakeVoice()
+    p = _pen_producer(cfg, store, voice)
+    _say(store, p, 4, name="Bramwell")
+    asyncio.run(p.ensure_field_reports())
+    ctx = voice.contexts[0] or ""
+    assert ctx.startswith("PEN REPORT")
+    assert ctx.count("the tractor song was grand") == 4
+    assert "Bramwell" not in ctx and "u0" not in ctx
+    assert _field_meta(store)[0]["pen_chat"]["n"] == 4
+
+
+def test_field_report_skips_deleted_flagged_old_and_purged_messages(cfg, tmp_env):
+    _, store, _ = tmp_env
+    voice = FakeVoice()
+    p = _pen_producer(cfg, store, voice)
+    _say(store, p, 3, text="removed by a moderator", status="deleted")
+    _say(store, p, 3, text="flagged by review", status="flagged", start=10)
+    _say(store, p, 3, text="said yesterday", age_s=cfg.talk.field_pen_window_s + 60,
+         start=20)
+    for i in range(30, 33):                        # purged: the text is gone
+        store.insert_chat_message(
+            message_id=f"m{i}", user_id=f"u{i}", name="Ada", text=None,
+            ts=p.clock.wall() - 30, client_msg_id=f"c{i}", status="accepted")
+    asyncio.run(p.ensure_field_reports())
+    assert voice.contexts == ["Do not mention the clock time."]
+
+
+def test_field_report_never_covers_the_same_chatter_twice(cfg, tmp_env):
+    _, store, _ = tmp_env
+    voice = FakeVoice()
+    p = _pen_producer(cfg, store, voice)
+    _say(store, p, 5)
+    asyncio.run(p.ensure_field_reports())
+    for it in store.list_items("field_report"):
+        store.retire_item(it["id"], "aired")       # the first report is gone
+    asyncio.run(p.ensure_field_reports())
+    assert (voice.contexts[0] or "").startswith("PEN REPORT")
+    assert voice.contexts[1] == "Do not mention the clock time."
+
+
+def test_field_pen_cursor_survives_a_restart(cfg, tmp_env):
+    _, store, _ = tmp_env
+    p = _pen_producer(cfg, store, FakeVoice())
+    _say(store, p, 5)
+    asyncio.run(p.ensure_field_reports())          # unaired pen report in stock
+    voice = FakeVoice()
+    q = _pen_producer(cfg, store, voice)           # a restarted producer
+    assert q._pen_cursor() == _field_meta(store)[0]["pen_chat"]["until_ts"]
+    assert q._pen_chatter() is None
+    _say(store, q, 3, text="fresh talk of goats", age_s=10, start=50)
+    ctx, pen = q._pen_chatter() or ("", {})
+    assert ctx.count("fresh talk of goats") == 3 and "tractor" not in ctx
+    assert pen["n"] == 3
+
+
+def test_field_pen_off_switch_and_cap(cfg, tmp_env):
+    _, store, _ = tmp_env
+    voice = FakeVoice()
+    p = _pen_producer(cfg, store, voice)
+    _say(store, p, cfg.talk.field_pen_max_messages + 5)
+    asyncio.run(p.ensure_field_reports())
+    assert (voice.contexts[0] or "").count("\n- ") + 1 >= cfg.talk.field_pen_max_messages
+    assert _field_meta(store)[0]["pen_chat"]["n"] == cfg.talk.field_pen_max_messages
+    cfg.talk.field_pen_min_messages = 0
+    assert p._pen_chatter() is None

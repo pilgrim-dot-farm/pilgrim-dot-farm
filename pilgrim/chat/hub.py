@@ -29,8 +29,7 @@ def frame_from_fields(entry_id: str, fields: dict[str, Any]) -> dict[str, Any]:
     return protocol.message_frame(
         id=entry_id, name=str(fields.get("name") or ""),
         text=str(fields.get("text") or ""),
-        ts=float(fields.get("ts") or 0.0),
-        giles=str(fields.get("user_id") or "") == "giles")
+        ts=float(fields.get("ts") or 0.0))
 
 
 class Socket:
@@ -171,7 +170,7 @@ class ChatHub:
         elif kind == "cooldown":
             self.deliver(protocol.cooldown_frame(float(envelope.get("until") or 0.0)),
                          target_user=envelope.get("user_id"))
-        # moderation_flag / posting_disabled / giles_paused / unbanned stay
+        # moderation_flag / posting_disabled / unbanned stay
         # internal: the admin surface reads them, browsers do not.
 
     async def _resync(self) -> None:

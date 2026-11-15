@@ -86,10 +86,8 @@ def parse_client_frame(raw: str) -> ClientFrame:
 
 
 # ---------------------------------------------------------------- server side
-def message_frame(*, id: str, name: str, text: str, ts: float,
-                  giles: bool = False) -> dict[str, Any]:
-    return {"type": "message", "id": id, "name": name, "text": text,
-            "ts": ts, "giles": giles}
+def message_frame(*, id: str, name: str, text: str, ts: float) -> dict[str, Any]:
+    return {"type": "message", "id": id, "name": name, "text": text, "ts": ts}
 
 
 def welcome_frame(*, name: str | None, banned_until: float | None,

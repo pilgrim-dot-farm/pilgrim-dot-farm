@@ -299,14 +299,6 @@ class ChatActions:
         await self._event({"type": "posting_disabled", "disabled": disabled})
         await self._audit("chat.posting_disabled", disabled=disabled, actor=actor)
 
-    async def set_giles_paused(self, paused: bool, *, actor: str) -> None:
-        if paused:
-            await self.cache.set("giles:paused", "1")
-        else:
-            await self.cache.delete("giles:paused")
-        await self._event({"type": "giles_paused", "paused": paused})
-        await self._audit("chat.giles_paused", paused=paused, actor=actor)
-
     async def set_slow_mode(self, interval_s: float, *, actor: str) -> None:
         await self.cache.set("slow_mode", str(interval_s))
         await self._event(protocol.slow_mode_frame(interval_s))

@@ -1,4 +1,4 @@
-"""The Mac worker loop: ticks review, Giles, purge, heartbeat, then stops."""
+"""The Mac worker loop: ticks review, purge, heartbeat, then stops."""
 from __future__ import annotations
 
 import asyncio
@@ -40,20 +40,10 @@ class _Reviewer:
         return {}
 
 
-class _Giles:
-    def __init__(self) -> None:
-        self.dispatches = 0
-
-    async def maybe_dispatch(self):
-        self.dispatches += 1
-        return None
-
-
 async def test_run_ticks_everything_and_stops(monkeypatch, cfg):
     monkeypatch.setattr(chat_worker, "TICK_S", 0.01)
-    cache, reviewer, giles = _Cache(), _Reviewer(), _Giles()
-    worker = {"cfg": cfg, "cache": cache, "reviewer": reviewer,
-              "giles": giles, "clock": _Clock()}
+    cache, reviewer = _Cache(), _Reviewer()
+    worker = {"cfg": cfg, "cache": cache, "reviewer": reviewer, "clock": _Clock()}
     stop = asyncio.Event()
 
     async def _stop_soon():
@@ -65,7 +55,6 @@ async def test_run_ticks_everything_and_stops(monkeypatch, cfg):
     await stopper
     assert reviewer.reviews >= 1
     assert reviewer.purges >= 1
-    assert giles.dispatches >= 1
     assert "worker:heartbeat" in cache.keys
 
 
@@ -80,11 +69,7 @@ async def test_run_survives_a_failing_component(monkeypatch, cfg):
         async def purge(self):
             raise RuntimeError("down")
 
-        async def maybe_dispatch(self):
-            raise RuntimeError("down")
-
-    worker = {"cfg": cfg, "cache": cache, "reviewer": _Bad(), "giles": _Bad(),
-              "clock": _Clock()}
+    worker = {"cfg": cfg, "cache": cache, "reviewer": _Bad(), "clock": _Clock()}
     stop = asyncio.Event()
 
     async def _stop_soon():

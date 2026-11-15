@@ -1,8 +1,9 @@
 """The Mac-side Sheep Pen worker (docs/plans/sheep-pen-brief.md §0.5.1, §0.7.7).
 
-`python -m pilgrim.chat_worker` runs three things beside the station, in their
-own process and launchd unit: Layer B review (Ornith), Giles dispatches, and
-the daily 7-day purge/name-release sweep. It never imports or touches the
+`python -m pilgrim.chat_worker` runs two things beside the station, in their
+own process and launchd unit: Layer B review (Ornith) and the daily 7-day
+purge/name-release sweep. Nothing here posts into the pen: the field reporter
+comments on the pen on the radio (producer, RADIO §6.1). It never imports or touches the
 scheduler, producer or selector (AGENTS hard rule 1), and every dependency
 failure is logged and retried with backoff.
 
@@ -21,7 +22,6 @@ from typing import Any
 
 from pilgrim.chat.actions import ChatActions
 from pilgrim.chat.audit import AuditLog
-from pilgrim.chat.giles import Giles
 from pilgrim.chat.redis_store import ChatStore
 from pilgrim.chat.redis_store import connect as chat_connect
 from pilgrim.chat.review import Reviewer
@@ -59,7 +59,6 @@ def build_worker(cfg: Config) -> dict[str, Any]:
         "llm": llm, "clock": clock,
         "reviewer": Reviewer(cfg, store, cache, actions, llm, prompts, clock=clock,
                              audit=audit),
-        "giles": Giles(cfg, store, cache, llm, prompts, clock=clock, audit=audit),
     }
 
 
@@ -67,12 +66,10 @@ async def run(worker: dict[str, Any], stop: asyncio.Event | None = None) -> None
     cfg: Config = worker["cfg"]
     cache: ChatStore = worker["cache"]
     reviewer: Reviewer = worker["reviewer"]
-    giles: Giles = worker["giles"]
     clock: Clock = worker["clock"]
     stop = stop or asyncio.Event()
     wall = clock.wall()
     next_review = wall
-    next_giles = wall
     next_purge = wall
 
     while not stop.is_set():
@@ -87,12 +84,6 @@ async def run(worker: dict[str, Any], stop: asyncio.Event | None = None) -> None
             except Exception as e:  # noqa: BLE001 - keep the worker alive
                 log.warning("chat.worker.review_failed", extra={"error": err_text(e)})
             next_review = clock.wall() + cfg.chat.review_interval_s
-        if wall >= next_giles:
-            try:
-                await giles.maybe_dispatch()
-            except Exception as e:  # noqa: BLE001
-                log.warning("chat.worker.giles_failed", extra={"error": err_text(e)})
-            next_giles = clock.wall() + cfg.chat.giles_interval_s
         if wall >= next_purge:
             try:
                 await reviewer.purge()
@@ -117,7 +108,6 @@ async def _amain() -> None:
     stop = asyncio.Event()
     _install_signals(stop)
     log.info("chat.worker.start", extra={"review_s": cfg.chat.review_interval_s,
-                                         "giles_s": cfg.chat.giles_interval_s,
                                          "retention_days": cfg.chat.retention_days})
     try:
         await run(worker, stop)

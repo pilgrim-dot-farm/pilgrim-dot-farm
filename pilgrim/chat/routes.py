@@ -406,7 +406,7 @@ async def _accept_send(frame: protocol.Send, user: dict, sock: Socket,
         pass
 
     message = protocol.message_frame(id=entry_id, name=str(user.get("name") or ""),
-                                     text=screen.text, ts=wall, giles=False)
+                                     text=screen.text, ts=wall)
     try:
         await cache.publish(message)
     except Exception as e:  # noqa: BLE001 - durable already; resync delivers

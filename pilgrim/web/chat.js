@@ -140,8 +140,6 @@
     row.dataset.id = m.id;
     const who = document.createElement("span");
     who.className = "chat-author";
-    // Pen reports (m.giles) render like ordinary listener messages: a vague
-    // listener name, no visual distinction (operator decision 2026-11-15).
     who.textContent = m.name || "someone";
     who.style.color = nameColor(m.name);
     const body = document.createElement("span");

@@ -817,8 +817,8 @@ container overlay). Metrics are EMF JSON lines on stdout (no extra IAM).
 **Mac worker.** `python -m pilgrim.chat_worker`, its own launchd unit beside
 `pilgrim/deploy/mac/origin.sh`. It reads the same repo-root `.env`
 (`REDIS_URL`, `DATABASE_URL`/`DB_PASS_SECRET_ARN`, `LITELLM_TOKEN`), runs
-Layer B (Ornith) every `chat.review_interval_s`, Giles every
-`chat.giles_interval_s`, and the 7-day purge once a day. It writes
+Layer B (Ornith) every `chat.review_interval_s` and the 7-day purge once a
+day. It writes
 `pilgrim:{chat}:worker:heartbeat` (TTL 120) so the admin route can prove it is
 alive. It never imports `scheduler.py`, `producer.py` or `selector.py`.
 

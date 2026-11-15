@@ -281,6 +281,7 @@ class Producer:
         self.songs = songs
         self.clock = clock
         self.prompts = prompts
+        self._pen_until_ts = 0.0  # newest chat message a field report covered
         self.media_dir = media_dir
         self.rng = rng
         self.api_key = api_key
@@ -615,15 +616,65 @@ class Producer:
             "item_type": "field_report", "have": have,
             "target": self.cfg.inventory.field_reports_min})
         for _ in range(max(0, need)):
+            context, pen = "Do not mention the clock time.", None
+            chatter = self._pen_chatter()
+            if chatter:
+                context, pen = chatter
             try:
-                item = await self.voice.produce_item(
-                    "field_report", 20.0,
-                    context="Do not mention the clock time.")
+                item = await self.voice.produce_item("field_report", 20.0, context=context)
+                if pen:
+                    item.setdefault("meta", {})["pen_chat"] = pen
+                    self._pen_until_ts = pen["until_ts"]
                 self._store_voice(item, "field_report", evergreen=False)
-                log.info("produced field_report %.1fs", item["duration_s"])
+                log.info("produced field_report %.1fs", item["duration_s"], extra={
+                    "item_type": "field_report", "pen_messages": pen["n"] if pen else 0})
             except Exception as e:
                 log.warning("field_report.production_failed: %s", err_text(e))
                 return
+
+    def _pen_cursor(self) -> float:
+        """Timestamp of the newest chat message a field report already covered:
+        this process's last pen report, or the stored reports' meta after a
+        restart."""
+        cursor = self._pen_until_ts
+        for it in self.store.list_items("field_report"):
+            try:
+                meta = json.loads(it["meta_json"]) if it.get("meta_json") else {}
+                cursor = max(cursor, float((meta.get("pen_chat") or {}).get("until_ts") or 0.0))
+            except (ValueError, TypeError, AttributeError):
+                continue
+        return cursor
+
+    def _pen_chatter(self) -> tuple[str, dict[str, Any]] | None:
+        """Context for a field report about the Sheep Pen chat (RADIO §6.1
+        "Field reports and the pen"), or None for an ordinary report.
+
+        Reads the durable chat copy only: listener messages that are still
+        visible (not deleted, not flagged by review), inside the window and
+        newer than the last pen report. Text only — no names or ids reach the
+        copy model. A failed read means an ordinary report, never an error."""
+        talk = self.cfg.talk
+        tmpl = self.prompts.get("field_pen") or ""
+        if talk.field_pen_min_messages <= 0 or not self.cfg.chat.enabled or not tmpl:
+            return None
+        now = self.clock.wall()
+        since = max(self._pen_cursor(), now - talk.field_pen_window_s)
+        try:
+            rows = self.store.recent_chat_messages(200)
+        except Exception as e:  # noqa: BLE001 - chat is optional context
+            log.warning("field_report.pen_read_failed: %s", err_text(e))
+            return None
+        fresh = [r for r in rows
+                 if r.get("status") in ("pending_review", "accepted")
+                 and str(r.get("text") or "").strip()
+                 and since < float(r.get("ts") or 0.0) <= now]
+        if len(fresh) < talk.field_pen_min_messages:
+            return None
+        fresh.sort(key=lambda r: float(r["ts"]))
+        picked = fresh[-talk.field_pen_max_messages:]
+        lines = "\n".join("- " + " ".join(str(r["text"]).split()) for r in picked)
+        return (tmpl.replace("{messages}", lines).strip(),
+                {"n": len(picked), "until_ts": float(fresh[-1]["ts"])})
 
     # --------------------------------------------------------------- promos
     def _count_promos(self, campaign_id: str | None = None,

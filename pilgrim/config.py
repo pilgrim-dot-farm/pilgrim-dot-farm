@@ -118,9 +118,8 @@ class Models(BaseModel):
     art_scene: str = "qwen38"  # cover-art scene writer (docs/shipped/album-art.md Step 3)
     instagram_caption: str = "qwen38"  # Reel caption line (INSTAGRAM.md Step 3)
     # Sheep Pen chat (docs/plans/sheep-pen-brief.md): Layer B review runs on the reasoning model
-    # the station already uses for commercials/liners; Giles files text only.
+    # the station already uses for commercials/liners.
     chat_moderation: str = "Ornith-1.5-9B"
-    chat_giles: str = "qwen38"
     # optional second model tried after repeated moderation failures
     chat_moderation_fallback: str | None = None
     # MiniMax Music 3 model group id, sent only to `auth: litellm` song
@@ -916,6 +915,13 @@ class Talk(BaseModel):
     """Contextual talk settings (OVERHAUL 5.3, ANNOUNCER_OVERHAUL)."""
     time_mention_ttl_s: int = 900  # DJ clips that mention the time expire after this
     field_reporter_name: str = "Giles"  # placeholder until named (docs/systems/sfx.md §10)
+    # The field reporter comments on the Sheep Pen chat in his radio report
+    # (RADIO §6.1 "Field reports and the pen"): a report is about the pen when
+    # at least `field_pen_min_messages` listener messages from the last
+    # `field_pen_window_s` are newer than the last pen report. 0 = never.
+    field_pen_min_messages: int = 3
+    field_pen_window_s: int = 3600
+    field_pen_max_messages: int = 30  # newest N handed to the copy model
     hosts: list[Host] = Field(default_factory=list)
     # Time checks are code-written and targeted at quarter marks (operator pick:
     # top, quarter past, bottom, quarter til). A check airs only inside the
@@ -987,7 +993,7 @@ class Chat(BaseModel):
 
     One shared room on the Fargate web tier: WebSockets + Valkey Pub/Sub for
     live delivery, Streams for history/replay, Postgres for the durable audit
-    copy. Layer B (Ornith) and Giles run in the separate Mac worker.
+    copy. Layer B (Ornith) runs in the separate Mac worker.
     """
     enabled: bool = True
     max_length: int = 200          # code points, server-enforced (client maxlength mirrors it)
@@ -1028,14 +1034,6 @@ class Chat(BaseModel):
     spam_offense_limit: int = 5
     spam_offense_window_s: int = 60
     cooldown_ladder_s: list[int] = Field(default_factory=lambda: [300, 900, 3600])
-    giles_interval_s: float = 600.0
-    giles_idle_interval_s: float = 1800.0
-    giles_min_messages: int = 6
-    giles_cooldown_s: float = 900.0
-    giles_max_chars: int = 400
-    # Display name for pen dispatches: a vague ordinary listener name, NOT the
-    # radio's field reporter (talk.field_reporter_name). Operator decision 2026-11-15.
-    pen_reporter_name: str = "Liam"
     retention_days: int = 7        # docs/plans/sheep-pen-brief.md §0.6.4: fixed at 7
     audit_log_group: str = "/aws/pilgrim/chat-audit"
 
@@ -1047,8 +1045,8 @@ class Chat(BaseModel):
             raise ValueError("chat.name_min must be >= 1 and <= chat.name_max")
         if not 1.0 <= self.ping_s <= 60.0:
             raise ValueError("chat.ping_s must be in [1, 60] (Cloudflare idle limit)")
-        if self.resync_s <= 0 or self.review_interval_s <= 0 or self.giles_interval_s <= 0:
-            raise ValueError("chat.resync_s/review_interval_s/giles_interval_s must be > 0")
+        if self.resync_s <= 0 or self.review_interval_s <= 0:
+            raise ValueError("chat.resync_s/review_interval_s must be > 0")
         if self.retention_days != 7:
             raise ValueError("chat.retention_days is fixed at 7 (docs/plans/sheep-pen-brief.md "
                              "§0.6.4; keep it equal to the terraform chat_log_retention_days)")

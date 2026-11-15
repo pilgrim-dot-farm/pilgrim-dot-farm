@@ -163,7 +163,6 @@ class Reviewer:
         banned = await self._banned_users(authors)
         eligible = [(str(i), dict(f)) for i, f in rows
                     if str(i) not in deleted
-                    and str(f.get("user_id") or "") != "giles"
                     and str(f.get("user_id") or "") not in banned]
         last_id = ids[-1]
 

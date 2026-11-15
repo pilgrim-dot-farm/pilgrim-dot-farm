@@ -55,7 +55,7 @@ test("two participants send and receive", async ({ browser }) => {
 
     // each display name gets its own palette colour, not one shared cyan
     const colors = await a.page.$$eval(
-      ".chat-msg:not(.giles) .chat-author",
+      ".chat-msg .chat-author",
       (els) => els.map((e) => getComputedStyle(e).color));
     expect(colors.length).toBeGreaterThanOrEqual(2);
     expect(new Set(colors).size).toBeGreaterThanOrEqual(2);
@@ -155,22 +155,6 @@ test("a deleted message disappears", async ({ browser }) => {
   } finally {
     await a.context.close();
   }
-});
-
-test("The pen report blends in and signs off exactly once", async ({ page }) => {
-  await page.goto("/");
-  const resp = await page.request.post("/api/test/chat/giles");
-  expect(resp.ok()).toBeTruthy();
-  const body = await resp.json();
-  expect(body.ok).toBeTruthy();
-  const text = body.dispatch?.text ?? "";
-  const phrase = "outstanding in my field";
-  expect(text.toLowerCase().split(phrase).length - 1).toBe(1);
-  expect(text.trim().endsWith(
-    "This is Liam signing off with a reminder that I'm outstanding in my field.")).toBeTruthy();
-  const row = page.locator("#chat-log .chat-msg", { hasText: text.slice(0, 40) });
-  await expect(row).toBeVisible({ timeout: 10000 });
-  await expect(row.locator(".chat-author")).toHaveText("Liam");
 });
 
 test("radio and requests still work beside the pen", async ({ page }) => {

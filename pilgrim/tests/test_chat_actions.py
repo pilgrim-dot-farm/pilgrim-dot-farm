@@ -123,8 +123,6 @@ async def test_operator_switches(cfg, tmp_env):
     assert await cache.exists("posting_disabled")
     await actions.set_posting_disabled(False, actor="operator")
     assert not await cache.exists("posting_disabled")
-    await actions.set_giles_paused(True, actor="operator")
-    assert await cache.exists("giles:paused")
     await actions.set_slow_mode(10, actor="operator")
     assert await cache.get("slow_mode") == "10"
     await actions.clear_slow_mode(actor="operator")

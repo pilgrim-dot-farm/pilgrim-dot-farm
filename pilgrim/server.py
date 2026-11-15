@@ -845,7 +845,7 @@ def _load_prompts(cfg: Config) -> dict:
     for f in ("voice.md", "song_brief.md", "station_song.md", "news.md", "moderation.md",
               "field.md", "sfx_cues.md", "sfx_joke.md", "paid_request.md",
               "paid_summary.md", "promo.md", "album_art_scene.md",
-              "album_art_flux.md", "chat_moderation.md", "field_chat.md"):
+              "album_art_flux.md", "chat_moderation.md", "field_pen.md"):
         p = pdir / f
         if p.exists():
             out[f.replace(".md", "")] = p.read_text()
@@ -1929,9 +1929,6 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         enabled: bool
         ttl_s: int | None = Field(default=None, ge=1)
 
-    class ChatGilesIn(BaseModel):
-        paused: bool
-
     class ChatSlowIn(BaseModel):
         interval_s: float | None = Field(default=None, gt=0)
 
@@ -1963,7 +1960,6 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
             heartbeat = await cache.get("worker:heartbeat")
             slow = await cache.get("slow_mode")
             disabled = await cache.exists("posting_disabled")
-            paused = await cache.exists("giles:paused")
             length = await cache.xlen()
         except Exception as e:  # noqa: BLE001
             raise HTTPException(503, detail={"code": "chat_unavailable",
@@ -1973,7 +1969,6 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
             "stream_len": length,
             "worker_heartbeat": heartbeat,
             "posting_disabled": disabled,
-            "giles_paused": paused,
             "slow_mode": float(slow) if slow else None,
             "pending_review": len(station.db.pending_chat_messages(500)),
             "recent_decisions": station.db.recent_chat_moderation(50),
@@ -2036,12 +2031,6 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         await actions.set_posting_disabled(not payload.enabled, actor="operator",
                                            ttl_s=payload.ttl_s)
         return {"ok": True, "posting_enabled": payload.enabled}
-
-    @app.post("/api/admin/chat/giles", dependencies=[Depends(require_dj)])
-    async def admin_chat_giles(payload: ChatGilesIn):
-        actions = await _chat_actions()
-        await actions.set_giles_paused(payload.paused, actor="operator")
-        return {"ok": True, "paused": payload.paused}
 
     @app.post("/api/admin/chat/slow_mode", dependencies=[Depends(require_dj)])
     async def admin_chat_slow(payload: ChatSlowIn):

@@ -27,7 +27,6 @@ from pilgrim import voting
 from pilgrim.audio.normalize import encode_mp3
 from pilgrim.chat.actions import ChatActions
 from pilgrim.chat.audit import NullAudit
-from pilgrim.chat.giles import Giles
 from pilgrim.chat.hub import ChatHub
 from pilgrim.chat.redis_store import ChatStore
 from pilgrim.chat.review import Reviewer
@@ -160,7 +159,7 @@ def build_app() -> FastAPI:
     app.state.sched = sched
 
     # ---- THE SHEEP PEN (docs/plans/sheep-pen-brief.md §12 e2e): the real routes over the async
-    # fake Valkey, with fakes for Layer B and Giles. ----
+    # fake Valkey, with a fake for Layer B. ----
     chat_clock = Clock()
     chat_client = FakeAsyncRedis(lambda: time.time())
     chat_cache = ChatStore(cfg, chat_client)
@@ -170,17 +169,10 @@ def build_app() -> FastAPI:
     chat_llm = FakeLLM(responses={
         "Review the messages": {
             "decisions": [], "summary": "e2e"},
-        "Write one dispatch": {
-            "text": "The sheep pen has been debating tractors. "
-                    "Outstanding in my field, apparently. "
-                    "This is Liam signing off with a reminder that I'm "
-                    "outstanding in my field."},
     })
     chat_prompts = _load_prompts(cfg)
     chat_reviewer = Reviewer(cfg, store, chat_cache, chat_actions, chat_llm,  # type: ignore[arg-type]
                              chat_prompts, clock=chat_clock, audit=chat_audit)
-    chat_giles = Giles(cfg, store, chat_cache, chat_llm, chat_prompts,  # type: ignore[arg-type]
-                       clock=chat_clock, audit=chat_audit)
 
     class _ChatStation:
         def __init__(self) -> None:
@@ -192,15 +184,6 @@ def build_app() -> FastAPI:
 
     register_chat_routes(app, _ChatStation(), store, chat_cache, chat_hub,
                          chat_audit, chat_clock)
-
-    @app.post("/api/test/chat/giles")
-    async def test_giles():
-        """Test-only: clear the cadence gates and file one Giles dispatch."""
-        await chat_cache.set("giles:last", "0")
-        await chat_cache.set_json("giles:state", {"last_active_ts": 0,
-                                                   "last_idle_ts": 0})
-        out = await chat_giles.maybe_dispatch()
-        return {"ok": out is not None, "dispatch": out}
 
     @app.post("/api/test/chat/delete/{message_id}")
     async def test_delete(message_id: str):

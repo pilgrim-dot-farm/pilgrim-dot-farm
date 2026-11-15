@@ -2,6 +2,16 @@
 
 > *Formerly `SHEEP_PEN_PLAN.md`.*
 
+> **Amended 2026-11-15 (operator correction).** Giles does **not** post in the
+> chat. Step 8 (`pilgrim/chat/giles.py`, `prompts/field_chat.md`, the
+> `chat.giles_*` / `chat.pen_reporter_name` / `models.chat_giles` keys, the
+> `giles` frame flag, `POST /api/admin/chat/giles` and the `giles:*` Valkey
+> keys) was built from a misreading and has been removed. What was wanted:
+> Giles comments on the pen **in his radio field report** (RADIO §6.1 "Field
+> reports and the pen"; `Producer._pen_chatter`, `prompts/field_pen.md`,
+> `talk.field_pen_*`). Ignore every Giles-in-chat instruction below and in
+> the brief (§0.2, §0.7.10, §8).
+
 > **Read this first.** This is the executable plan derived from `docs/plans/sheep-pen-brief.md`
 > (the brief). `RADIO.md` and `AGENTS.md` outrank it; within the brief the
 > order is §0.6, §0.7, §0.5, then the rest. Every step ends with a *Done when*
