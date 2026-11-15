@@ -80,7 +80,7 @@ from pilgrim.pipelines.request_parts import RequestParts, is_label_line
 from pilgrim.pipelines.request_parts import from_row as parts_from_row
 from pilgrim.pipelines.request_parts import normalise as normalise_paid
 from pilgrim.pipelines.sfx import SfxClient, SfxPipeline
-from pilgrim.pipelines.songs import SongPipeline, song_backend_health
+from pilgrim.pipelines.songs import SongPipeline, music_pool_deployments, song_backend_health
 from pilgrim.pipelines.voice import KokoroClient, VoicePipeline
 from pilgrim.producer import Producer
 from pilgrim.scheduler import Scheduler
@@ -233,6 +233,24 @@ class PublicSurface:
         self.override_token = load_secret(PAID_OVERRIDE_ENV)
 
 
+def _telemetry_from_doc(doc: object) -> dict | None:
+    """Normalise the playback telemetry stored with a `player:<id>` key.
+
+    A heartbeat with no telemetry stores `{"at": <ts>}` (the web tier's
+    `touch_listener`), which is not a reporting player. Anything with at
+    least one telemetry field is (RADIO §9.2).
+    """
+    if not isinstance(doc, dict):
+        return None
+    if not any(k in doc for k in ("platform", "ctx_state", "hidden", "sink", "resumed")):
+        return None
+    return {"platform": str(doc.get("platform") or "other"),
+            "ctx_state": str(doc.get("ctx_state") or ""),
+            "hidden": bool(doc.get("hidden")),
+            "sink": str(doc.get("sink") or ""),
+            "resumed": int(doc.get("resumed") or 0)}
+
+
 class Station(PublicSurface):
     scheduler: Scheduler
 
@@ -362,6 +380,12 @@ class Station(PublicSurface):
         st["music_backends"] = await song_backend_health(
             self.cfg, self._http, self.api_key)
         st["music"] = any(st["music_backends"].values())
+        # `music_backends` for a proxy backend only says the proxy still lists
+        # the model: it is true with every box behind it down. Count the
+        # deployments too (RADIO §6.2, MONITORING §2.2) so the dashboard can
+        # tell "2 boxes up" from "the model name exists".
+        st["music_deployments"] = await music_pool_deployments(
+            self.cfg, self._http, self.api_key)
         # effective render slots per backend (discovered for `slots: auto`)
         pool = getattr(self.songs, "pool", None)
         st["music_slots"] = pool.slots() if pool is not None else {}
@@ -422,6 +446,16 @@ class Station(PublicSurface):
     async def health(self) -> dict:
         backends = await self.backend_status()
         inv = await self.inventory_levels()
+        # Heartbeats are handled by the web tier in the split deployment, so
+        # the playback telemetry lives in the `player:<id>` keys it writes.
+        # Read it here (health cadence only, one GET per live id — MGET across
+        # slots is refused by Valkey Serverless) so `listeners` reflects the
+        # whole station, not just the players this process happened to see
+        # (RADIO §9.2, §11; MONITORING §2.2).
+        remote: dict[str, dict] = {}
+        if self.hot is not None and self._remote_listeners:
+            remote = await asyncio.to_thread(
+                self.hot.player_telemetry, sorted(self._remote_listeners))
         # Rendered audio remains playable when production backends fail (§5.4).
         return {
             "on_air": self.on_air,
@@ -442,7 +476,7 @@ class Station(PublicSurface):
             "idle": {"idle": self.is_idle(),
                      "since": self._idle_since,
                      "wakes": self.idle_wakes},
-            "listeners": self.listener_telemetry(),
+            "listeners": self.listener_telemetry(remote),
         }
 
     # ------------------------------------------------------------------ program
@@ -689,15 +723,27 @@ class Station(PublicSurface):
                 "player_id": player_id[:16], **tel,
                 "underrun": bool(payload.underrun)})
 
-    def listener_telemetry(self) -> dict:
-        """Admin health summary of live players' playback telemetry."""
+    def listener_telemetry(self, remote: dict[str, dict] | None = None) -> dict:
+        """Admin health summary of live players' playback telemetry.
+
+        `remote` is what `HotState.player_telemetry()` read from the
+        `player:<id>` keys the web tier writes: in the split deployment every
+        browser heartbeat lands there, never on this process, so the
+        in-memory map alone would always report zero (RADIO §9.2, §11).
+        `count` is the same union `active_listeners()` returns."""
         self._prune_listeners()
-        tels = list(self._player_tel.values())
+        remote = remote or {}
+        ids = set(self._listeners) | set(self._remote_listeners) | set(remote)
+        tels: list[dict] = []
+        for pid in sorted(ids):
+            tel = self._player_tel.get(pid) or _telemetry_from_doc(remote.get(pid))
+            if tel is not None:
+                tels.append(tel)
         by_platform: dict[str, int] = {}
         for t in tels:
             by_platform[t["platform"]] = by_platform.get(t["platform"], 0) + 1
         return {
-            "count": len(self._listeners),
+            "count": len(ids),
             "reporting": len(tels),
             "by_platform": by_platform,
             "hidden": sum(1 for t in tels if t["hidden"]),

@@ -17,6 +17,7 @@ HEALTH = {
     "backends": {"litellm": True, "kokoro": True, "music": True, "search": True,
                  "sfx": False, "music_backends": {"litellm": True, "spx1": False},
                  "music_slots": {"litellm": 3},
+                 "music_deployments": {"litellm": {"listed": 2, "healthy": 2}},
                  "search_last": {"status": "ok", "at": 1794000000.5, "kind": "news",
                                  "error": ""}},
     "inventory": {"song": {"have": 0, "target": 2}, "news": {"have": 1, "target": 1}},
@@ -47,6 +48,8 @@ def test_apply_health_maps_the_admin_body():
         'pilgrim_rotation{type="song"} 412',
         'pilgrim_backend_up{backend="sfx"} 0', 'pilgrim_backend_up{backend="kokoro"} 1',
         'pilgrim_music_backend_up{name="spx1"} 0', 'pilgrim_music_slots{name="litellm"} 3',
+        'pilgrim_music_deployments{name="litellm"} 2',
+        'pilgrim_music_deployments_listed{name="litellm"} 2',
         "pilgrim_search_last_timestamp_seconds 1794000000.5",
         "pilgrim_song_realtime_ratio 0.62",
         'pilgrim_art_backend{state="ok"} 1', 'pilgrim_art_items{with_art="no"} 12',
@@ -68,10 +71,26 @@ def test_apply_health_drops_label_values_that_went_away():
     later["listeners"]["by_platform"] = {"android": 1}
     later["art"]["backend"] = "down"
     later["backends"]["music_backends"] = {"litellm": True}
+    later["backends"]["music_deployments"] = {"litellm": None}
     sm.apply_health(reg, later)
     text = reg.render()
     assert 'platform="ios"' not in text and 'state="ok"' not in text
     assert 'name="spx1"' not in text and 'pilgrim_art_backend{state="down"} 1' in text
+    # an unreadable proxy is "unknown", not "zero boxes up": no sample
+    assert "pilgrim_music_deployments{" not in text
+
+
+def test_apply_health_reports_zero_healthy_deployments():
+    """The slots floor at 1; the deployment gauge must still show the truth."""
+    reg = _reg()
+    body = json.loads(json.dumps(HEALTH))
+    body["backends"]["music_slots"] = {"litellm": 1}
+    body["backends"]["music_deployments"] = {"litellm": {"listed": 2, "healthy": 0}}
+    sm.apply_health(reg, body)
+    text = reg.render()
+    assert 'pilgrim_music_slots{name="litellm"} 1' in text
+    assert 'pilgrim_music_deployments{name="litellm"} 0' in text
+    assert 'pilgrim_music_deployments_listed{name="litellm"} 2' in text
 
 
 def test_apply_health_tolerates_a_minimal_body():
@@ -94,6 +113,10 @@ def test_live_reads_a_real_station_without_waking_it(tmp_env):
     assert "pilgrim_listeners 1\n" in text
     assert "pilgrim_committed_coverage_seconds 0\n" not in text
     assert 'pilgrim_current_type{type="' in text
+    # renders in flight come from the pool's leases, not mlx-serve's vLLM gauges
+    assert 'pilgrim_music_busy{name="m5"} 0' in text
+    assert 'pilgrim_music_busy{name="litellm"} 0' in text
+    assert "pilgrim_music_capacity " in text
     assert "p-live-0001" not in text
     assert station.idle_wakes == wakes
 

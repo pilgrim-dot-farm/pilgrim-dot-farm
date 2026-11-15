@@ -164,10 +164,12 @@ that only third-party noise (uvicorn, redis, the AWS SDK) lands in `other`.
 | `pilgrim_starved` | gauge | | live: 1 when coverage is zero and the station is not frozen (dead air, not idle) |
 | `pilgrim_last_starve_timestamp_seconds`, `pilgrim_starve_gap_seconds` | gauge / histogram | | a `program.starved` record (`created` time, `gap_s`) |
 | `pilgrim_idle_since_timestamp_seconds`, `pilgrim_idle_wakes_total` | gauge / counter | | health |
-| `pilgrim_listeners_reporting`, `pilgrim_listeners_hidden`, `pilgrim_listeners_not_running`, `pilgrim_listeners_sink_element`, `pilgrim_listeners_resumed`, `pilgrim_listeners_by_platform` | gauge | `platform` on the last | health |
+| `pilgrim_listeners_reporting`, `pilgrim_listeners_hidden`, `pilgrim_listeners_not_running`, `pilgrim_listeners_sink_element`, `pilgrim_listeners_resumed`, `pilgrim_listeners_by_platform` | gauge | `platform` on the last | health. Read from the `player:<id>` keys (one GET per live id), because the web tier handles every heartbeat in the split deployment |
 | `pilgrim_inventory_have`, `pilgrim_inventory_target`, `pilgrim_rotation` | gauge | `type` | health |
 | `pilgrim_backend_up` | gauge | `backend` (`litellm`, `kokoro`, `music`, `search`, `sfx`) | health |
 | `pilgrim_music_backend_up`, `pilgrim_music_slots` | gauge | `name` | health |
+| `pilgrim_music_deployments`, `pilgrim_music_deployments_listed` | gauge | `name` | health; the healthy / listed deployments behind a `slots: auto` backend. `music_slots` floors at 1, so only this pair shows "no box behind the proxy is up" |
+| `pilgrim_music_busy`, `pilgrim_music_capacity` | gauge | `name` on the first | live; renders in flight (the pool's leases) and slots usable now. The mlx-serve music endpoint does not feed its own `vllm:num_requests_*` gauges, so this is the only accurate "a render is running" signal (2026-11-15) |
 | `pilgrim_search_last_timestamp_seconds` | gauge | | health (Brave is never probed; `pilgrim_backend_up{backend="search"}` is the health signal) |
 | `pilgrim_song_realtime_ratio` | gauge | | health |
 | `pilgrim_art_backend` (1), `pilgrim_art_items` | gauge | `state` / `with_art` | health |

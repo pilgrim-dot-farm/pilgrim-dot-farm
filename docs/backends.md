@@ -255,6 +255,32 @@ Authorization: Bearer $LITELLM_TOKEN
 - `.56:8080` is also the api_base of `Qwen3-Omni-30B`, which suggests a
   model-swapping server. Not measured.
 
+### Metrics: the pass-through emits none (probed 2026-11-15)
+
+- LiteLLM's `/metrics` has **no music series at all**. `GET /metrics` on the
+  proxy (`192.168.68.75:4000`) lists no `litellm_deployment_*` line whose
+  `api_base` is `:8080` on either GPU box, and no `requested_model` value
+  contains `MiniMax`: the generic `/vllm` pass-through bypasses the router's
+  deployment analytics, so it never increments
+  `litellm_deployment_success_responses_total` / `..._failure_responses_total`.
+  A Grafana panel built on those counters for music is empty forever.
+- The authoritative render count is the station's own
+  `pilgrim_song_render_seconds_count{generator}` (one sample per
+  `song.produced`, `generator` = `m5` or `litellm`; the two audiocpp boxes
+  cannot be told apart, see above).
+- `litellm_deployment_state{litellm_model_name=...}` (0 healthy, 1 cooled
+  down) and the success/failure counters **do** cover the routed models, so
+  they are the per-box signal for everything else on the Sparks
+  (`DeepSeek-V4.1-Flash-1017` on `.56:8888`, `qwen3.8-flash-next` on
+  `.88`/`.56:8081`, `qwen3.8-flash-next-fp8` on `.88:8000`).
+- mlx-serve (`--metrics`, `192.168.68.90:11234`) exposes `vllm:*` and
+  `mlx_serve:*`, but its **music endpoint does not touch them**: over 24 h
+  with the GPU at 15–99 % every `vllm:*` counter read 0 (2026-11-15). The
+  station's `pilgrim_music_busy` (pool leases) is the accurate render signal.
+- `MiniMax-Music-3` deployment health is also in the station's admin
+  `/api/health` as `music_deployments: {litellm: {listed, healthy}}`
+  (RADIO §6.2).
+
 ---
 
 ## 3. Kokoro TTS — `192.168.68.89:8001` (verified; was tunnelled as `localhost:8001`)

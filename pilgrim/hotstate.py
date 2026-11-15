@@ -44,7 +44,7 @@ import logging
 import os
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
 from pilgrim.config import Config
@@ -194,6 +194,26 @@ class HotState:
         """One published document (`program`, `state`, `health`, `alive`), or
         None when missing/expired. The web tier's read path."""
         return self._loads(self.client.get(self.key(name)))
+
+    def player_telemetry(self, player_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
+        """The playback telemetry stored with each live player's heartbeat key.
+
+        In the split deployment the web tier handles every heartbeat, so this
+        is the only place the station can see `platform` / `ctx_state` /
+        `hidden` / `sink` / `resumed` (RADIO §9.2, §11). One GET per key: a
+        multi-key command across slots (MGET) is refused by Valkey Serverless.
+        Call it on the health cadence, not the publish tick. A cache failure
+        returns what was read so far and is logged; it never raises.
+        """
+        out: dict[str, dict[str, Any]] = {}
+        try:
+            for pid in player_ids:
+                doc = self._loads(self.client.get(self.key(f"player:{pid}")))
+                if isinstance(doc, dict):
+                    out[pid] = doc
+        except Exception as e:  # noqa: BLE001 - telemetry is advisory
+            log.warning("hotstate.telemetry_read_failed: %s", e)
+        return out
 
     def summary(self) -> dict[str, Any]:
         """Admin health: never a URL or credential."""

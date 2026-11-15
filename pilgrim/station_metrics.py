@@ -55,6 +55,12 @@ def declare(reg: Registry) -> None:
     g("pilgrim_backend_up", "1 when the station's own probe of a backend passes.")
     g("pilgrim_music_backend_up", "1 per healthy song generator.")
     g("pilgrim_music_slots", "Effective render slots per song generator.")
+    g("pilgrim_music_deployments",
+      "Healthy deployments behind a song backend (`slots: auto`).")
+    g("pilgrim_music_deployments_listed",
+      "Deployments the proxy lists for a song backend (`slots: auto`).")
+    g("pilgrim_music_busy", "Renders in flight per song generator.")
+    g("pilgrim_music_capacity", "Render slots usable now (cooldown excluded).")
     g("pilgrim_search_last_timestamp_seconds", "When the last real Brave call ran.")
     g("pilgrim_song_realtime_ratio", "Compute seconds per audio second (station estimate).")
     g("pilgrim_art_backend", "1 for the art worker's current backend state.")
@@ -106,6 +112,15 @@ def live(reg: Registry, station: Any) -> None:
         stages[str(stage)] = stages.get(str(stage), 0) + 1
     for stage, n in stages.items():
         reg.set("pilgrim_request_stage", n, stage=stage)
+    # Renders actually in flight. The mlx-serve music endpoint does not feed
+    # its own vLLM request gauges, so `vllm:num_requests_running` is always 0
+    # during a render (2026-11-15); the pool's leases are the truth.
+    pool = getattr(station.songs, "pool", None)
+    reg.clear("pilgrim_music_busy")
+    if pool is not None:
+        for name, n in pool.busy_by_backend().items():
+            reg.set("pilgrim_music_busy", n, name=name)
+        reg.set("pilgrim_music_capacity", pool.capacity())
 
 
 def apply_health(reg: Registry, h: dict[str, Any]) -> None:
@@ -139,6 +154,15 @@ def apply_health(reg: Registry, h: dict[str, Any]) -> None:
     reg.clear("pilgrim_music_slots")
     for name, slots in (b.get("music_slots") or {}).items():
         reg.set("pilgrim_music_slots", slots, name=name)
+    # Raw deployment counts: the slots above floor at 1 so a proxy blip can
+    # still probe the pool, which hides "every box behind it is down".
+    reg.clear("pilgrim_music_deployments")
+    reg.clear("pilgrim_music_deployments_listed")
+    for name, counts in (b.get("music_deployments") or {}).items():
+        if not counts:
+            continue
+        reg.set("pilgrim_music_deployments", counts.get("healthy"), name=name)
+        reg.set("pilgrim_music_deployments_listed", counts.get("listed"), name=name)
     last = b.get("search_last") or {}
     reg.set("pilgrim_search_last_timestamp_seconds", last.get("at") or 0)
 

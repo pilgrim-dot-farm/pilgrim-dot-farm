@@ -176,3 +176,40 @@ def test_admin_health_reports_the_publisher(tmp_env, monkeypatch):
     summary = asyncio.run(station.health())["cache"]
     assert summary["enabled"] is True and summary["healthy"] is True and summary["ticks"] == 1
     assert "last_error" in summary and "url" not in json.dumps(summary)
+
+
+def test_player_telemetry_reads_the_keys_another_tier_wrote(cfg):
+    clock = _Clock()
+    r, hot = _hot(cfg, clock)
+    hot.write_player("web-1", {"platform": "ios", "hidden": True})
+    hot.write_player("web-2", {})
+    out = hot.player_telemetry(["web-1", "web-2", "gone"])
+    assert out["web-1"]["platform"] == "ios" and out["web-1"]["hidden"] is True
+    assert out["web-2"] == {"at": clock.t}
+    assert "gone" not in out
+    # a cache failure degrades to "no telemetry", never raises
+    r.fail_next = 1
+    assert hot.player_telemetry(["web-1"]) == {}
+
+
+def test_admin_health_sees_web_tier_playback_telemetry(tmp_env, monkeypatch):
+    """The web tier handles every heartbeat in the split deployment; the
+    station's in-memory map is empty, so health must read the player keys.
+    RADIO §9.2, §11 (2026-11-15: `by_platform` was always empty)."""
+    import asyncio
+    cfg, station, r = _station(tmp_env, monkeypatch)
+    r.set("pilgrim:player:web-1", json.dumps({
+        "at": 1, "platform": "ios", "ctx_state": "running", "hidden": False,
+        "sink": "element", "resumed": 1}), ex=15)
+    r.set("pilgrim:player:web-2", json.dumps({"at": 1}), ex=15)   # no telemetry
+    station.hot_tick()                     # picks both up as remote listeners
+    assert station.listener_telemetry()["reporting"] == 0   # nothing in memory
+
+    async def _no_probe():                 # health() probes backends; tests never do
+        return {}
+    monkeypatch.setattr(station, "backend_status", _no_probe)
+    lis = asyncio.run(station.health())["listeners"]
+    assert lis["count"] == 2 and lis["reporting"] == 1
+    assert lis["by_platform"] == {"ios": 1}
+    assert lis["sink_element"] == 1 and lis["resumed_total"] == 1
+    assert lis["hidden"] == 0 and lis["not_running"] == 0

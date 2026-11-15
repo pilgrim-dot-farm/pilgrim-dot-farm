@@ -360,6 +360,13 @@ class MusicPool:
     def busy(self) -> int:
         return sum(self._busy.values())
 
+    def busy_by_backend(self) -> dict[str, int]:
+        """Leases held per backend: renders in flight right now (read-only).
+        Exported as `pilgrim_music_busy` (MONITORING §2.2); the mlx-serve
+        music endpoint does not touch its own vLLM request gauges, so this is
+        the only accurate "a render is running" signal on the Mac."""
+        return dict(self._busy)
+
     async def refresh(self, force: bool = False) -> None:
         """Recount the healthy deployments behind every `slots: auto` backend.
         Runs at most every `discover_interval_s` unless forced; a count that
@@ -451,16 +458,19 @@ class MusicPool:
         return {k: round(v, 3) for k, v in self._rtf.items()}
 
 
-async def discover_litellm_deployments(cfg: Config, client: httpx.AsyncClient,
-                                       api_key: str, backend: MusicBackend) -> int | None:
-    """How many generators stand behind a `auth: litellm` backend right now
+async def probe_litellm_pool(cfg: Config, client: httpx.AsyncClient,
+                             api_key: str, backend: MusicBackend,
+                             *, log_event: bool = True) -> dict[str, int] | None:
+    """Count the generators behind a `auth: litellm` backend right now
     (RADIO §6.2 `slots: auto`). `GET /model/info` on the proxy (read-only,
     docs/backends.md §2b) lists the deployments of `models.music` with their
     `api_base`; each is probed with `GET {api_base}/health` (3 s). A box that
     answers at all counts as up (audiocpp may not serve /health: a 404 is a
     live box); a refused connection, a timeout or a 5xx is down. Returns
-    None when the proxy itself cannot be read, so the pool keeps its last
-    count. Never starts a render (hard rule 6): the proxy's own /health does."""
+    `{"listed": n, "healthy": k}` — the pool's slots floor at 1, so the raw
+    count is what tells an operator whether any box is really up — or None
+    when the proxy itself cannot be read. Never starts a render (hard rule 6):
+    the proxy's own /health does."""
     base = cfg.hosts.litellm.rstrip("/")
     if base.endswith("/v1"):
         base = base[:-3]
@@ -491,10 +501,32 @@ async def discover_litellm_deployments(cfg: Config, client: httpx.AsyncClient,
                 healthy.append(api_base)
         except Exception:  # noqa: BLE001 - down is the answer, not an error
             continue
-    log.info("song.pool.deployments", extra={
-        "backend": backend.name, "listed": len(bases), "healthy": len(healthy),
-        "up": healthy})
-    return len(healthy)
+    if log_event:
+        log.info("song.pool.deployments", extra={
+            "backend": backend.name, "listed": len(bases), "healthy": len(healthy),
+            "up": healthy})
+    return {"listed": len(bases), "healthy": len(healthy)}
+
+
+async def discover_litellm_deployments(cfg: Config, client: httpx.AsyncClient,
+                                       api_key: str, backend: MusicBackend) -> int | None:
+    """Healthy deployment count for the pool's slot recount."""
+    pool = await probe_litellm_pool(cfg, client, api_key, backend)
+    return None if pool is None else int(pool["healthy"])
+
+
+async def music_pool_deployments(cfg: Config, client: httpx.AsyncClient,
+                                 api_key: str = "") -> dict[str, dict[str, int] | None]:
+    """`slots: auto` backends -> `{listed, healthy}` for the admin health
+    body (RADIO §11; MONITORING §2.2). Read-only: it probes, it never touches
+    the pool's slots, so a health or metrics tick cannot change scheduling.
+    `None` means the proxy could not be read (unknown, not zero)."""
+    out: dict[str, dict[str, int] | None] = {}
+    for b in cfg.songs.gen_backends:
+        if b.slots != "auto":
+            continue
+        out[b.name] = await probe_litellm_pool(cfg, client, api_key, b, log_event=False)
+    return out
 
 
 async def song_backend_health(cfg: Config, client: httpx.AsyncClient,
