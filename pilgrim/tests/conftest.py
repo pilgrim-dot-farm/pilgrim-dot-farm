@@ -46,7 +46,7 @@ def _no_repo_secrets(monkeypatch):
     temp file themselves.
     """
     monkeypatch.setenv("PILGRIM_ENV_FILE", "")
-    for name in ("STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
+    for name in ("STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_PRICE_ID",
                  "STRIPE_WEBHOOK_SECRET", "PAID_OVERRIDE_TOKEN", "BRAVE_SEARCH_KEY",
                  "DATABASE_URL", "DATABASE_PASSWORD", "DB_PASS_SECRET_ARN", "REDIS_URL",
                  "INSTAGRAM_TOKEN", "INSTAGRAM_ACCOUNT_ID"):

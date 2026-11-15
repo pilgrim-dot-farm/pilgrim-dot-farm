@@ -6,7 +6,9 @@
    polls the stage -> Embedded Stripe Checkout once the request is ready.
    Stripe.js is loaded lazily; the card fields live in Stripe's iframe, so card
    data never touches this code or the station. Drafts survive a reload in
-   sessionStorage. No build step.
+   sessionStorage. The four departments show one at a time: PREV/NEXT walk
+   them, NEXT refuses to leave an empty required box, and CHECK IT & PAY is
+   on the last step only (2026-11-15). No build step.
 */
 (() => {
   "use strict";
@@ -14,14 +16,16 @@
   const $ = (id) => document.getElementById(id);
   const panel = $("pay-panel");
   const taLyrics = $("pay-lyrics"), taMusic = $("pay-music"), taArt = $("pay-art");
-  const advanced = panel ? panel.querySelector(".pay-advanced") : null;
+  const advanced = document.querySelector(".pay-advanced");
+  const fields = panel ? Array.from(panel.querySelectorAll(".pay-stepper > .pay-field")) : [];
+  const prevBtn = $("pay-prev"), nextBtn = $("pay-next"), stepAt = $("pay-step-at");
   const boxes = [taLyrics, taMusic, taArt].filter(Boolean);
   const go = $("pay-go"), msg = $("pay-msg");
   const mount = $("pay-checkout");
   const stepsEl = $("pay-steps");
   const promoInput = $("pay-promo"), promoApply = $("pay-promo-apply"),
         promoMsg = $("pay-promo-msg");
-  if (!panel || !mount || boxes.length !== 3) return;
+  if (!panel || !mount || boxes.length !== 3 || fields.length !== 4) return;
 
   const STORE_KEY = "pd_pay_token";
   const STORE_TTL_MS = 10 * 60 * 1000;
@@ -52,6 +56,53 @@
   function setState(next) {
     state = next;
     render();
+  }
+
+  /* One department at a time. `step` is an index into `fields`; the last one
+     carries CHECK IT & PAY instead of NEXT. */
+  const LAST = fields.length - 1;
+  const REQUIRED = [
+    [taLyrics, "LYRICS are required."],
+    [taMusic, "MUSICAL DIRECTION is required."],
+  ];
+  const finePointer = window.matchMedia
+    && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  let step = 0;
+  let stepMsg = false;       // the visible message came from a blocked NEXT
+
+  function isLocked() {
+    return state === "checking" || state === "paying" || state === "confirming";
+  }
+
+  function renderStep() {
+    fields.forEach((f, i) => f.classList.toggle("on", i === step));
+    const locked = isLocked();
+    if (prevBtn) prevBtn.disabled = locked || step === 0;
+    if (nextBtn) { nextBtn.hidden = step === LAST; nextBtn.disabled = locked; }
+    go.hidden = step !== LAST;
+    if (stepAt) stepAt.textContent = (step + 1) + " / " + fields.length;
+  }
+
+  function showStep(i, focus) {
+    step = Math.max(0, Math.min(LAST, i));
+    renderStep();
+    // Phones: do not pop the keyboard on a step change; the listener taps in.
+    if (focus && finePointer) {
+      const el = fields[step].querySelector("textarea, input");
+      if (el && !el.disabled) el.focus({ preventScroll: true });
+    }
+  }
+
+  function stepBy(delta) {
+    if (isLocked()) return;
+    if (delta > 0 && step < REQUIRED.length && !REQUIRED[step][0].value.trim()) {
+      showMsg(REQUIRED[step][1], false);
+      stepMsg = true;
+      REQUIRED[step][0].focus();
+      return;
+    }
+    if (stepMsg) { showMsg(""); stepMsg = false; }
+    showStep(step + delta, true);
   }
 
   /* Enumerated wait states (feedback 2026-11-08): the server's real stages. */
@@ -142,7 +193,9 @@
     if (state === "idle") {
       mount.textContent = "";
       showMsg("");
+      step = 0;              // a finished request starts over at LYRICS
     }
+    renderStep();
   }
 
   function clearTimers() {
@@ -382,6 +435,7 @@
     // Feedback 2026-11-08: both departments one and two are required.
     if (!lyrics || !music) {
       showMsg("Both LYRICS and MUSICAL DIRECTION are required.", false);
+      showStep(!lyrics ? 0 : 1, false);
       (!lyrics ? taLyrics : taMusic).focus();
       return;
     }
@@ -446,6 +500,8 @@
 
   for (const ta of boxes) ta.addEventListener("input", saveDraft);
   go.addEventListener("click", submitPaid);
+  if (prevBtn) prevBtn.addEventListener("click", () => stepBy(-1));
+  if (nextBtn) nextBtn.addEventListener("click", () => stepBy(1));
   if (promoApply) promoApply.addEventListener("click", applyPromo);
   if (promoInput) promoInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); applyPromo(); }
@@ -456,6 +512,7 @@
   loadDraft();
   const resumed = loadToken();
   if (resumed) {
+    step = LAST;              // the wait states and the pay button live there
     startChecking(resumed);   // checkPoll routes to the right phase
   } else {
     setState("idle");

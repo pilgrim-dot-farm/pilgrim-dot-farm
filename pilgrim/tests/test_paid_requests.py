@@ -261,7 +261,7 @@ def _manual_event(session_id: str, *, payment_status="paid", livemode=False,
 
 
 @pytest.mark.parametrize("overrides", [
-    {"amount": 299}, {"amount": 6770}, {"currency": "eur"}, {"livemode": True},
+    {"amount": 249}, {"amount": 6770}, {"currency": "eur"}, {"livemode": True},
 ])
 def test_webhook_mismatches_change_nothing(tmp_env, monkeypatch, overrides):
     _, app, station, fake = _build(tmp_env, monkeypatch)

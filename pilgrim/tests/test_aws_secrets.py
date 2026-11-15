@@ -20,6 +20,7 @@ def test_exports_allowlisted_keys_only_and_env_wins(monkeypatch):
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "from-env")
     doc = {"STRIPE_SECRET_KEY": "sk_test_1", "STRIPE_PUBLISHABLE_KEY": "pk_test_1",
            "STRIPE_WEBHOOK_SECRET": "whsec_from_secret", "PATH": "/evil", "": "x",
+           "STRIPE_PRICE_ID": "price_from_secret",
            "LITELLM_TOKEN": 123}
     seen = {}
 
@@ -29,7 +30,9 @@ def test_exports_allowlisted_keys_only_and_env_wins(monkeypatch):
     exported = export_secret_env("STRIPE_SECRET_ARN", "mac-studio", reader=reader)
     assert seen == {"arn": "arn:aws:secretsmanager:us-west-1:1:secret:stripe",
                     "profile": "mac-studio"}
-    assert sorted(exported) == ["STRIPE_PUBLISHABLE_KEY", "STRIPE_SECRET_KEY"]
+    assert sorted(exported) == ["STRIPE_PRICE_ID", "STRIPE_PUBLISHABLE_KEY",
+                                "STRIPE_SECRET_KEY"]
+    assert os.environ["STRIPE_PRICE_ID"] == "price_from_secret"
     assert os.environ["STRIPE_SECRET_KEY"] == "sk_test_1"
     assert os.environ["STRIPE_WEBHOOK_SECRET"] == "from-env"      # explicit env wins
     assert os.environ.get("PATH") != "/evil"                      # not allow-listed

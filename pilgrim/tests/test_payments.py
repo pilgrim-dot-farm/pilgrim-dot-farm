@@ -112,10 +112,12 @@ def test_missing_event_fields_rejected():
 
 
 # ---------------------------------------------------------------------- client
+LIVE_PRICE_ENV = {"STRIPE_PRICE_ID": "price_live_1"}
+
+
 def _payments(**overrides: Any) -> Payments:
     base: dict[str, Any] = {
         "enabled": True,
-        "price_id_live": "price_live_1",
         "price_id_test": "price_test_1",
         "timeout_s": 7,
         "retries": 2,
@@ -161,7 +163,7 @@ def _client(recorder, cfg=None, key="sk_live_TESTKEY") -> StripeClient:
         timeout=(cfg or _payments()).timeout_s,
         headers={"Stripe-Version": (cfg or _payments()).api_version},
     )
-    return StripeClient(cfg or _payments(), key, http=http)
+    return StripeClient(cfg or _payments(), key, http=http, env=LIVE_PRICE_ENV)
 
 
 async def test_create_sends_exact_fields():
@@ -234,7 +236,7 @@ async def test_retries_exhausted_on_transport():
     cfg = _payments(retries=2)
     http = httpx.AsyncClient(transport=httpx.MockTransport(boom), base_url=cfg.api_base,
                              timeout=cfg.timeout_s)
-    client = StripeClient(cfg, "sk_live_X", http=http)
+    client = StripeClient(cfg, "sk_live_X", http=http, env=LIVE_PRICE_ENV)
     with pytest.raises(StripeError) as exc:
         await client.create_checkout_session(request_id=1, token="t", now=NOW)
     assert exc.value.kind == "transport"
@@ -280,23 +282,32 @@ async def test_secrets_never_logged(caplog):
 def test_payments_inactive_when_any_env_missing():
     cfg = Payments(enabled=True)
     full = {"STRIPE_SECRET_KEY": "sk_live_x", "STRIPE_PUBLISHABLE_KEY": "pk_live_x",
-            "STRIPE_WEBHOOK_SECRET": "whsec_x"}
+            "STRIPE_WEBHOOK_SECRET": "whsec_x", "STRIPE_PRICE_ID": "price_live_1"}
     assert cfg.active(full) is True
+    # a live key without its price keeps paid requests closed too
     for missing in full:
         partial = {k: v for k, v in full.items() if k != missing}
         assert cfg.active(partial) is False
     assert Payments(enabled=False).active(full) is False
+    # a test key needs no STRIPE_PRICE_ID (its price is payments.price_id_test)
+    test_mode = {"STRIPE_SECRET_KEY": "sk_test_x", "STRIPE_PUBLISHABLE_KEY": "pk_test_x",
+                 "STRIPE_WEBHOOK_SECRET": "whsec_x"}
+    assert cfg.active(test_mode) is True
 
 
 def test_mode_and_price_follow_key_prefix():
-    cfg = Payments(price_id_live="price_live_1", price_id_test="price_test_1")
+    cfg = Payments(price_id_test="price_test_1")
     assert cfg.mode("sk_live_x") == "live"
     assert cfg.mode("rk_live_x") == "live"
     assert cfg.mode("sk_test_x") == "test"
     assert cfg.mode("rk_test_x") == "test"
     assert cfg.mode("pk_live_x") == ""
-    assert cfg.price_id("sk_live_x") == "price_live_1"
-    assert cfg.price_id("sk_test_x") == "price_test_1"
+    # live: the STRIPE_PRICE_ID environment value, never the test price
+    assert cfg.price_id("sk_live_x", LIVE_PRICE_ENV) == "price_live_1"
+    assert cfg.price_id("sk_live_x") == ""
+    assert cfg.price_id("sk_live_x", {"STRIPE_PRICE_ID": "  "}) == ""
+    # test: the config price, never the live one
+    assert cfg.price_id("sk_test_x", LIVE_PRICE_ENV) == "price_test_1"
 
 
 # ------------------------------------------------------- .env key fallback

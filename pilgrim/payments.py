@@ -15,7 +15,7 @@ import hmac
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -98,9 +98,12 @@ class StripeClient:
         cfg: Payments,
         secret_key: str,
         http: httpx.AsyncClient | None = None,
+        env: Mapping[str, str] | None = None,
     ) -> None:
         self._cfg = cfg
         self._secret = secret_key
+        # resolved once: the price for this key's mode (config.Payments.price_id)
+        self._price = cfg.price_id(secret_key, env)
         self._owns_http = http is None
         self._http = http or httpx.AsyncClient(
             base_url=cfg.api_base,
@@ -174,7 +177,7 @@ class StripeClient:
         self, *, request_id: int, token: str, now: float
     ) -> CheckoutSession:
         cfg = self._cfg
-        price = cfg.price_id(self._secret)
+        price = self._price
         if not price:
             raise StripeError("rejected", "no price configured for this key's mode")
         data = {

@@ -268,7 +268,26 @@ body {
 .pay-terms { margin: 0; color: var(--cyan); font-size: 13px; }
 .pay-panel textarea:focus { outline: 1px solid var(--field-color); }
 .pay-panel textarea::placeholder { color: var(--dim); }
-.pay-actions { display: flex; gap: 8px; }
+/* One department at a time (2026-11-15, RADIO §9.1). The four steps share one
+   grid cell, so the panel is as tall as the tallest step and PREV/NEXT never
+   move; only the step marked .on is visible (and focusable). */
+.pay-stepper { display: grid; }
+.pay-stepper > .pay-field { grid-area: 1 / 1; min-width: 0; visibility: hidden; }
+.pay-stepper > .pay-field.on { visibility: visible; }
+.pay-actions { display: flex; align-items: stretch; gap: 8px; }
+.pay-actions [hidden] { display: none; }
+.pay-actions .pay-nav {
+  flex: 1 1 0; min-height: 48px; font-size: 14px;
+  color: var(--cyan); background: rgba(10,1,24,.6); border: 1px solid var(--cyan);
+}
+.pay-actions .pay-nav:hover:not(:disabled), .pay-actions .pay-nav:focus-visible {
+  filter: brightness(1.2); background: rgba(36,224,255,.12);
+}
+.pay-actions .pay-nav:disabled { color: var(--dim); border-color: var(--violet);
+  filter: none; cursor: default; }
+.pay-actions .pay-btn { flex: 2 1 0; padding: 10px 8px; }
+.pay-step-at { flex: none; align-self: center; font-size: 12px; letter-spacing: 1px; color: var(--dim);
+  white-space: nowrap; }
 .pay-actions button {
   font-family: inherit; font-weight: bold; letter-spacing: 1px; cursor: pointer;
   border: none; border-radius: 6px; padding: 10px 14px; flex: 1;

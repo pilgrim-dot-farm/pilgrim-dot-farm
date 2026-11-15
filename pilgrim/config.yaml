@@ -486,10 +486,9 @@ payments:
   enabled: true            # live deployment (docs/shipped/payments.md Step 12)
   api_base: https://api.stripe.com
   api_version: "2026-10-28.endive"
-  price_id_live: price_1UWQHdKOiB5HDXLd4qNMoosI
-  price_id_test: ""            # test-mode price, filled in from Step 0.3
+  price_id_test: ""            # test-mode price, filled in from Step 0.3; live = STRIPE_PRICE_ID (env/secret)
   currency: usd
-  min_cents: 300               # defence in depth; Stripe enforces it too
+  min_cents: 250               # defence in depth; Stripe enforces it too
   max_cents: 6769
   timeout_s: 10                # every Stripe HTTP call
   retries: 2                   # create/retrieve only; backoff 0.5 s, 1 s

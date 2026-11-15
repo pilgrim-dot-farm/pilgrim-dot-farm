@@ -103,13 +103,38 @@
         <button id="req-send">Send</button>
       </div>
       <div id="req-err" class="req-err hidden"></div>
-      <div class="req-list-head pay-head">PRIORITY REQUEST</div>
+      <div class="req-list-head pay-head">PRIORITY REQUEST ($2.50 MIN)</div>
       <div class="pay-note">
-        <span class="pay-note-head">SKIP THE BARNYARD!<br>YOUR SONG, YOUR RULES!</span>
+        <span class="pay-note-head">SKIP THE BARNYARD!<br>WRITE LONG-FORM!<br>YOUR SONG, YOUR RULES!</span>
         <span class="pay-note-sub">(Help us pay the power and cloud bills)</span>
       </div>
+      <details class="pay-advanced">
+        <summary>Want to get technical?</summary>
+        <ul>
+          <li><b>Lyrics:</b> you can paste a complete lyric sheet. Put each section
+            tag on its own line: <code>[intro]</code>, <code>[verse]</code>,
+            <code>[pre-chorus]</code>, <code>[chorus]</code>, <code>[post-chorus]</code>,
+            <code>[bridge]</code>, <code>[instrumental]</code>, <code>[solo]</code>,
+            <code>[outro]</code>. We sing exactly what you wrote. The song ends when
+            the lyrics do.</li>
+          <li><b>Musical direction:</b> casual words are plenty. If you have one, a
+            complete MiniMax Music 3 structured caption (the three headings
+            <i>Global Metadata</i>, <i>Vocal Details</i>, <i>Arrangement</i>, about
+            250–450 words) is used as written. Always say who sings: male, female,
+            or instrumental with a lead instrument.</li>
+          <li><b>Cover art:</b> describe what should be in the picture: the subject,
+            what it is doing, the setting, the medium or art style, the colors, the
+            light. Say what you want to see rather than what you don't. We add the
+            title and artist; nothing else on the cover carries writing.</li>
+          <li>Limits: 4,000 / 3,000 / 800 characters. Keep it cleanish; no
+            copyrighted lyrics.</li>
+        </ul>
+      </details>
+      <p class="pay-terms">Your request goes ahead of free submissions. Chip in
+        what you like: <b>$2.50 minimum</b>, $3.50 suggested.</p>
       <div id="pay-panel" class="pay-panel">
-        <section class="pay-field pay-field-lyrics">
+        <div id="pay-stepper" class="pay-stepper">
+        <section class="pay-field pay-field-lyrics on">
           <label for="pay-lyrics" class="pay-label"><span class="pay-num">1</span>LYRICS</label>
           <p class="pay-help">Subject, story, title, exact words.</p>
           <textarea id="pay-lyrics" rows="4" maxlength="4000"></textarea>
@@ -137,32 +162,7 @@
           </div>
           <div id="pay-promo-msg" class="pay-promo-msg" role="status" aria-live="polite"></div>
         </section>
-
-        <details class="pay-advanced">
-          <summary>Want to get technical?</summary>
-          <ul>
-            <li><b>Lyrics:</b> you can paste a complete lyric sheet. Put each section
-              tag on its own line: <code>[intro]</code>, <code>[verse]</code>,
-              <code>[pre-chorus]</code>, <code>[chorus]</code>, <code>[post-chorus]</code>,
-              <code>[bridge]</code>, <code>[instrumental]</code>, <code>[solo]</code>,
-              <code>[outro]</code>. We sing exactly what you wrote. The song ends when
-              the lyrics do.</li>
-            <li><b>Musical direction:</b> casual words are plenty. If you have one, a
-              complete MiniMax Music 3 structured caption (the three headings
-              <i>Global Metadata</i>, <i>Vocal Details</i>, <i>Arrangement</i>, about
-              250–450 words) is used as written. Always say who sings: male, female,
-              or instrumental with a lead instrument.</li>
-            <li><b>Cover art:</b> describe what should be in the picture: the subject,
-              what it is doing, the setting, the medium or art style, the colors, the
-              light. Say what you want to see rather than what you don't. We add the
-              title and artist; nothing else on the cover carries writing.</li>
-            <li>Limits: 4,000 / 3,000 / 800 characters. Keep it cleanish; no
-              copyrighted lyrics.</li>
-          </ul>
-        </details>
-
-        <p class="pay-terms">Your request goes ahead of free submissions. Chip in
-          what you like: $3.50 suggested, $3 minimum.</p>
+        </div>
 
         <div id="pay-msg" class="req-err hidden"></div>
         <ol id="pay-steps" class="pay-steps" hidden>
@@ -171,7 +171,10 @@
           <li data-step="checkout">(3/3) Preparing secure payment</li>
         </ol>
         <div class="pay-actions">
-          <button id="pay-go" class="pay-btn" type="button">CHECK IT &amp; PAY</button>
+          <button id="pay-prev" class="pay-nav" type="button" disabled>◀ PREV</button>
+          <span id="pay-step-at" class="pay-step-at" aria-live="polite">1 / 4</span>
+          <button id="pay-next" class="pay-nav" type="button">NEXT ▶</button>
+          <button id="pay-go" class="pay-btn" type="button" hidden>CHECK IT &amp; PAY</button>
         </div>
         <div id="pay-checkout" class="pay-checkout"></div>
       </div>

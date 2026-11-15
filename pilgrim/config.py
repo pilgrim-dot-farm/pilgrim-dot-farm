@@ -18,6 +18,11 @@ ROOT = Path(__file__).resolve().parent
 # requests stay closed (Payments.active).
 STRIPE_ENV_VARS = ("STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY",
                    "STRIPE_WEBHOOK_SECRET")
+# The live-mode Stripe price (2026-11-15): an identifier, not a credential, but
+# it travels with the keys (the Secrets Manager document or .env) so a price
+# change in the Dashboard needs no new image. Test mode keeps
+# `payments.price_id_test`.
+STRIPE_PRICE_ENV = "STRIPE_PRICE_ID"
 # Operator comp for paid requests (docs/shipped/payments.md Step 12b): a prompt whose first
 # line is exactly this secret skips Stripe. Unset/empty = feature off.
 PAID_OVERRIDE_ENV = "PAID_OVERRIDE_TOKEN"
@@ -657,10 +662,9 @@ class Payments(BaseModel):
     enabled: bool = False
     api_base: str = "https://api.stripe.com"
     api_version: str = "2026-10-28.endive"  # Stripe-Version on every call (Step 1)
-    price_id_live: str = "price_1UWQHdKOiB5HDXLd4qNMoosI"
-    price_id_test: str = ""
+    price_id_test: str = ""    # live mode reads STRIPE_PRICE_ID from the environment
     currency: str = "usd"
-    min_cents: int = 300
+    min_cents: int = 250
     max_cents: int = 6769
     timeout_s: float = 10.0
     retries: int = 2
@@ -710,17 +714,25 @@ class Payments(BaseModel):
             return "live"
         return ""
 
-    def price_id(self, secret_key: str) -> str:
-        """Price for the key's mode. Live keys never see the test price."""
-        return self.price_id_test if self.mode(secret_key) == "test" else self.price_id_live
+    def price_id(self, secret_key: str, env: Mapping[str, str] | None = None) -> str:
+        """Price for the key's mode: `price_id_test` for a test key, the
+        `STRIPE_PRICE_ID` environment value otherwise. Live keys never see the
+        test price, and a test key never sees the live one."""
+        if self.mode(secret_key) == "test":
+            return self.price_id_test
+        return (env or {}).get(STRIPE_PRICE_ENV, "").strip()
 
     def active(self, env: Mapping[str, str]) -> bool:
-        """True only when enabled and all three env vars are present."""
+        """True only when enabled, all three keys are present and, for a
+        non-test key, `STRIPE_PRICE_ID` is set: without a price every checkout
+        would fail after moderation, so paid requests stay closed instead."""
+        secret = env.get("STRIPE_SECRET_KEY", "").strip()
         return bool(
             self.enabled
-            and env.get("STRIPE_SECRET_KEY", "").strip()
+            and secret
             and env.get("STRIPE_PUBLISHABLE_KEY", "").strip()
             and env.get("STRIPE_WEBHOOK_SECRET", "").strip()
+            and (self.mode(secret) == "test" or self.price_id(secret, env))
         )
 
 
@@ -1256,7 +1268,8 @@ def load_brave_key(env_file: Path | None = None) -> str:
 
 def stripe_env(env: Mapping[str, str] | None = None,
                env_file: Path | None = None) -> dict[str, str]:
-    """The three Stripe keys, filling gaps from the .env fallback.
+    """The three Stripe keys and the live price id, filling gaps from the
+    .env fallback.
 
     `Payments.active()` and the Stripe clients read the result, so the station
     starts with payments live whether the keys came from the shell or .env.
@@ -1264,7 +1277,7 @@ def stripe_env(env: Mapping[str, str] | None = None,
     Stripe keeps paid requests closed rather than half-enabling them.
     """
     resolved = dict(os.environ if env is None else env)
-    for name in STRIPE_ENV_VARS:
+    for name in (*STRIPE_ENV_VARS, STRIPE_PRICE_ENV):
         if not resolved.get(name, "").strip():
             value = _dotenv_value(name, env_file)
             if value:

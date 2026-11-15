@@ -269,11 +269,11 @@ test("opening the keyboard scrolls the chat to the newest message", async ({ pag
 
 test("focusing a REQUEST field scrolls it into the pane", async ({ page }) => {
   await tab(page, "requests");
-  await page.locator("#pay-art").focus();
+  await page.locator("#pay-lyrics").focus();   // step 1 is the visible one
   await page.waitForTimeout(500);
   const m = await page.evaluate(() => {
     const body = document.querySelector('[data-win="requests"] > .win-body')!.getBoundingClientRect();
-    const f = document.getElementById("pay-art")!.getBoundingClientRect();
+    const f = document.getElementById("pay-lyrics")!.getBoundingClientRect();
     return { top: f.top - body.top, bottom: body.bottom - f.bottom };
   });
   expect(m.top).toBeGreaterThanOrEqual(-1);

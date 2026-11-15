@@ -3,7 +3,7 @@ Step 5; RADIO §12).
 
 The ECS task definition carries *ARNs*, not values: `DB_PASS_SECRET_ARN`
 (RDS-managed `{username, password}`, read by `pilgrim.db`) and
-`STRIPE_SECRET_ARN`, a JSON secret holding the three Stripe keys. At start the
+`STRIPE_SECRET_ARN`, a JSON secret holding the three Stripe keys and `STRIPE_PRICE_ID`. At start the
 app reads such a secret with the task role (or the station's `media.aws_profile`
 on the Mac, where the same code runs if the variable is set) and exports the
 allow-listed keys into `os.environ`, so `config.stripe_env()` and
@@ -26,6 +26,7 @@ STRIPE_SECRET_ARN_ENV = "STRIPE_SECRET_ARN"
 # secret cannot inject arbitrary environment (PATH, PILGRIM_CONFIG_OVERLAY...).
 EXPORTABLE = frozenset({
     "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET",
+    "STRIPE_PRICE_ID",
     "PAID_OVERRIDE_TOKEN", "LITELLM_TOKEN", "BRAVE_SEARCH_KEY", "PILGRIM_DJ_TOKEN",
 })
 

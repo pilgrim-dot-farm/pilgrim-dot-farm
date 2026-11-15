@@ -215,7 +215,7 @@ class PublicSurface:
             secret_key = stripe_keys["STRIPE_SECRET_KEY"]
             self.publishable_key = stripe_keys["STRIPE_PUBLISHABLE_KEY"]
             self.webhook_secret = stripe_keys["STRIPE_WEBHOOK_SECRET"]
-            self.stripe_client = StripeClient(cfg.payments, secret_key)
+            self.stripe_client = StripeClient(cfg.payments, secret_key, env=stripe_keys)
             self.payment_service = PaymentService(
                 cfg.payments, self.db, self.stripe_client, secret_key,
                 self.publishable_key, self.webhook_secret, now=self.clock.wall)

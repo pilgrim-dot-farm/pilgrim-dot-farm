@@ -158,8 +158,12 @@ origin with `python -m pilgrim.server` does not silently close payments.
 disables it (the test suite does this so a live `.env` can never leak in).
 
 - `STRIPE_SECRET_KEY` — `sk_live_…` / `rk_live_…` (or the `_test_` pair).
-  Server only. Mode comes from the prefix; the matching price is picked from
-  `payments.price_id_live` / `price_id_test`. Never commit, log, or return it.
+  Server only. Mode comes from the prefix: a live key uses `STRIPE_PRICE_ID`,
+  a test key uses `payments.price_id_test`. Never commit, log, or return it.
+- `STRIPE_PRICE_ID` — the live-mode Stripe price (`price_…`) for the priority
+  request. Required with a live key (paid requests stay closed without it).
+  Not a credential, but it lives beside the keys so a price change needs no
+  new image: edit the secret (or `.env`) and restart.
 - `STRIPE_PUBLISHABLE_KEY` — `pk_live_…` / `pk_test_…`. Safe in the browser;
   the server hands it to the page in the `POST /api/paid-requests/{token}/checkout` response.
   Never hard-code it in the static files.

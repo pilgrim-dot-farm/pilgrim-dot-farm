@@ -1118,11 +1118,22 @@ the station name.
   (no flex-gap band), and Prep Time (header and value) is right-aligned.
   The phone mini player's idle text is `PILGRIM DOT FARM ▶`; OFF THE AIR
   keeps its warning text.
-- **PRIORITY REQUEST** (docs/shipped/prompt-upgrade.md Step 5, docs/shipped/payments.md; UI feedback
-  2026-11-08): the *SKIP THE BARNYARD! YOUR SONG, YOUR RULES!* headline and the
+- **PRIORITY REQUEST ($2.50 MIN)** (docs/shipped/prompt-upgrade.md Step 5, docs/shipped/payments.md; UI feedback
+  2026-11-08, stepper 2026-11-15): the *SKIP THE BARNYARD! WRITE LONG-FORM!
+  YOUR SONG, YOUR RULES!* headline and the
   parenthesised *(Help us pay the power and cloud bills)* line (no
-  punctuation, the same grey as GROUND RULES) stay below the heading. The
-  form is always visible, with no opening button or introductory paragraph.
+  punctuation, the same grey as GROUND RULES) stay below the heading,
+  followed by the collapsed technical help and the terms line; all of the
+  verbiage sits above the form. The
+  form is always visible, with no opening button or introductory paragraph,
+  and shows **one department at a time**: **◀ PREV** and **NEXT ▶** (with a
+  *n / 4* counter between them) walk the four steps, NEXT refuses to
+  leave an empty required box (*LYRICS are required.* / *MUSICAL DIRECTION
+  is required.*), and the last step replaces NEXT with **CHECK IT & PAY**.
+  The steps share one grid cell, so the panel keeps the height of its
+  tallest step and the buttons never move. PREV/NEXT are disabled while a
+  request is being checked or paid; a finished request returns to step 1,
+  and a reload that resumes a pending request opens on step 4.
   Four numbered creative departments each have a label and one helper line:
   **1 LYRICS** (*Subject, story, title, exact words.*), **2 MUSICAL DIRECTION**
   (*Genre, instruments vocals, tempo, and etc.*), **3 COVER ART (Optional)**
@@ -1164,7 +1175,7 @@ the station name.
   number of uses, one redemption per browser identity, and is spent
   atomically at submit (a use is returned if moderation/copyright rejects
   the request). The terms line says *Your request goes ahead of free
-  submissions. Chip in what you like: $3.50 suggested, $3 minimum.*
+  submissions. Chip in what you like: **$2.50 minimum**, $3.50 suggested.*
 - **RATE THIS SONG** (docs/plans/voting.md, docs/plans/ratings.md): a row above the cover art
   with five turkey buttons (44 px targets, outlined → filled) and the on-air
   song's lifetime aggregate (`avg · n`, or `NO RATINGS YET`). The aggregate is
@@ -1747,10 +1758,13 @@ payments:
   enabled: false
   api_base: https://api.stripe.com
   api_version: "2026-10-28.endive"
-  price_id_live: price_1UWQHdKOiB5HDXLd4qNMoosI
-  price_id_test: ""            # test-mode price (Step 0.3)
+  price_id_test: ""            # test-mode price (Step 0.3). The live price is
+                               # not config: it is the STRIPE_PRICE_ID
+                               # environment value (Secrets Manager / .env,
+                               # 2026-11-15), and paid requests stay closed
+                               # with a live key when it is unset
   currency: usd
-  min_cents: 300
+  min_cents: 250
   max_cents: 6769
   timeout_s: 10
   retries: 2                   # create/retrieve only; backoff 0.5 s, 1 s
@@ -2026,7 +2040,8 @@ publisher described in §14; unset, the station behaves exactly as before
 **Secrets by ARN (docs/plans/scalability.md Step 5).** On Fargate the task carries ARNs,
 not values. Besides `DB_PASS_SECRET_ARN`, `STRIPE_SECRET_ARN` names a Secrets
 Manager JSON document whose allow-listed keys (`STRIPE_SECRET_KEY`,
-`STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAID_OVERRIDE_TOKEN`,
+`STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`,
+`PAID_OVERRIDE_TOKEN`,
 `LITELLM_TOKEN`, `BRAVE_SEARCH_KEY`, `PILGRIM_DJ_TOKEN`) the web tier exports
 into its environment at start (`pilgrim/aws_secrets.py`), so `stripe_env()`
 and `load_secret()` work unchanged; an explicit environment value wins, other
