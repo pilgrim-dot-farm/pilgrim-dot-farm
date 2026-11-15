@@ -1,4 +1,4 @@
-"""Giles: exactly-once canon sign-off, idle vs active, cooldown, pause."""
+"""Pen reporter (Liam): exactly-once canon sign-off, idle vs active, cooldown, pause."""
 from __future__ import annotations
 
 from pilgrim.chat.actions import ChatActions
@@ -8,7 +8,7 @@ from pilgrim.chat.redis_store import ChatStore
 from pilgrim.tests.fakes import FakeLLM
 from pilgrim.tests.fakes.fake_redis import FakeAsyncRedis
 
-NAME = "Giles"
+NAME = "Liam"
 
 
 class _Clock:

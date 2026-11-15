@@ -157,21 +157,20 @@ test("a deleted message disappears", async ({ browser }) => {
   }
 });
 
-test("Giles is labelled and signs off exactly once", async ({ page }) => {
+test("The pen report blends in and signs off exactly once", async ({ page }) => {
   await page.goto("/");
   const resp = await page.request.post("/api/test/chat/giles");
   expect(resp.ok()).toBeTruthy();
   const body = await resp.json();
   expect(body.ok).toBeTruthy();
-
-  const giles = page.locator(".chat-msg.giles");
-  await expect(giles).toBeVisible({ timeout: 10000 });
-  await expect(giles.locator(".chat-author")).toHaveText("GILES");
-  const text = (await giles.locator(".chat-text").textContent()) || "";
+  const text = body.dispatch?.text ?? "";
   const phrase = "outstanding in my field";
   expect(text.toLowerCase().split(phrase).length - 1).toBe(1);
   expect(text.trim().endsWith(
-    "This is Giles signing off with a reminder that I'm outstanding in my field.")).toBeTruthy();
+    "This is Liam signing off with a reminder that I'm outstanding in my field.")).toBeTruthy();
+  const row = page.locator("#chat-log .chat-msg", { hasText: text.slice(0, 40) });
+  await expect(row).toBeVisible({ timeout: 10000 });
+  await expect(row.locator(".chat-author")).toHaveText("Liam");
 });
 
 test("radio and requests still work beside the pen", async ({ page }) => {

@@ -173,7 +173,7 @@ def build_app() -> FastAPI:
         "Write one dispatch": {
             "text": "The sheep pen has been debating tractors. "
                     "Outstanding in my field, apparently. "
-                    "This is Giles signing off with a reminder that I'm "
+                    "This is Liam signing off with a reminder that I'm "
                     "outstanding in my field."},
     })
     chat_prompts = _load_prompts(cfg)

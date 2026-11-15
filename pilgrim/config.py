@@ -1033,6 +1033,9 @@ class Chat(BaseModel):
     giles_min_messages: int = 6
     giles_cooldown_s: float = 900.0
     giles_max_chars: int = 400
+    # Display name for pen dispatches: a vague ordinary listener name, NOT the
+    # radio's field reporter (talk.field_reporter_name). Operator decision 2026-11-15.
+    pen_reporter_name: str = "Liam"
     retention_days: int = 7        # docs/plans/sheep-pen-brief.md §0.6.4: fixed at 7
     audit_log_group: str = "/aws/pilgrim/chat-audit"
 

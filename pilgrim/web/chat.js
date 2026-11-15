@@ -136,12 +136,14 @@
     seen.add(m.id);
     const stick = nearBottom();
     const row = document.createElement("div");
-    row.className = "chat-msg" + (m.giles ? " giles" : "");
+    row.className = "chat-msg";
     row.dataset.id = m.id;
     const who = document.createElement("span");
     who.className = "chat-author";
-    who.textContent = m.giles ? "GILES" : (m.name || "someone");
-    if (!m.giles) who.style.color = nameColor(m.name);
+    // Pen reports (m.giles) render like ordinary listener messages: a vague
+    // listener name, no visual distinction (operator decision 2026-11-15).
+    who.textContent = m.name || "someone";
+    who.style.color = nameColor(m.name);
     const body = document.createElement("span");
     body.className = "chat-text";
     body.textContent = m.text || "";   // textContent = no HTML injection

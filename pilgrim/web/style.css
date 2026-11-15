@@ -742,12 +742,6 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
 .chat-msg { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
 .chat-msg .chat-author { color: var(--cyan); font-weight: bold; }
 .chat-msg .chat-author::after { content: ": "; color: var(--dim); font-weight: normal; }
-.chat-msg.giles {
-  border-left: 3px solid var(--magenta); padding-left: 8px;
-  background: rgba(255, 47, 214, .08);
-}
-.chat-msg.giles .chat-author { color: var(--magenta); letter-spacing: 1px; }
-.chat-msg.giles .chat-author::after { content: " · FIELD REPORT: "; }
 .chat-msg.system { color: var(--dim); font-style: italic; }
 .chat-compose { display: flex; align-items: center; gap: 8px; }
 .chat-compose input {

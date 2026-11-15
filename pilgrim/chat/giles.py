@@ -2,8 +2,9 @@
 
 docs/plans/sheep-pen-brief.md §8. Giles is the existing station character: persona wording comes
 from `prompts/field_chat.md` (derived from the current `prompts/field.md`), the
-name from `talk.field_reporter_name`, the model from `models.chat_giles`
-(default `qwen38`). Text only — never TTS, never the producer or scheduler
+display name from `chat.pen_reporter_name` (a vague ordinary listener, NOT the
+radio's field reporter `talk.field_reporter_name` — operator decision 2026-11-15),
+the model from `models.chat_giles`. Text only — never TTS, never the producer or scheduler
 (hard rule 1).
 
 The canon sign-off is enforced in code, exactly once (operator decision,
@@ -86,7 +87,7 @@ class Giles:
         self.prompts = prompts
         self.clock = clock or Clock()
         self.audit = audit or NullAudit()
-        self.name = cfg.talk.field_reporter_name
+        self.name = cfg.chat.pen_reporter_name
 
     async def _state(self) -> dict[str, Any]:
         try:

@@ -1112,9 +1112,10 @@ the station name.
   listeners are distinguishable. Repeated rejected sends (rate or repeat)
   trigger a cool-off — 5 min, then 15 min, then 1 h for a repeat offence
   within 24 h — shown in the log with the compose row disabled until it
-  expires; Giles's dispatches are visually distinct
-  (magenta rule, `GILES · FIELD REPORT` label) and are never presented as an
-  ordinary listener. Read-only before naming; no IPs, user ids or moderation
+  expires. Pen reports (`giles` frame flag) render exactly like ordinary
+  listener messages — a vague listener display name (`chat.pen_reporter_name`,
+  default Liam), no visual distinction (operator decision 2026-11-15: the
+  radio's field reporter stays on the radio; the pen reporter blends in). Read-only before naming; no IPs, user ids or moderation
   metadata appear. No framework, no build step, and nothing in `chat.js`
   touches playback.
 - **ABOUT** (docs/plans/ui-refactor.md, 2026-11): one pane holding, in this order and
@@ -1508,7 +1509,7 @@ models:
   liners: ornith
   field_report: qwen38
   chat_moderation: Ornith-1.5-9B   # Layer B review worker (docs/plans/sheep-pen-brief.md §6)
-  chat_giles: qwen38               # Giles's text-only chat dispatches
+  chat_giles: Ornith-1.5-9B        # Giles's text-only chat dispatches (operator decision 2026-11-15: Ornith is the chat worker's model)
   instagram_caption: qwen38        # Reel caption line (INSTAGRAM.md)
   music: MiniMax-Music-3     # LiteLLM model group for `auth: litellm` song backends
   context_tokens: {qwen38: 262144}  # calls send max_tokens = context - prompt (no artificial
@@ -1557,6 +1558,7 @@ chat:                      # THE SHEEP PEN (docs/plans/sheep-pen-brief.md; RADIO
   giles_min_messages: 6
   giles_cooldown_s: 900
   giles_max_chars: 400
+  pen_reporter_name: Liam        # dispatch display name: vague listener, not the radio's field reporter
   retention_days: 7        # fixed at 7; equal to terraform chat_log_retention_days
   audit_log_group: /aws/pilgrim/chat-audit
 
