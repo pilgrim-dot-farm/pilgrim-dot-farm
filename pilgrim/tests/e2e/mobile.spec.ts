@@ -95,6 +95,43 @@ test("tabs switch panes; the selected tab is marked; state survives", async ({ p
   await expect(page.locator('[data-win="about"]')).toHaveClass(/active/);
 });
 
+test("hidden panes paint nothing over the active tab (paid stepper)", async ({ page }) => {
+  // .pay-stepper > .pay-field.on sets visibility:visible, which outranked the
+  // inherited visibility:hidden of its window and leaked the paid LYRICS field
+  // onto the RADIO tab (feedback 2026-11-16).
+  await tab(page, "radio");
+  await expect(page.locator('[data-win="requests"] .pay-field.on')).toBeHidden();
+  await expect(page.locator('[data-win="requests"] #pay-panel')).toBeHidden();
+  const leaks = await page.evaluate(() => {
+    const bad: string[] = [];
+    for (const w of document.querySelectorAll<HTMLElement>("#desktop > .window")) {
+      if (w.classList.contains("active")) continue;
+      for (const el of w.querySelectorAll<HTMLElement>("*")) {
+        if (getComputedStyle(el).visibility === "visible")
+          bad.push(`${w.dataset.win}:${el.id || el.className}`);
+      }
+    }
+    return bad;
+  });
+  expect(leaks).toEqual([]);
+  // hit test: sampled points over the shell always resolve inside the active pane
+  for (const name of ["radio", "requests", "sheep", "about"]) {
+    await tab(page, name);
+    const wrong = await page.evaluate((active) => {
+      const out: string[] = [];
+      for (let y = 90; y < innerHeight - 110; y += 40) {
+        for (const x of [innerWidth * 0.15, innerWidth * 0.5, innerWidth * 0.85]) {
+          const owner = document.elementFromPoint(x, y)?.closest("[data-win]");
+          const ownerName = owner?.getAttribute("data-win");
+          if (ownerName && ownerName !== active) out.push(`${x},${y} -> ${ownerName}`);
+        }
+      }
+      return out;
+    }, name);
+    expect(wrong, `inactive pane painted over ${name}`).toEqual([]);
+  }
+});
+
 test("CHAT fills the pane: log scrolls inside it, composer at the bottom", async ({ page }) => {
   await tab(page, "sheep");
   const m = await page.evaluate(() => {

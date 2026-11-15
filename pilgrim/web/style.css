@@ -820,6 +820,11 @@ a.cred-model:hover, a.cred-model:focus-visible { text-decoration: underline; }
     border: 0; border-radius: 0; box-shadow: none;
   }
   #desktop > .window.active { visibility: visible; }
+  /* Visibility is inherited, so a descendant that sets visibility:visible
+     (the pay stepper's .pay-field.on) would paint over the active pane while
+     its window is hidden. Hide descendants of inactive panes explicitly;
+     this outranks .pay-stepper > .pay-field.on (feedback 2026-11-16). */
+  #desktop > .window:not(.active) * { visibility: hidden; }
   /* No title bars on phones (D14): the tabs name the pane. SHEEP PEN's status
      strip is gone too (feedback 2026-11-08): #chat-status stays in the DOM,
      hidden, so chat.js keeps working. */
