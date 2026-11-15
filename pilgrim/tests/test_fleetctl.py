@@ -189,3 +189,19 @@ def test_scripts_name_the_session_and_never_use_sudo_or_reboot():
                 + fleetctl.start_script(svc, "bash -lc") + fleetctl.probe_script(svc))
         assert svc.session in text
         assert "sudo" not in text and "reboot" not in text
+
+
+def test_remote_path_expands_tilde_to_home():
+    # fleet.yaml carries `~/...` so no login user is named in the repo; the
+    # remote shell must still land in that user's home.
+    assert fleetctl.remote_path("~/local_llm/ninfer") == '"$HOME"/local_llm/ninfer'
+    assert fleetctl.remote_path("~") == '"$HOME"'
+    assert fleetctl.remote_path("/home/yuri/local_llm") == "/home/yuri/local_llm"
+    assert fleetctl.remote_path("/opt/a b") == "'/opt/a b'"
+
+
+def test_start_script_expands_a_tilde_cwd():
+    fleet = load_fleet()
+    svc = fleet.services["qwen38"]
+    assert svc.cwd.startswith("~/")
+    assert '"$HOME"/local_llm/ninfer' in fleetctl.start_script(svc, "bash -lc")

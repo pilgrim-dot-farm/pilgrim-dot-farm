@@ -8,6 +8,8 @@
 #   host        ssh alias from ~/.ssh/config, or `local` for this Mac
 #   ssh_opts    extra ssh options (yuri: its .local name does not resolve)
 #   cwd/start   the box's own run script, run in the foreground inside tmux.
+#               `cwd` may start with `~/`: fleetctl passes it to the remote
+#               shell as "$HOME"/… so it expands to the login user's home.
 #               Box run scripts are human-owned: never edit them from here,
 #               and re-read them on the box before changing a `start` line.
 #   ports       first port is the /health port; all are freed on stop

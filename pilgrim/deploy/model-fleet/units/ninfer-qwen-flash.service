@@ -15,8 +15,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Set User= to the box's login user (drafts ship as CHANGEME).
 User=CHANGEME
-WorkingDirectory=~/local_llm/ninfer
+WorkingDirectory=%h/local_llm/ninfer
 ExecStart=/usr/bin/bash ./run-serve.sh
 Restart=on-failure
 RestartSec=10

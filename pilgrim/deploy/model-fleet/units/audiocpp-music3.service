@@ -10,8 +10,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Set User= to the box's login user (drafts ship as CHANGEME).
 User=CHANGEME
-WorkingDirectory=~/local_llm/audio.cpp
+WorkingDirectory=%h/local_llm/audio.cpp
 ExecStart=/usr/bin/bash ./run.sh
 TimeoutStopSec=30
 Restart=on-failure

@@ -166,15 +166,30 @@ exit 0
 """
 
 
+def remote_path(p: str) -> str:
+    """Quote a path for the remote shell, expanding a leading `~` to `$HOME`.
+
+    The path is embedded inside single quotes, so a bare `~` would never
+    expand there; `"$HOME"/…` does, which lets the registry stay free of
+    home-directory absolute paths (AGENTS.md: no usernames in the repo).
+    """
+    if p == "~":
+        return '"$HOME"'
+    if p.startswith("~/"):
+        return '"$HOME"/' + shlex.quote(p[2:])
+    return shlex.quote(p)
+
+
 def start_script(svc: Service, login_shell: str) -> str:
     log = f"{REMOTE_LOG_DIR}/{svc.name}.log"
-    inner = (f"cd {shlex.quote(svc.cwd)} && echo \"=== $(date) fleetctl start {svc.name}\" "
+    cwd = remote_path(svc.cwd)
+    inner = (f"cd {cwd} && echo \"=== $(date) fleetctl start {svc.name}\" "
              f">> {log} && {{ {svc.start} ; }} 2>&1 | tee -a {log}")
     pane = f"exec {login_shell} {shlex.quote(inner)}"
     return (f"mkdir -p {REMOTE_LOG_DIR}\n"
             f"tmux has-session -t ={svc.session} 2>/dev/null && "
             f"{{ echo 'session {svc.session} already exists'; exit 1; }}\n"
-            f"tmux new-session -d -s {svc.session} -c {shlex.quote(svc.cwd)} {shlex.quote(pane)}\n")
+            f"tmux new-session -d -s {svc.session} -c {cwd} {shlex.quote(pane)}\n")
 
 
 # --- operations ---------------------------------------------------------------
