@@ -31,6 +31,34 @@ def test_prefilter_allows_clean(text):
     assert prefilter(text) is None
 
 
+PROMO = "LOCAL_LLAMA_FIRST_5-1024235234"   # the digit tail is 9+ digits
+
+
+def test_station_promo_code_is_identity_not_contact_info():
+    """OVERHAUL 4.1: the station's own codes pass the pre-filter when
+    allowlisted (an operator ad may name them); unlisted text is unchanged."""
+    ad = f"try us free with promo code {PROMO}"
+    # without the allowlist the codes' digit tails still trip the phone rules
+    assert prefilter(ad) == REASON                        # free line: 10 digits total
+    assert prefilter(ad, phone_mode="runs") == REASON     # paid line: 7+ digit run
+    # with the allowlist both lines pass
+    assert prefilter(ad, allow=(PROMO,)) is None
+    assert prefilter(ad, phone_mode="runs", allow=(PROMO,)) is None
+
+
+def test_allowlist_masks_only_the_named_strings():
+    ad = f"promo {PROMO.lower()} is here, call 555-123-4567 for more"
+    # case-insensitive mask; a real phone number next to it is still rejected
+    assert prefilter(ad, phone_mode="runs", allow=(PROMO,)) == REASON
+    ad2 = f"promo {PROMO.lower()} is here"
+    assert prefilter(ad2, phone_mode="runs", allow=(PROMO,)) is None
+
+
+def test_allowlist_never_unrejects_other_contact_info():
+    ad = f"promo {PROMO}, check out mysite.com"
+    assert prefilter(ad, allow=(PROMO,)) == REASON
+
+
 def test_api_request_with_url_never_calls_moderator(tmp_env):
     """The LLM must NOT be called for a request that hits the pre-filter."""
     from fastapi.testclient import TestClient
@@ -134,6 +162,32 @@ def test_one_accepted_free_request_per_ten_minutes(tmp_env):
         "One free request every 10 minutes. Try again in 10 minutes")
     assert "play the banjo" not in seen
     assert len(station.db.queued_requests()) == 1
+
+
+def test_free_request_naming_station_promo_code_passes(tmp_env):
+    """OVERHAUL 4.1: a request that names the station's own promo code is
+    station identity, not contact info — it passes the pre-filter (the fake
+    moderator still decides)."""
+    from fastapi.testclient import TestClient
+    from pilgrim.server import create_app
+
+    cfg, store, _ = tmp_env
+    store.create_promo_code("DEMO_FIRST_5-987654321", 5, "test ad")
+    app = create_app(cfg)
+    station = app.state.station
+    seen: list[str] = []
+
+    class _Ok:
+        async def moderate(self, text):
+            seen.append(text)
+            return True, "ok"
+
+    station.moderator = _Ok()
+    c = TestClient(app)
+    code = "DEMO_FIRST_5-987654321"
+    r = c.post("/api/requests", json={"text": f"love this station, code {code}"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert len(seen) == 1 and code in seen[0]   # reached the moderator unmasked
 
 
 def test_request_board_in_api(tmp_env):

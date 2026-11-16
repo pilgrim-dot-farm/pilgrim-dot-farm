@@ -1067,6 +1067,17 @@ def _release_promo(station: PublicSurface, promo_code: str | None,
         station.db.release_promo_redemption(promo_code, promo_identity)
 
 
+def _station_allowlist(station: PublicSurface) -> tuple[str, ...]:
+    """The station's own issued promo codes are its identity, not listener
+    contact info: an operator ad may name them on the request line
+    (OVERHAUL 4.1), so the pre-filter masks them before the contact checks.
+    A store error degrades to no allowlist — the filter stays strict."""
+    try:
+        return tuple(c["code"] for c in station.db.list_promo_codes())
+    except Exception:
+        return ()
+
+
 _LEAK_REASON = "That request can't be accepted."
 _CHECK_FAILED = ("Couldn't finish checking your request. You were not charged; "
                  "try again.")
@@ -1414,7 +1425,8 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                     "paid_enabled": station.payments_active}
         t0 = time.monotonic()
         # Deterministic pre-filter first: URLs/contact info never reach the LLM (4.1).
-        pref = prefilter(text)
+        # The station's own promo codes are exempt (an operator ad may name them).
+        pref = prefilter(text, allow=_station_allowlist(station))
         if pref:
             req = station.db.add_request(text, cap=None,
                                          status="rejected", reason=pref)
@@ -1574,7 +1586,8 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
         if _leaks_secret(text, secret):
             _release_promo(station, promo_code, promo_identity)
             return {"ok": False, "rejected": True, "reason": _LEAK_REASON}
-        pref = prefilter(text, phone_mode="runs")
+        pref = prefilter(text, phone_mode="runs",
+                         allow=_station_allowlist(station))
         if pref:
             _release_promo(station, promo_code, promo_identity)
             req = station.db.add_request(text, cap=None, status="rejected",

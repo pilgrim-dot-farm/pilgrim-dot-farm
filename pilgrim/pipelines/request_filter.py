@@ -7,6 +7,7 @@ than the store.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 
 REASON = "No links or contact info on the request line — just tell us what you want to hear."
 
@@ -26,14 +27,26 @@ _DIGITS_STRIP = re.compile(r"[\s.\-\[\]()]")
 _DIGIT_RUN = re.compile(r"\d(?:[\s.\-()\[\]]{0,2}\d){6,}")
 
 
-def prefilter(text: str, *, phone_mode: str = "total") -> str | None:
+def prefilter(text: str, *, phone_mode: str = "total",
+              allow: Sequence[str] = ()) -> str | None:
     """Return the listener-facing rejection reason, or None if the text is clean.
 
     `phone_mode="total"` (free line, unchanged) counts every digit in the text;
     `"runs"` (paid line) rejects only one 7+ digit run, so tempo/key/time
     numbers in a detailed brief are fine.
+
+    `allow`: station-owned exact strings (the station's own promo codes) that
+    are its identity, not listener contact info — an operator ad may name them
+    (OVERHAUL 4.1; the paid line's phone heuristic otherwise trips on the
+    codes' digit tails). Each entry is masked case-insensitively, longest
+    first, before the checks; nothing else in the text is touched, so a real
+    phone number or URL next to an allowed code is still rejected.
     """
-    low = text.lower()
+    masked = text
+    for entry in sorted((e.strip() for e in allow if e and e.strip()),
+                        key=len, reverse=True):
+        masked = re.sub(re.escape(entry), " ", masked, flags=re.IGNORECASE)
+    low = masked.lower()
     if _HTTP.search(low) or "www." in low:
         return REASON
     if _BARE_DOMAIN.search(low):
@@ -43,13 +56,13 @@ def prefilter(text: str, *, phone_mode: str = "total") -> str | None:
     if _EMAIL.search(low):
         return REASON
     if phone_mode == "runs":
-        if _DIGIT_RUN.search(text):
+        if _DIGIT_RUN.search(masked):
             return REASON
     else:
         # phone numbers: 7+ digits after removing separators and brackets
-        digits = re.sub(r"\D", "", _DIGITS_STRIP.sub("", text))
+        digits = re.sub(r"\D", "", _DIGITS_STRIP.sub("", masked))
         if len(digits) >= 7:
             return REASON
-    if _HANDLE.search(text):
+    if _HANDLE.search(masked):
         return REASON
     return None
