@@ -2,21 +2,18 @@
 
 > *Formerly `PRIORITIES.md`.*
 
-> **Status (2026-11-08): shipped.** The recycled-song weights live in
-> `pilgrim/config.yaml` (`songs`, `PRIORITIES §3`), the persisted airplay ledger
-> and the freshness queries in `pilgrim/store.py` (`PRIORITIES §4`), and the
-> normative behaviour in RADIO.md §5.2, §7 and §14. The "plan only" sentence
-> below is the original 2026-10-01 text, kept as history.
+**Status: shipped** (2026-11-08).
 
-Operator, 2026-10-01: "It always starts with the first song it generated. I
-don't like how new songs are not prioritized."
+Fresh songs air first; recycled songs are drawn by a weight that favours the
+young and the long-unheard; the airplay ledger persists so a restart does not
+reset rotation. Normative behaviour: RADIO §5.2, §7, §14. Code: the recycled
+song weights in `pilgrim/config.yaml` (`songs`), `pilgrim/selector.py`, and
+the airplay ledger and freshness queries in `pilgrim/store.py`.
 
-This is the plan only. **No code changes have been made yet.** Work it top to
-bottom. Each step updates its own RADIO.md sections (§5.2, §7, §12, §15) in the
-same change, because steps 2 and 4 change the database and config schemas
-(AGENTS.md hard rule 8).
-
----
+> Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy
+> handoff) is in git: `git show c712f27:docs/shipped/priorities.md`. Section numbers cited in code
+> comments and commits refer to that file; the sections kept below keep their
+> original numbers.
 
 ## 1. What is actually happening
 
@@ -146,49 +143,6 @@ ALTER TABLE items ADD COLUMN play_count INTEGER DEFAULT 0;
 
 `play_count` isn't used by the formula above. It's there for the stats
 endpoint / tuning and for Q3.
-
----
-
-## 5. Implementation steps
-
-1. **Bug fix (small, ship first):** in `_pick_song`, treat a missing
-   last-air as *longest ago* (`-inf`), not `inf`, and break ties by **newest
-   id first**. Make fresh songs LIFO. This alone fixes "always starts with the
-   first song" and the 18-song lockup, with no schema change.
-2. **Persistence:** §4 columns, migration, backfill, scheduler reads/writes
-   `last_aired_at`.
-3. **Weighting:** §3 formula behind `playout.song_rotation` (config.py
-   pydantic model + config.yaml + RADIO.md §12).
-4. **Docs:** RADIO.md §5.2 song-selection bullet rewritten to the tier
-   table; fix the 4 h/1 h spacing text once Q1 is answered.
-
----
-
-## 6. Tests
-
-Unit (`pilgrim/tests/test_scheduler.py`, fakes only):
-- **Restart regression:** pool of N recycled songs with no history → the
-  first pick is not the lowest id; across seeds the first pick favors the
-  newest third.
-- **No lockup regression:** 41 recycled songs, 6 h → every song airs at
-  least once (today: 18/41).
-- **Fresh LIFO:** two fresh songs → the newer airs first; both air before
-  any recycled song.
-- **Persistence:** commit a song, build a new `Scheduler` on the same db →
-  the song is still inside its spacing window.
-- **Spacing never broken by weighting:** a heavily weighted young song inside
-  its floor is not picked.
-- Keep `test_new_song_airs_promptly_after_a_drought` and
-  `test_thin_liner_pool_does_not_pad_the_lookahead` passing unchanged.
-
-Simulation (`make sim`, new §15 assertions):
-- With songs added at the production rate over 24 h, songs < 12 h old get
-  more than their pool share of airtime.
-- No eligible song goes unaired longer than `max(6 h, pool_size × mean gap)`
-  (starvation guard).
-- Existing assertions (spacing, genre, max 2 non-song, drought) still pass.
-
----
 
 ## 7. Open questions (need an operator decision)
 

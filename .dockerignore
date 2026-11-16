@@ -1,4 +1,4 @@
-# Build context for Dockerfile: application code only (docs/plans/scalability.md Step 1).
+# Build context for Dockerfile: application code only (docs/pending/scalability.md Step 1).
 .git
 .venv
 .env

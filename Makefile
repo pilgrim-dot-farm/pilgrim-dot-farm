@@ -43,9 +43,9 @@ e2e-split:
 split-smoke:
 	bash pilgrim/deploy/local/smoke.sh
 
-# --- containers (docs/plans/scalability.md Step 1). `image` builds the one deployable
+# --- containers (docs/pending/scalability.md Step 1). `image` builds the one deployable
 # image, the Fargate web tier (pilgrim:web). The station stays native on the
-# M5. Fargate runs ARM64 (docs/plans/scalability.md §6), native on the M5; an x86 host
+# M5. Fargate runs ARM64 (docs/pending/scalability.md §6), native on the M5; an x86 host
 # needs buildx + QEMU; PLATFORM= (empty) builds for the host. `image-smoke`
 # builds the test-only `smoke` stage (web + ffmpeg) and runs the FAKES-ONLY e2e
 # server from it, checking health/programme/site (no real backends).
@@ -62,7 +62,7 @@ image-smoke:
 	$(DOCKER) build $(DOCKER_PLATFORM) --target smoke -t $(IMAGE):smoke .
 	IMAGE=$(IMAGE) DOCKER=$(DOCKER) bash pilgrim/deploy/container/smoke.sh
 
-# --- Postgres store (docs/plans/scalability.md Step 2). pg-test runs the WHOLE unit suite
+# --- Postgres store (docs/pending/scalability.md Step 2). pg-test runs the WHOLE unit suite
 # against a throwaway postgres container (fakes only; the DB is local), so the
 # engine-neutral store is proven on both engines. Extra pytest args pass through:
 #   make pg-test PG_TEST_ARGS="pilgrim/tests/test_requests.py -x"
@@ -101,7 +101,7 @@ run:
 	PATH="$(HOME)/bin:$(PATH)" LITELLM_TOKEN=$$(grep LITELLM_TOKEN .env | cut -d= -f2) \
 		$(PY) -m pilgrim.server   # public + admin listeners from config.yaml
 
-# The Fargate web tier, locally (docs/plans/scalability.md Step 5). Needs REDIS_URL (a
+# The Fargate web tier, locally (docs/pending/scalability.md Step 5). Needs REDIS_URL (a
 # station publishing to it) and optionally DATABASE_URL in the env or .env.
 web:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.web_app
@@ -139,12 +139,12 @@ art-backfill:
 art-smoke:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.art_smoke
 
-# Instagram Reel builder (docs/shipped/album-art.md Step 11, INSTAGRAM.md Step 2; ffmpeg only, never posts):
+# Instagram Reel builder (docs/shipped/album-art.md Step 11, docs/shipped/instagram.md Step 2; ffmpeg only, never posts):
 #   make reel REEL_ARGS="--item 132 --start 0 --duration 60 [--layout square]"
 reel:
 	PATH="$(HOME)/bin:$(PATH)" $(PY) -m pilgrim.tools.make_reel $(REEL_ARGS)
 
-# Instagram Reels posting (INSTAGRAM.md Step 5; docs/instagram.md). Nothing is
+# Instagram Reels posting (docs/shipped/instagram.md Step 5; docs/instagram.md). Nothing is
 # sent to Instagram without --publish, and the agent passes --publish only
 # after the operator confirmed the song (title + artist):
 #   make reel-post REEL_ARGS="--find 'possum'"

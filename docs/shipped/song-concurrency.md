@@ -2,20 +2,19 @@
 
 > *Formerly `SONG_GEN_CONCURRENCY_PLAN.md`.*
 
-> **Status: shipped.** Covered by `pilgrim/tests/test_song_concurrency.py`; the
-> slot ceiling and submission staggering are recorded in docs/backends.md §2b.
+**Status: shipped 2026-11-01.**
 
-MiniMax Music 3 now has **three deployments** registered in the LiteLLM proxy
-under one model group. Today the station generates songs one at a time: a
-single `Producer.song_loop` worker blocks inline on
-`brief() → produce_song() → QC → intro → store`, so at most one render is ever
-in flight and the generator sits idle while a brief is written. This plan
-lets the station run up to N renders at once (N = healthy backend slots)
-without breaking request queue order, the inventory targets, or the playout
-invariants.
+Three MiniMax Music 3 deployments sit behind one LiteLLM model group; the
+station renders up to three songs at once, enforces the slot ceiling itself
+and staggers submissions. Normative behaviour: RADIO §6.1, §6.2, §12;
+docs/backends.md §2b. Code: `pilgrim/pipelines/songs.py` (`MusicPool`,
+`SongPipeline`), the song jobs and decider in `pilgrim/producer.py`,
+`pilgrim/tests/test_song_concurrency.py`.
 
-Work it top to bottom. Step 0 is a gate: **its outcome picks the transport**,
-and Steps 1–3 ship as one change (config schema + RADIO.md, hard rule 8).
+> Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy
+> handoff) is in git: `git show c712f27:docs/shipped/song-concurrency.md`. Section numbers cited in code
+> comments and commits refer to that file; the sections kept below keep their
+> original numbers.
 
 ## Status: implemented 2026-11-01
 
@@ -80,35 +79,6 @@ Rev 1 was reviewed against the code and probed against the live proxy
 | F15 | No model id in the payload | Hard rule 4: model names come from config | `models.music` is used if the LiteLLM transport is chosen |
 | F16 | "M3" | Ambiguous: it could mean milestone M3, a Mac, or MiniMax Music 3 | This plan says "generator" or names the backend |
 | F17 | `_last_stock_song_at` set "in the task" and also "on reap" | The two are inconsistent | It is set inside the stock job when the song is stored, as today |
-
----
-
-## 0. Current state (verified in code, 2026-11-01)
-
-- **One worker, serial.** `Producer.song_loop()` (`pilgrim/producer.py:462`)
-  awaits `song_step()` (`:487`): the next queued request (queue order), else
-  one stock song. Step = `songs.brief()` (qwen38 @ `.75:8081`, 10–170 s) +
-  `songs.produce_song()` (208–427 s for 130–180 s of audio) + sync QC/normalize
-  + intro TTS.
-- **Transport.** `SongPipeline.generate()` (`pilgrim/pipelines/songs.py:373`):
-  one `httpx` POST to `hosts.mlx_serve` + `/v1/audio/music-generations`, no
-  auth, 1800 s timeout, raw WAV inline (`docs/backends.md` §2).
-- **Gates** (`song_step`, §6.1): requests skip all gates; stock needs
-  `fresh < inventory.fresh_songs_ready` (2), library < `songs.stock_max_library`
-  (100), and `songs.stock_gap_s` (600 s) since the last stock song finished.
-- **Request lifecycle.** `mark_request_producing` happens *before* the brief;
-  a brief or render failure → `request_failed_attempt` (3, or
-  `payments.max_attempts` for paid); `httpx.TransportError` → `requeue_request`
-  (no attempt burned); startup `reset_producing_to_queued()`.
-- **Splice.** `Scheduler.place_request_next` splices a `ready` request at the
-  next song slot, so ready order = air order. That is why two requests of
-  the same tier must not render in parallel.
-- **Unused key.** `inventory.briefs_queued: 3` is read by no code.
-- **Proxy topology** (probed read-only via `/model/info`, `/router/settings`):
-  see F2/F4. The generator hosts do not share GPUs with the station's
-  `qwen38` (`.75`) or Ornith (`.89`). `.56` also serves DeepSeek/Nemotron, and
-  `.56:8080` is the same host:port as `Qwen3-Omni-30B`, which suggests a
-  model-swapping server (cold-load latency, eviction). Step 0 must check.
 
 ## 1. Target
 
@@ -222,174 +192,6 @@ config, not code. The reserved slot costs nothing at today's targets
   records its genre in the in-flight table before releasing the lock.
 - Request briefs get the same augmented list (a pinned listener genre still
   wins, as today).
-
-## 3. Steps
-
-### Step 0: probe (no code; AGENTS.md §2 / M1 discipline). **Gate.**
-
-All generation calls are **≤ 10 s of audio** (hard rule 6). Run from the
-station host (M5), which is on the generator LAN. The EC2 box can't reach
-`192.168.68.x`.
-
-1. **Each box directly:** `GET /v1/models` and `GET /health` on `.88:8080`,
-   `.56:8080`, `.51:11234`. Then one 10 s POST to
-   `/v1/audio/music-generations` with the existing payload (`prompt`,
-   `lyrics`, `duration_seconds: 10`, `seed`). Record: same shape as
-   `docs/backends.md` §2 or not, auth needed, sample rate/channels, wall time,
-   and the prompt-budget / max-duration fields `GET /v1/models` reports
-   (the MLX box reports these today, per §2 "Prompt budget").
-2. **`.56:8080` swap check:** is it a model-swapping server shared with
-   Qwen3-Omni? Time a cold 10 s call against a warm one. If cold-load adds
-   > 60 s or evicts something the operator relies on, **stop and ask**.
-3. **Parallel scaling:** fire three 10 s calls at once, one per box. All 200,
-   and the walls should be about equal to step 1's (separate machines, so no
-   slowdown). Separately fire 2 at **one** box and record the behavior
-   (queued? slower? error?). This decides whether `slots: 1` is right.
-4. **LiteLLM route** (only if the operator wants LiteLLM mode): confirm a
-   music route exists (it doesn't on 1.104.2 today: F1), that it
-   load-balances across the three, and that it exposes the deployment in a
-   response header. Confirm `num_retries` is 0 for that route.
-5. QC each box's clip with `grade_audio` + normalize. Listen to one clip from
-   each vLLM box against the MLX one (quality parity is a human call).
-6. Record everything in `docs/backends.md` as "§2b Song generation — backend
-   pool (MiniMax Music 3 ×3)".
-
-**Stop and ask** (AGENTS.md §9) if any box needs a different payload, returns
-submit+poll, fails parity, or if the human prefers LiteLLM mode while the
-proxy has no route. The rest of the plan assumes the observed shape; a
-submit+poll box would hold its lease across submit + bounded poll.
-
-### Step 1: config schema (hard rule 8: RADIO.md in the same change)
-
-- `pilgrim/config.py`:
-  - `class MusicBackend(BaseModel)`: `name: str`, `url: str`, `slots: int = 1`
-    (validator ≥ 1), `auth: Literal["none", "litellm"] = "none"`,
-    `rtf_hint: float | None = None` (from Step 0).
-  - `Songs.backends: list[MusicBackend]` (validator: non-empty, unique names),
-    `Songs.backend_cooldown_s: float = 120`.
-  - Remove `Hosts.mlx_serve`. Add `Models.music: str | None` (LiteLLM mode only).
-- `pilgrim/config.yaml`: the `songs.backends` block (§2.1) replaces
-  `hosts.mlx_serve`.
-- `RADIO.md`, same commit:
-  - **§6.2** step 2: "MiniMax Music 3 on the backend pool (`songs.backends`);
-    up to C = Σ healthy slots renders run concurrently; requests take the
-    fastest idle backend; one in-flight request per tier."
-  - **§6.1** song worker: replace "waits … before starting the next one" with
-    the job/decider model and the reserved-slot rule. The target row becomes
-    "≥ 2, counting stock renders in flight".
-  - **§12** config block: `songs.backends`, `songs.backend_cooldown_s`,
-    `models.music`; drop `hosts.mlx_serve`.
-- `AGENTS.md` §2 env table: "Station server + song generation | M5 |
-  mlx-serve…" becomes "Song generation | backend pool (`songs.backends`):
-  M5 MLX + two GPU hosts", and §1 rule 6 wording ("~1.6 s per 1 s" was the MLX
-  box) is updated with Step 0 RTFs.
-- `docs/backends.md` §0 access table: one row per backend.
-- No HTTP API (§11) or DB schema change. `/health` JSON gains per-backend keys
-  (`mlx` becomes `music: {name: bool}`). The TUI/admin reads it, so check
-  `pilgrim/tui` and update any consumer in the same change.
-
-### Step 2: `pilgrim/pipelines/songs.py`
-
-- `MusicPool` (small class in songs.py): `capacity()`, `lease(prefer)`,
-  `mark_down(name)`, `record(name, audio_s, wall_s)`. Time in the pool uses an
-  injected clock (tests), not `time.time()`.
-- `generate(brief, backend)`: URL = `backend.url.rstrip("/") +
-  "/v1/audio/music-generations"` (F5). Add a Bearer header only for
-  `auth: litellm` (key from the existing `api_key` plumbing, `LITELLM_TOKEN`).
-  Add `model` only in LiteLLM mode. Timeout stays 1800 s.
-- `produce_song(brief, prefer="slow")`: lease → generate → release, then
-  `await asyncio.to_thread(self._qc_and_normalize, …)` for `sf.read`,
-  `grade_audio` and `normalize.normalize` (F11). `dst` gets a
-  `secrets.token_hex(4)` suffix (F12). `meta["backend"] = name`.
-- `generation_s` bookkeeping: append the completed `(duration, wall)` tuple
-  once, after the thread returns. The rev 0 "append then patch `[-1]`" pattern
-  breaks under concurrency once an await sits between the two.
-- `seed.py`: passes through unchanged (it still calls `produce_song` serially;
-  parallel reseed is an open question, §6).
-
-### Step 3: `pilgrim/producer.py`
-
-Refactor so the serial and concurrent paths share all logic:
-
-- `self._jobs: dict[asyncio.Task, Job]`, where `Job` is a small dataclass:
-  `kind`, `tier`, `request_id`, `genre: str | None`, `started_at`.
-- `_next_job() -> Job | None`: sync gate logic per §2.2. It reuses
-  `stock_capped()`, and the fresh count becomes `count_fresh_of_type("song") +
-  stock jobs in flight`, so in-flight stock counts toward the target. The gap
-  gate and the cap log stay the same.
-- `_run_job(job)`: dispatches to `_produce_request_song(req, job)` (today's
-  body, using the §2.4 augmented `prev_genres` and `prefer="fast"`) or
-  `_produce_stock_song(job)` (today's `song_step` stock tail, under
-  `_stock_brief_lock` for the brief only, `prefer="slow"`, and
-  `_last_stock_song_at = clock.now()` when stored, per F17).
-- `song_step()` **keeps its contract** (F13): `job = self._next_job()`, and
-  if there is one, `await self._run_job(job)` inline, returning True. The sim
-  and the existing producer tests keep working unchanged.
-- `song_loop()`: the decider. Reap → spawn while `_next_job()` → wait
-  `FIRST_COMPLETED` with a 20 s tick. Outage backoff (15 s doubling to 120 s)
-  stops new spawns only when **every** backend is down. One box down just
-  lowers C. A QC rejection is not an outage.
-- Sleep/wait goes through an injectable `self._sleep` (default
-  `asyncio.sleep`), so tests can drive the loop with the fake clock. Today's
-  `asyncio.sleep(20.0)` already bends hard rule 3, and this fixes it rather
-  than adding more.
-- Logs: `song.job.spawned` (`kind`, `tier`, `request_id`, `jobs`, `capacity`),
-  `song.job.reaped` (`wall_s`, `outcome`), `song.backend.down` / `.up`
-  (`backend`), plus `backend` on `song.produced`. `request.ready` /
-  `request.aired` stay as they are.
-
-### Step 4: fakes and tests (hard rule 2)
-
-- `FakeSong` / fake pool: per-backend `render_delay` driven by an
-  `asyncio.Event` or a fake-clock await (not wall sleep), a concurrency probe
-  (`peak_total`, `peak_per_backend`, timeline), and `fail_next(backend,
-  kind="transport"|"qc")`.
-- New tests (`tests/test_song_concurrency.py`):
-  - `test_capacity_never_exceeded`: cold start, high target →
-    `peak_total ≤ C` and `peak_per_backend ≤ slots`.
-  - `test_stock_leaves_reserved_slot`: C = 3, stock only → max 2 stock jobs;
-    a request queued mid-flight spawns immediately. With C = 1 the behavior
-    equals today's serial path.
-  - `test_stock_gate_counts_in_flight`: target 2 → exactly 2 stock spawn,
-    none after they land.
-  - `test_request_tier_serial`: two free requests → the second's brief starts
-    after the first is `ready`. Ready order = queue order.
-  - `test_paid_overlaps_free`: free rendering, paid queued → paid spawns at
-    once (slot permitting) and ends `ready` in queue order.
-  - `test_request_takes_fast_backend` / `test_stock_prefers_slow`.
-  - `test_backend_down_reduces_capacity`: one box transport-fails → C drops,
-    a request is requeued (no attempt burned), and the box returns after
-    cooldown.
-  - `test_parallel_stock_genres_distinct`: two concurrent stock briefs → the
-    second's `previous_genres` includes the first's genre.
-  - `test_request_brief_failure_counts_attempt`: brief raises →
-    `request_failed_attempt`, as today.
-  - `test_qc_runs_off_loop`: `produce_song` normalizes via `to_thread`
-    (monkeypatch to assert the call).
-- `test_integration_sim.py` is unchanged (it calls `song_step`). Add one
-  short **concurrent** sim (2–3 sim hours, `song_loop` with the fake pool and
-  injected sleep) that asserts overlapping render windows happened and that
-  the existing request-order / intro-glue / genre-spacing assertions still
-  hold.
-
-### Step 5: smoke (`pilgrim/tests/smoke.py`, `make smoke`, only when asked)
-
-- Per backend: `/health` + one 10 s generation + QC. Then all backends in
-  parallel (one 10 s each). Log wall/RTF per backend into the smoke output so
-  `docs/backends.md` can be updated. Don't extrapolate from 10 s clips
-  (AGENTS.md §10); `song.produced` logs `backend` + `rtf` from real runs.
-
-## 4. Verification (AGENTS.md §7, in order)
-
-1. `make lint`
-2. `make test`
-3. `make sim`
-4. `make e2e`
-- No split/deploy/payment surface → `deploy-check` / `split-smoke` /
-  `e2e-split` / `pay-smoke` not required. (Rule 11 holds: nothing here
-  imports `payments.py`.)
-- Deploy: config + code ship together. An old config without
-  `songs.backends` fails loudly at the pydantic loader. That is intended.
 
 ## 5. What this does *not* change
 

@@ -39,11 +39,11 @@ M5 Mac Studio (origin, stateful) ────────┘
 | **Origin** | M5 Mac Studio, launchd (`pilgrim/deploy/mac/origin.sh`) | All of it: media files, DB, `.env` | Playout, production, the authoritative API, media publishing |
 | **Gateway** | M5 nginx `127.0.0.1:8090` | none | Terminates the tailnet hop in front of the origin |
 | **Edge** | EC2 `pf`, nginx `:8080` | none | Public entry behind Cloudflare → ALB; proxies to the origin over the tailnet (`docs/shipped/split.md`) |
-| **Web tier** | Fargate service `pilgrimdotfarm/front-end` | Postgres + Valkey only | Serves the site, programme and heartbeat routes without waking the origin; owns the Sheep Pen chat (`docs/plans/scalability.md`) |
+| **Web tier** | Fargate service `pilgrimdotfarm/front-end` | Postgres + Valkey only | Serves the site, programme and heartbeat routes without waking the origin; owns the Sheep Pen chat (`docs/pending/scalability.md`) |
 | **Bastion relay** | `pf` `:4000` → `tailscale serve` → LiteLLM | none | Lets the web tier reach LiteLLM (request moderation, paid summaries) |
 
 `RADIO.md` §3 has the program model (a sequence with seq numbers on the
-origin's clock), the idle/wake rules (`docs/plans/idle.md`) and the epoch /
+origin's clock), the idle/wake rules (`docs/shipped/idle.md`) and the epoch /
 revision identity that the DJ console and clients share.
 
 ## 3. Components
@@ -156,7 +156,7 @@ cluster-slot rules.
 - Build rules and commands: `AGENTS.md`.
 - Backend reality (shapes, limits, failure modes): [backends.md](backends.md).
 - Model roles: [models.md](models.md).
-- Active work: `docs/plans/`; completed plans: `docs/shipped/`; subsystem
-  references: `docs/systems/`; ideas: `docs/backlog/`.
+- Planned and not built: `PENDING.md` and `docs/pending/`; shipped work:
+  `docs/shipped/`; subsystem references: `docs/systems/`.
 - Deploy operations: `pilgrim/deploy/README.md` and `pilgrim/deploy/RUNBOOK.md`.
 - Station voice and canon: `pilgrim/bible/`; prompts: `pilgrim/prompts/`.

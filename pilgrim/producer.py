@@ -297,7 +297,7 @@ class Producer:
         self._last_stock_song_at: float | None = None
         # one-shot log so a capped stock worker doesn't spam every 20 s
         self._stock_cap_logged = False
-        # docs/plans/idle.md: station policy predicate (no listeners -> idle). Default
+        # docs/shipped/idle.md: station policy predicate (no listeners -> idle). Default
         # never idle so tests, seed and the sim behave exactly as before.
         self.idle: Callable[[], bool] = idle or (lambda: False)
         self._idle_stock_logged = False
@@ -1193,7 +1193,7 @@ class Producer:
         log.info("producer running")
         while True:
             if self.idle():
-                # docs/plans/idle.md D6: nobody is listening, so voice refill pauses.
+                # docs/shipped/idle.md D6: nobody is listening, so voice refill pauses.
                 # Listener requests keep producing (song_loop) — a requester
                 # is on the page waiting; a paid one has paid.
                 await self._sleep(self.cfg.idle.producer_poll_s)
@@ -1318,7 +1318,7 @@ class Producer:
     def _spawn(self, job: SongJob) -> None:
         if job.req is not None:
             # claim it now: the next _next_job() runs before the task does.
-            # claimed_at (docs/plans/voting.md V6) orders in-flight work by claim time;
+            # claimed_at (docs/shipped/voting.md V6) orders in-flight work by claim time;
             # it is set once and kept across retries.
             job.req["claimed_at"] = self.store.mark_request_producing(job.req["id"])
             self.request_stage[job.req["id"]] = "waiting"
@@ -1430,7 +1430,7 @@ class Producer:
 
     def _stock_due(self, in_flight: int) -> bool:
         if self.idle():
-            # docs/plans/idle.md D6: stock songs serve airtime nobody hears. Queued
+            # docs/shipped/idle.md D6: stock songs serve airtime nobody hears. Queued
             # requests are still picked above this check.
             if not self._idle_stock_logged:
                 log.info("song.stock_paused_idle")

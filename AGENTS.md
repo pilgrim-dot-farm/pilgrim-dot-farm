@@ -1,55 +1,24 @@
 # AGENTS.md — Pilgrim Dot Farm Radio
 
-Documentation lives under `docs/`; `docs/README.md` is the index and
-`docs/architecture.md` the system overview. Active work plans are in
-`docs/plans/`:
+Three documents sit at the repo root. `RADIO.md` is the spec, this file is
+the rules, and `PENDING.md` lists what is planned and not built. Everything
+else is under `docs/`, indexed by `docs/README.md`: `docs/architecture.md`
+(system map), `docs/backends.md` (observed backend shapes), `docs/systems/`
+(subsystem and operator-tool references), `docs/shipped/` (one short record
+per finished plan) and `docs/pending/` (the plans behind `PENDING.md`).
 
-- `docs/plans/idle.md` — freeze playout + pause production when nobody is
-  listening; one agent, Steps 1–5.
-- `docs/plans/voting.md` — turkey song ratings + request-queue votes + mobile
-  queue; agents A–E, Steps 1–8. `docs/plans/ratings.md` (Steps 1–5) amends its
-  rating UI and the web tier's rating window.
-- `docs/plans/ui-refactor.md` — app shell: ABOUT pane, desktop nav, phone tabs +
-  mini player; Steps 1–6. Its living feedback log is `docs/plans/ui-feedback.md`.
-- `docs/plans/scalability.md` — the VPC move (Fargate web tier, RDS Postgres,
-  ElastiCache Valkey, Mac as writer); Step 1 (containers) is in progress.
-- `docs/plans/sheep-pen-plan.md` — The Sheep Pen chat; Steps 1–12. Its brief is
-  `docs/plans/sheep-pen-brief.md` (read the brief first, then the plan).
-- `MONITORING.md` — in-process Prometheus metrics for the station (`:9101`)
-  and the web tier (`:9102`); Steps 1–6, then an operator handoff. The parked
-  infrastructure plan is `docs/backlog/monitoring-infra.md`.
-
-Two operator tools have their reference under `docs/systems/`:
-`docs/systems/model-fleet.md` §6 (`make fleet`: every model runs in the tmux
-session `pg-<service>`; the launchd watchdog restarts a model whose session or
-`/health` is gone) and `docs/systems/queue-bench.md` (`make queue-bench`:
-flagged benchmark requests on the live queue, RADIO §6.1).
-
-`docs/plans/idle.md` and `docs/plans/voting.md` Agent A may run concurrently in
-separate worktrees.
-
-Shipped plans stay as reference in `docs/shipped/`: `album-art.md` (Steps 1–11),
-`payments.md` (Steps 0–12b), `split.md` (complete, Steps 1–10; the reference for
-the edge/gateway/origin layout), `prompt-upgrade.md` (Steps 1–6, shipped
-2026-11-08; the three-box paid request — lyrics / musical direction / cover art
-— which supersedes `payments.md`'s single paid text box), plus
-`song-concurrency.md`, `priorities.md`, `fix-radio.md` and
-`announcer-overhaul.md`. Subsystem references are in `docs/systems/`;
-`docs/systems/search.md` (shipped 2026-11-04) is the web-search reference: Brave
-Search API direct, searxng retired. `INSTAGRAM.md` (Steps 1–7) is the plan for
-operator-triggered Instagram Reels (`docs/instagram.md` is the agent runbook).
+**Do not start anything in `PENDING.md` or `docs/pending/` unless the operator
+asks for it.**
 
 You are building an AI-generated radio station. **`RADIO.md` is the source of
 truth.** Read the relevant section of RADIO.md before implementing anything,
 and cite the section number (e.g. "per §5.2") in commit messages and reports.
 If this file and RADIO.md disagree, RADIO.md wins; report the conflict.
 
-**Layout:** all application + test code lives under `pilgrim/` (RADIO.md §18).
-The repo root holds only repo-level files (`AGENTS.md`, `RADIO.md`, `README.md`,
-`Makefile`, `Dockerfile`, `pyproject.toml`, `requirements.txt`, `docs/`). All
-other documentation lives under `docs/`; `docs/README.md` is the index. `make
-test/sim/lint/e2e` and `make run/seed/smoke` all resolve the `pilgrim` package
-paths.
+**Layout:** all application and test code lives under `pilgrim/` (RADIO.md
+§18). The repo root holds only repo-level files (`AGENTS.md`, `RADIO.md`,
+`PENDING.md`, `README.md`, `Makefile`, `Dockerfile`, `pyproject.toml`,
+`requirements.txt`, `docs/`).
 
 ---
 
@@ -65,7 +34,7 @@ If a task cannot be done without breaking one, stop and report.
    fakes in `pilgrim/tests/fakes/`. Real backends are for explicit smoke tests only
    (§6 below).
 3. **No direct `time.time()`, `datetime.now()`, `asyncio.sleep()` for
-   scheduling, or `random` in `pilgrim/scheduler.py`, `pilgrim/selectors.py`, or
+   scheduling, or `random` in `pilgrim/scheduler.py`, `pilgrim/selector.py`, or
    `pilgrim/producer.py`.** Use the injected `Clock` and RNG. This is what makes the
    24-hour simulation possible.
 4. **All hosts, ports, model names, weights, and targets come from
@@ -119,16 +88,16 @@ If a task cannot be done without breaking one, stop and report.
 | Song generation | pool in `songs.gen_backends` | MiniMax Music 3 ×3 (M5 mlx-serve + two audiocpp GPU boxes) via LiteLLM's vLLM pass-through `https://litellm.twr.church/vllm/v1/audio/music-generations`, `model: MiniMax-Music-3`, Bearer `LITELLM_TOKEN`. The station enforces the slot ceiling and staggers submissions (docs/backends.md §2b). Read `pipelines/songs.py` before writing new code. |
 | LiteLLM | `https://litellm.twr.church/v1` | LLMs, song pool (`/vllm`), MCP time tool (`/mcp`, `hosts.mcp`) |
 | LiteLLM relay (web tier only) | bastion `pf` `:4000` → `tailscale serve` on the M5 → LiteLLM | LiteLLM is a LAN service behind a public name; Fargate reaches it only via `pilgrim/deploy/bastion/relay.sh`. The web tier's `hosts.litellm` points at the relay (container overlay) |
-| Prometheus + Grafana | operator's NAS (LAN; tailnet `tag:monitoring`) | scrapes `GET /metrics` on the M5 `:9101` (LAN) and on each Fargate task `:9102` (bastion route, ECS discovery). Read-only; the station never calls it (MONITORING.md) |
+| Prometheus + Grafana | operator's NAS (LAN; tailnet `tag:monitoring`) | scrapes `GET /metrics` on the M5 `:9101` (LAN) and on each Fargate task `:9102` (bastion route, ECS discovery). Read-only; the station never calls it (docs/shipped/monitoring.md) |
 | `qwen38` (Qwen 3.8 27B) | 5090 host | via LiteLLM; news, song briefs, DJ talk |
 | `ornith` | 4070 Ti host | via LiteLLM; commercials, liners |
 | Kokoro TTS | `192.168.68.89:8001` | `/tts`, `/voices`, `/health`; 16-bit mono 24 kHz |
 | SFX (MOSS-SoundEffect v2.0) | `192.168.68.88:8000` | `/health` |
 | Brave Search API | `hosts.brave` = `https://api.search.brave.com` | News bulletin + copied-lyrics screen (docs/systems/search.md); key `BRAVE_SEARCH_KEY` in `.env`. Metered: never add a health probe, never call it from tests |
 | Media (S3 + CloudFront) | `media.*` in config | Public bucket `pilgrim-dot-farm-public-2` (us-west-2, account 477688903218 since 2026-11-06), read only by CloudFront `E2J4EQA5VW0HUG`; station uploads with AWS profile `mac-studio` (RADIO §8.4, docs/backends.md §9) |
-| RDS Postgres + ElastiCache Valkey | VPC `172.31.0.0/16`, via the bastion's tailnet route (docs/plans/scalability.md Step 8) | `DATABASE_URL` + `DB_PASS_SECRET_ARN`, `REDIS_URL` (TLS, no password) in `.env` on the M5 and in the ECS task env; the web tier is `pilgrimdotfarm/front-end` on Fargate |
+| RDS Postgres + ElastiCache Valkey | VPC `172.31.0.0/16`, via the bastion's tailnet route (docs/pending/scalability.md Step 8) | `DATABASE_URL` + `DB_PASS_SECRET_ARN`, `REDIS_URL` (TLS, no password) in `.env` on the M5 and in the ECS task env; the web tier is `pilgrimdotfarm/front-end` on Fargate |
 | Stripe | `payments.api_base` in config | Checkout Sessions + webhooks; keys in `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (docs/shipped/payments.md Step 0) |
-| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (INSTAGRAM.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
+| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (docs/shipped/instagram.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
 
 **Do not guess external APIs.** Before writing a client for any backend,
 probe it (`curl .../health`, `curl .../voices`, a minimal request) and record
@@ -148,7 +117,7 @@ note it.
 - Validation: pydantic models for config, LLM JSON outputs, and API payloads.
 - Audio: `soundfile` + `numpy` for QC; **ffmpeg CLI** for two-pass `loudnorm`,
   silence trimming, and FLAC encoding.
-- Storage: one engine-neutral `store.py` (docs/plans/scalability.md Step 2, RADIO §14):
+- Storage: one engine-neutral `store.py` (docs/pending/scalability.md Step 2, RADIO §14):
   SQLite (`station.db`, stdlib `sqlite3`) for tests, sim and dev; PostgreSQL
   (RDS, psycopg 3) in production when `DATABASE_URL` is set. Engine
   differences live only in `pilgrim/db.py`; never branch on the engine inside
@@ -163,23 +132,12 @@ job, and pin it in `requirements.txt`.
 
 ## 4. Build order
 
-Work milestone by milestone. Do not start a milestone until the previous one's
-checks pass. Each milestone ends with a commit and a short report (§8).
-
-| # | Milestone | Done when |
-|---|-----------|-----------|
-| M0 | Skeleton: layout per §18, `config.yaml` + pydantic loader, `Clock` and RNG interfaces, Makefile, empty test suite runs | `make test` passes |
-| M1 | Backend probes: `docs/backends.md` with observed shapes for mlx-serve, Kokoro, LiteLLM, Brave Search | File exists with real examples |
-| M2 | Fakes: `fake_minimax`, `fake_kokoro`, `fake_llm` (§15), including failure injection | Fakes unit-tested |
-| M3 | `store.py`: inventory metadata + airplay ledger | Tests for insert, query by type, spacing lookups, expiry |
-| M4 | Audio QC + normalize (§8) | Known-bad fixtures rejected, known-good pass, output is −16 LUFS ±0.5, FLAC |
-| M5 | Pipelines: songs, voice, news (§6), against fakes | Each pipeline produces a valid library item end to end with fakes |
-| M6 | `producer.py`: inventory targets and host workers (§6.1) | Simulation shows inventory reaching and holding targets |
-| M7 | `scheduler.py` + `RandomSelector` (§5) | 24-h simulation passes every §15 assertion |
-| M8 | `server.py` endpoints (§11) | API tests pass against a seeded temp library |
-| M9 | Web client (§9) | Playwright gap test passes; UI is PLAY/STOP + indicator only |
-| M10 | `seed.py` + real-backend smoke tests | Seed minimums met on real hardware; one 10 s real song generated |
-| M11 | Real listening run | 60 min, no gaps, per §16 |
+The original milestones M0–M11 (skeleton through the 60-minute listening run)
+are complete. New work is planned as a numbered-step document under
+`docs/pending/`, listed in `PENDING.md`, and done one step at a time: each
+step ends with the §7 checks, a commit and a §8 report. When the last step
+lands, move the behaviour into `RADIO.md`, cut the plan down to a record in
+`docs/shipped/`, and remove its line from `PENDING.md`.
 
 ---
 
@@ -204,7 +162,7 @@ checks pass. Each milestone ends with a commit and a short report (§8).
 
 ## 6. Commands
 
-The Makefile should provide these (create them in M0):
+The Makefile provides these:
 
 ```
 make test      # unit tests (fakes only)
@@ -238,8 +196,8 @@ Run, in order, and include the results in your report:
 
 1. `make lint`
 2. `make test`
-3. `make sim` (from M7 onward)
-4. `make e2e` (from M9 onward)
+3. `make sim`
+4. `make e2e`
 5. For split/deploy changes: `make deploy-check`, `make split-smoke`, and
    `make e2e-split`.
 6. For payment changes: everything above that the step lists (docs/shipped/payments.md),
@@ -320,7 +278,7 @@ continue.
   Encrypt) chain needs 2. Too shallow = edge serves off-air (docs/backends.md §8).
 - **`items.media_path` is absolute.** Moving the checkout or library means
   rewriting the prefix in `station.db` (RUNBOOK §3–4), after a `.backup`.
-- **A probe of `/api/station/program` wakes a frozen station** (docs/plans/idle.md):
+- **A probe of `/api/station/program` wakes a frozen station** (docs/shipped/idle.md):
   `GET /api/station/program` and a heartbeat are wake signals. For monitoring
   use `/api/station/state` or `/api/health` (the admin one reports
   `idle: {idle, since, wakes}`), which never wake it. `make split-smoke`'s
@@ -333,7 +291,7 @@ continue.
 - **Deploy the web tier before a queue benchmark.** The Fargate web tier runs
   its own copy of `store.py`; an image older than 2026-11-14 does not filter
   `bench=1` rows off the public board (RADIO §14).
-- **`/metrics` has its own port and only `main()` opens it** (MONITORING.md):
+- **`/metrics` has its own port and only `main()` opens it** (docs/shipped/monitoring.md):
   `9101` on the Mac, `9102` in the container. Never mount it on the public or
   admin app, never start it from `build_station`/`create_web_app`, and never
   add a label that could hold a listener id or request text. Metric names use

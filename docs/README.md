@@ -1,116 +1,74 @@
 # Documentation — Pilgrim Dot Farm Radio
 
-This directory is the documentation set for the station. Two files at the repo
-root outrank everything here:
+Three files at the repo root outrank everything here:
 
-- **`RADIO.md`** — the normative spec. It is the source of truth for
-  behaviour, the HTTP API (§11), the config schema (§12), storage (§14) and
-  the tests (§15).
-- **`AGENTS.md`** — the rules for agents working in this repo: hard rules,
-  build order, commands, reporting.
+- **`RADIO.md`** — the spec and the source of truth: behaviour, the HTTP API
+  (§11), configuration (§12), storage (§14), tests (§15).
+- **`AGENTS.md`** — the rules for agents working in this repo.
+- **`PENDING.md`** — what is planned and not built.
 
 If a doc here disagrees with `RADIO.md` or `AGENTS.md`, they win. Report the
-conflict instead of silently following the doc.
-
-Start with [architecture.md](architecture.md) for the one-page system map, then
-[docs/backends.md](backends.md) for what the external services actually return.
-
-## Conventions
-
-- Paths are **repo-root-relative** (`docs/plans/idle.md`), the same convention
-  `RADIO.md` and `AGENTS.md` use. Section citations look like
-  `docs/plans/voting.md V9` or `RADIO.md §5.2`.
-- Every doc opens with a status note: **active plan**, **shipped**,
-  **reference** or **backlog**.
-- Shipped plans are kept as history and rationale. They are not rewritten when
-  the code drifts; a short status note at the top records what actually
-  shipped.
-- When the last step of a plan lands, the plan moves from `docs/plans/` to
-  `docs/shipped/` and gains a status line. Content stays; only the location and
-  the status change.
-- `pilgrim/deploy/`, `pilgrim/bible/` and `pilgrim/prompts/` keep their own
-  READMEs and prompt files next to the code they describe.
-
-### Legacy names
-
-Code comments, commit messages and `RADIO.md` still cite some docs by their
-old ALL-CAPS filename (for example `SPLIT_PLAN §1.6`, `PRIORITIES §4`, `TUI §5`,
-`OVERHAUL 4.4`). Each moved doc records its former name under its title; the
-full mapping is:
-
-| Legacy name | Now |
-|-------------|-----|
-| `ALBUM_ART.md` | [shipped/album-art.md](shipped/album-art.md) |
-| `ANNOUNCER_OVERHAUL_PROPOSITION.md` (cited as `OVERHAUL`) | [shipped/announcer-overhaul.md](shipped/announcer-overhaul.md) |
-| `AWS_MCP_USAGE.md` | [systems/aws-access.md](systems/aws-access.md) |
-| `BRAVE.md` | [systems/search.md](systems/search.md) |
-| `FIX_RADIO.md` | [shipped/fix-radio.md](shipped/fix-radio.md) |
-| `FIX_RATINGS.md` | [plans/ratings.md](plans/ratings.md) |
-| `IDLE.md` | [plans/idle.md](plans/idle.md) |
-| `MODELS.md` | [models.md](models.md) |
-| `PAYMENT.md` | [shipped/payments.md](shipped/payments.md) |
-| `PRIORITIES.md` | [shipped/priorities.md](shipped/priorities.md) |
-| `PROMPT_UPGRADE.md` | [shipped/prompt-upgrade.md](shipped/prompt-upgrade.md) |
-| `SCALABILITY.md` | [plans/scalability.md](plans/scalability.md) |
-| `SFX.md` | [systems/sfx.md](systems/sfx.md) §1–§10 |
-| `SFX_PROMPTING.md` | [systems/sfx.md](systems/sfx.md) §11 |
-| `SHEEP_PEN.md` | [plans/sheep-pen-brief.md](plans/sheep-pen-brief.md) |
-| `SHEEP_PEN_PLAN.md` | [plans/sheep-pen-plan.md](plans/sheep-pen-plan.md) |
-| `SONG_GEN_CONCURRENCY_PLAN.md` | [shipped/song-concurrency.md](shipped/song-concurrency.md) |
-| `SPLIT_PLAN.md` | [shipped/split.md](shipped/split.md) |
-| `TUI.md` | [systems/console.md](systems/console.md) |
-| `UI_REFACTOR.md` | [plans/ui-refactor.md](plans/ui-refactor.md) |
-| `UI_REFACTOR_FEEDBACK.md` | [plans/ui-feedback.md](plans/ui-feedback.md) |
-| `VOTING.md` | [plans/voting.md](plans/voting.md) |
-| `future_plans/CGM.md` | [backlog/cgm.md](backlog/cgm.md) |
-| `future_plans/FIX_PROMPTING.md` | [backlog/fix-prompting.md](backlog/fix-prompting.md) |
+conflict.
 
 ## Reading order for a new agent
 
-1. `RADIO.md` §0 (principles), §3 (architecture), §4 (content types) and §5.2
+1. `RADIO.md` §0 (principles), §3 (architecture), §4 (content types), §5.2
    (playout).
-2. [architecture.md](architecture.md) — the system map and the component list.
-3. [backends.md](backends.md) — observed request/response shapes.
-4. The active plan you are implementing (`docs/plans/…`).
-5. The shipped plan or reference for the area you are touching
-   (`docs/shipped/…`, `docs/systems/…`).
+2. [architecture.md](architecture.md) — the one-page system map.
+3. [backends.md](backends.md) — what the external services actually return.
+4. The reference for the area you are touching (`systems/`, `shipped/`).
 
 ## The map
 
-| Path | What it covers | Status |
-|------|----------------|--------|
-| [architecture.md](architecture.md) | The system map: topology, components, data flow, invariants, glossary | reference |
-| [backends.md](backends.md) | Probe records for every external backend (request/response shapes, limits, failure modes) | reference |
-| [models.md](models.md) | Which model does what, where it runs | reference |
-| [instagram.md](instagram.md) | Posting an aired song to Instagram Reels: the agent runbook (`make reel-post`) | active |
-| [systems/sfx.md](systems/sfx.md) | SFX backend (MOSS-SoundEffect v2.0), the two pools, sidecar design, prompt guide (§11) | reference |
-| [systems/console.md](systems/console.md) | The Textual DJ console and its admin routes | reference |
-| [systems/search.md](systems/search.md) | Web search via the Brave Search API; why searxng was retired | shipped 2026-11-04 |
-| [systems/aws-access.md](systems/aws-access.md) | How to read or change the station's AWS account from this checkout | reference |
-| [systems/model-fleet.md](systems/model-fleet.md) | The model fleet (twr, spx0/spx1 Sparks, yuri, M5): `pg-<service>` tmux sessions, `fleetctl` + the restart watchdog, launcher scripts, /models, `_reset_driver` | reference |
-| [systems/queue-bench.md](systems/queue-bench.md) | Queue benchmark on the live station: flagged requests, real renders, audio discarded; the rule checks and the purge | reference |
-| [plans/idle.md](plans/idle.md) | Freeze playout and pause production when nobody is listening; wake on PLAY/heartbeat | active |
-| [plans/voting.md](plans/voting.md) | Turkey song ratings and request-queue votes | active |
-| [plans/ratings.md](plans/ratings.md) | Rating UI amendment to `voting.md`: fractional community average, `avg · n`, grace window | active |
-| [plans/ui-refactor.md](plans/ui-refactor.md) | App shell: ABOUT pane, desktop nav, phone tabs + mini player | active |
-| [plans/ui-feedback.md](plans/ui-feedback.md) | Living log of operator UI feedback, appended per review round | active |
-| [plans/sheep-pen-brief.md](plans/sheep-pen-brief.md) | The Sheep Pen chat brief (read this first) | active |
-| [plans/sheep-pen-plan.md](plans/sheep-pen-plan.md) | The Sheep Pen chat implementation plan | active |
-| [plans/scalability.md](plans/scalability.md) | The VPC move: Fargate web tier, RDS Postgres, ElastiCache Valkey, Mac as writer | active |
-| [../MONITORING.md](../MONITORING.md) | In-process Prometheus metrics: station `:9101`, web tier `:9102`, then an operator handoff | active |
-| [shipped/album-art.md](shipped/album-art.md) | Cover art per song (FLUX), S3/CloudFront, Instagram reels | shipped |
-| [shipped/payments.md](shipped/payments.md) | Paid priority requests via Stripe Embedded Checkout and webhooks | shipped |
-| [shipped/prompt-upgrade.md](shipped/prompt-upgrade.md) | Three-box paid request: lyrics / musical direction / cover art (supersedes the single box in `payments.md`) | shipped 2026-11-08 |
-| [shipped/split.md](shipped/split.md) | Splitting the stateful origin from the stateless edge; the edge/gateway/origin layout | complete |
-| [shipped/song-concurrency.md](shipped/song-concurrency.md) | Concurrent song generation across the three-deployment pool | shipped |
-| [shipped/priorities.md](shipped/priorities.md) | Recycled-song weighting and the persisted airplay ledger | shipped |
-| [shipped/fix-radio.md](shipped/fix-radio.md) | Option A: requests splice instead of holding the song rotation | shipped |
-| [shipped/announcer-overhaul.md](shipped/announcer-overhaul.md) | Discourse, clock accuracy and self-promotion overhaul | shipped 2026-11-01 |
-| [backlog/cgm.md](backlog/cgm.md) | One sound per animal, code-enforced, no re-generation | backlog |
-| [backlog/sfx-bug.md](backlog/sfx-bug.md) | SFX bug report (2026-11-10): backend down, no cue retry, weak new-SFX generation | backlog |
-| [backlog/fix-prompting.md](backlog/fix-prompting.md) | Song prompting and genre variety | backlog |
-| [backlog/monitoring-infra.md](backlog/monitoring-infra.md) | Parked monitoring infrastructure and alerting plan (the previous `MONITORING.md`) | backlog |
-| [request-analysis-20261003/report.md](request-analysis-20261003/report.md) | Measured listener-request traffic (arrivals, bursts, latency) | reference |
+| Path | What it covers |
+|------|----------------|
+| [architecture.md](architecture.md) | Topology, components, data flow, invariants, glossary |
+| [backends.md](backends.md) | Probe records for every external backend: shapes, limits, failure modes |
+| [models.md](models.md) | Which model does what, and where it runs |
+| [instagram.md](instagram.md) | Runbook: posting an aired song to Instagram Reels (`make reel-post`) |
+| [systems/model-fleet.md](systems/model-fleet.md) | The model hosts, `fleetctl`, `pg-<service>` tmux sessions, the restart watchdog |
+| [systems/queue-bench.md](systems/queue-bench.md) | The live queue benchmark (`make queue-bench`) |
+| [systems/console.md](systems/console.md) | The Textual DJ console and its admin routes |
+| [systems/sfx.md](systems/sfx.md) | The SFX backend, the two pools, the prompt guide (§11) |
+| [systems/search.md](systems/search.md) | Web search through the Brave Search API |
+| [systems/aws-access.md](systems/aws-access.md) | Reading or changing the station's AWS account from this checkout |
+| [request-analysis-20261003/report.md](request-analysis-20261003/report.md) | Measured listener-request traffic |
+| `../pilgrim/deploy/README.md`, `RUNBOOK.md` | Deploy operations |
+
+### Shipped
+
+One short record per finished plan: what shipped, where the code is, and the
+decisions that still explain the code. The step-by-step plans are in git; each
+record names the commit.
+
+| Record | What shipped |
+|--------|--------------|
+| [shipped/split.md](shipped/split.md) | Origin, gateway and edge; public and admin listeners |
+| [shipped/song-concurrency.md](shipped/song-concurrency.md) | Three songs rendering at once across the music pool |
+| [shipped/announcer-overhaul.md](shipped/announcer-overhaul.md) | DJ talk variety, clock accuracy, self-promotion |
+| [shipped/fix-radio.md](shipped/fix-radio.md) | Requests splice in; the rotation is never held for one |
+| [shipped/priorities.md](shipped/priorities.md) | Fresher songs first; the persisted airplay ledger |
+| [shipped/payments.md](shipped/payments.md) | Paid priority requests through Stripe |
+| [shipped/prompt-upgrade.md](shipped/prompt-upgrade.md) | The three-box paid request |
+| [shipped/album-art.md](shipped/album-art.md) | A cover for every song |
+| [shipped/instagram.md](shipped/instagram.md) | Reels from aired songs |
+| [shipped/idle.md](shipped/idle.md) | Freeze and pause when nobody is listening |
+| [shipped/voting.md](shipped/voting.md), [shipped/ratings.md](shipped/ratings.md) | Turkey ratings and request votes |
+| [shipped/ui-refactor.md](shipped/ui-refactor.md) | The app shell and the paid-flow rounds |
+| [shipped/sheep-pen.md](shipped/sheep-pen.md) | The listener chat |
+| [shipped/monitoring.md](shipped/monitoring.md) | In-process `/metrics` on both tiers |
+
+### Pending
+
+`PENDING.md` is the list. The long documents behind it:
+
+| Document | What it is |
+|----------|------------|
+| [pending/agent-wiki.md](pending/agent-wiki.md) | Station memory and the public wiki: a full work plan, parked |
+| [pending/scalability.md](pending/scalability.md) | The VPC move; Steps 6, 7 and the end of 9 are open |
+| [pending/monitoring-infra.md](pending/monitoring-infra.md) | The parked whole-stack monitoring and alerting design |
+| [pending/cgm.md](pending/cgm.md), [pending/sfx-bug.md](pending/sfx-bug.md) | SFX: one sound per animal; the 2026-11-10 bug report |
+| [pending/fix-prompting.md](pending/fix-prompting.md) | Song prompting and genre variety |
 
 ## Where the code lives
 
@@ -118,23 +76,60 @@ full mapping is:
 |------|-------|----------|
 | Playout | `pilgrim/scheduler.py`, `pilgrim/selector.py` | §5 |
 | Production | `pilgrim/producer.py`, `pilgrim/pipelines/` | §6 |
-| Station bible / running gags | `pilgrim/bible/`, `pilgrim/promotions.py` | §7 |
+| Station bible, running gags | `pilgrim/bible/`, `pilgrim/promotions.py` | §7 |
 | Audio QC, normalization, MP3 | `pilgrim/audio/` | §8 |
+| Media publishing, cover art | `pilgrim/media_publish.py`, `pilgrim/album_art.py` | §8.4 |
 | Client | `pilgrim/web/` | §9 |
-| Voices | `pilgrim/config.yaml` `voices`, `pilgrim/prompts/` | §10 |
+| Voices | `voices:` in `pilgrim/config.yaml`, `pilgrim/prompts/` | §10 |
 | Server | `pilgrim/server.py` | §11 |
+| Web tier | `pilgrim/web_app.py` | §11 "Web tier" |
 | Config | `pilgrim/config.yaml`, `pilgrim/config.py` | §12 |
 | Storage | `pilgrim/store.py`, `pilgrim/db.py`, `pilgrim/hotstate.py` | §14 |
-| Media publishing | `pilgrim/media_publish.py`, `pilgrim/album_art.py` | §8.4 |
-| Paid requests | `pilgrim/payments.py` | — (`shipped/payments.md`) |
-| DJ console | `pilgrim/tui/` | — (`systems/console.md`) |
+| Paid requests | `pilgrim/payments.py` | §11 |
 | Sheep Pen chat | `pilgrim/chat/`, `pilgrim/chat_worker.py` | §11, §14 |
-| Web tier | `pilgrim/web_app.py` | §11 "Web tier" |
-| Deploy | `pilgrim/deploy/` (see `pilgrim/deploy/README.md`, `RUNBOOK.md`) | §17 |
+| DJ console | `pilgrim/tui/` | `systems/console.md` |
+| Deploy | `pilgrim/deploy/` | — |
 
-## Maintenance
+## Conventions
 
-- Add a new plan under `docs/plans/`, one line to `AGENTS.md`'s active-plans
-  list, and a row to the map above.
-- Do not delete shipped plans; move them and add a status note.
-- Keep `docs/backends.md` factual: probe first, then write down what you saw.
+- Paths are repo-root-relative (`docs/shipped/idle.md`). Citations look like
+  `RADIO §5.2` or `docs/shipped/voting.md V9`.
+- A plan is written under `docs/pending/` and listed in `PENDING.md`. When its
+  last step lands, the behaviour goes into `RADIO.md`, the plan is cut down to
+  a record in `docs/shipped/`, and its line leaves `PENDING.md`.
+- `docs/backends.md` stays factual: probe first, then write down what you saw.
+- **Prep time** means the span from the start of lyrics or brief writing to
+  the earlier of airing and the scheduled `due_at`. Queue time is not part of
+  it.
+
+### Legacy names
+
+Code comments and commit messages cite plans by their old ALL-CAPS names
+(`OVERHAUL 4.4`, `SPLIT_PLAN §1.6`, `PAYMENT §3.4`). Section numbers refer to
+the full plan in git, named at the top of each record.
+
+| Cited as | Now |
+|----------|-----|
+| `ALBUM_ART` | [shipped/album-art.md](shipped/album-art.md) |
+| `OVERHAUL`, `ANNOUNCER_OVERHAUL_PROPOSITION` | [shipped/announcer-overhaul.md](shipped/announcer-overhaul.md) |
+| `FIX_RADIO` | [shipped/fix-radio.md](shipped/fix-radio.md) |
+| `FIX_RATINGS` | [shipped/ratings.md](shipped/ratings.md) |
+| `IDLE` | [shipped/idle.md](shipped/idle.md) |
+| `INSTAGRAM` | [shipped/instagram.md](shipped/instagram.md) |
+| `MONITORING` | [shipped/monitoring.md](shipped/monitoring.md); before 2026-11-11, [pending/monitoring-infra.md](pending/monitoring-infra.md) |
+| `PAYMENT` | [shipped/payments.md](shipped/payments.md) |
+| `PRIORITIES` | [shipped/priorities.md](shipped/priorities.md) |
+| `PROMPT_UPGRADE` | [shipped/prompt-upgrade.md](shipped/prompt-upgrade.md) |
+| `SHEEP_PEN`, `SHEEP_PEN_PLAN` | [shipped/sheep-pen.md](shipped/sheep-pen.md) |
+| `SONG_GEN_CONCURRENCY_PLAN` | [shipped/song-concurrency.md](shipped/song-concurrency.md) |
+| `SPLIT_PLAN` | [shipped/split.md](shipped/split.md) |
+| `UI_REFACTOR`, `UI_REFACTOR_FEEDBACK` | [shipped/ui-refactor.md](shipped/ui-refactor.md) |
+| `VOTING` | [shipped/voting.md](shipped/voting.md) |
+| `AGENT_WIKI` | [pending/agent-wiki.md](pending/agent-wiki.md) |
+| `SCALABILITY` | [pending/scalability.md](pending/scalability.md) |
+| `CGM`, `FIX_PROMPTING` | [pending/cgm.md](pending/cgm.md), [pending/fix-prompting.md](pending/fix-prompting.md) |
+| `BRAVE` | [systems/search.md](systems/search.md) |
+| `SFX`, `SFX_PROMPTING` | [systems/sfx.md](systems/sfx.md) |
+| `TUI` | [systems/console.md](systems/console.md) |
+| `MODELS` | [models.md](models.md) |
+| `AWS_MCP_USAGE` | [systems/aws-access.md](systems/aws-access.md) |

@@ -1,11 +1,11 @@
-> **Parked 2026-11-11.** This is the previous `MONITORING.md`, verbatim. It planned a full
+> **Parked 2026-11-11.** This is the previous `docs/shipped/monitoring.md`, verbatim. It planned a full
 > monitoring stack; Prometheus and Grafana already exist on the operator's NAS, and the
-> active plan (`MONITORING.md` at the repo root) covers only in-process application
+> active plan (`docs/shipped/monitoring.md` at the repo root) covers only in-process application
 > metrics. Nothing below is scheduled. Its §1 survey and §4 alert catalogue remain useful
 > reference. Section numbers cited elsewhere as `MONITORING §n` before 2026-11-11 refer to
 > this file.
 
-# MONITORING.md — Prometheus + Grafana for the farm, cheap AWS metrics where they are free
+# docs/shipped/monitoring.md — Prometheus + Grafana for the farm, cheap AWS metrics where they are free
 
 Status: plan, 2026-11-07. Nothing in this file is built. The survey in §1 is
 real (probed from the M5 and over SSH on 2026-11-07, read-only). Alerting is
@@ -149,7 +149,7 @@ Housekeeping found on the way: `~/Library/Logs/pilgrim/gateway.access.log` is
 2. **Metered or blocking backends are never probed**: no Brave probe (AGENTS
    §2; the station reports `search_last`), no FLUX HTTP probe (a render blocks
    `/health` ~40 s, docs/backends.md §10; TCP connect to :8084 only), no song
-   render, no LLM completion, **no Graph API call** (INSTAGRAM.md: the token is
+   render, no LLM completion, **no Graph API call** (docs/shipped/instagram.md: the token is
    used only by `make reel-post`, and a probe would spend publishing quota).
    Reachability probes are `GET /health`, `GET /v1/models`, TCP or TLS
    handshakes.
@@ -309,7 +309,7 @@ deployment); if it is enterprise-gated (the 307 suggests so) the station's
 
 ### 3.6 Reels (Instagram, operator-triggered)
 
-`make reel-post` (INSTAGRAM.md; `docs/instagram.md`) is not a station task and
+`make reel-post` (docs/shipped/instagram.md; `docs/instagram.md`) is not a station task and
 has no schedule, so there is nothing to poll: monitoring only **records** what
 the tool did. It never calls the Graph API (see §2.2, §8 rule 1) — the token,
 the quota and the container status can only be learned by posting, and a

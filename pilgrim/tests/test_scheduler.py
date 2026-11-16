@@ -896,7 +896,7 @@ def test_place_song_next_rejects_non_songs_and_missing_files(tmp_env, cfg):
 
 
 # --------------------------------------------------------------------------- #
-# docs/plans/idle.md Step 2: freeze/thaw mechanics. The sim never freezes (no Station);
+# docs/shipped/idle.md Step 2: freeze/thaw mechanics. The sim never freezes (no Station);
 # these drive the explicit calls.
 # --------------------------------------------------------------------------- #
 

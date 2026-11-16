@@ -1,4 +1,4 @@
-"""The origin station's metrics (MONITORING.md §2; RADIO §11 "Metrics").
+"""The origin station's metrics (docs/shipped/monitoring.md §2; RADIO §11 "Metrics").
 
 Two cadences, both on the event loop, both off the playout path (AGENTS §1.1):
 `live()` every `metrics.live_s` reads in-memory state only; `refresh()` every
@@ -185,7 +185,7 @@ def apply_health(reg: Registry, h: dict[str, Any]) -> None:
 
 
 def read_reels(directory: Path) -> dict[str, Any]:
-    """Summarise the Reel ledgers (`pilgrim/logs/reels/*.json`, INSTAGRAM.md).
+    """Summarise the Reel ledgers (`pilgrim/logs/reels/*.json`, docs/shipped/instagram.md).
     Reads that directory only; a broken ledger is skipped."""
     by_status = dict.fromkeys(REEL_STATUSES, 0)
     failed_at: dict[str, int] = {}

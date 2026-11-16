@@ -1,4 +1,4 @@
-"""Obscured prohibited terms and reserved display names (docs/plans/sheep-pen-brief.md §0.6.2).
+"""Obscured prohibited terms and reserved display names (docs/shipped/sheep-pen.md §0.6.2).
 
 The repo never contains a plaintext prohibited term or reserved-name literal.
 Entries are SHA-256 hex digests of the *normalized* form (NFKC → casefold →
@@ -13,7 +13,7 @@ Messages match whole words only, so an innocent word that merely contains a
 term passes; display names are locked and shown on every message, so they also
 match a term embedded anywhere in the name (`embedded=True`).
 
-Accepted limitation (docs/plans/sheep-pen-brief.md §0.6.2): creative respellings
+Accepted limitation (docs/shipped/sheep-pen.md §0.6.2): creative respellings
 (a dropped letter, a phonetic spelling, a term glued to another word in a
 message) still fall to Layer B, and a dictionary attack can recover the list.
 The goal is no plaintext in the repo and logs, not secrecy.
@@ -45,7 +45,7 @@ PROHIBITED_DIGESTS: frozenset[str] = frozenset({
     "cc02032349c833ac5e97bac094560ed40e09acf34cb1978ab7a9840b9bf15b4d",
 })
 
-# Station characters and operator names (docs/plans/sheep-pen-brief.md §0.6.1): Giles, the DJ,
+# Station characters and operator names (docs/shipped/sheep-pen.md §0.6.1): Giles, the DJ,
 # operator/admin/moderator/system. Matched on the whole normalized display name.
 RESERVED_NAME_DIGESTS: frozenset[str] = frozenset({
     "a0b0f4a525b340639c00b5275ddfe98a792bb6d6b5886c1a10f31259e935ed43",

@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-/* docs/plans/sheep-pen-brief.md §12: the Sheep Pen through the real client and the fakes e2e
+/* docs/shipped/sheep-pen.md §12: the Sheep Pen through the real client and the fakes e2e
    server. Every identity-sensitive scenario gets a fresh browser context; two
    participants are two contexts (ordinary tabs share localStorage). */
 

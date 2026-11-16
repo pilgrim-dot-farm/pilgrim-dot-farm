@@ -118,7 +118,7 @@ class Scheduler:
         self._cum: list[float] = []  # absolute start times (program seconds)
         self._total = 0.0
         self._offset = 0.0  # playhead anchor; shifts forward if the program starves
-        # docs/plans/idle.md: clock.now() when the playhead froze (None = running). While
+        # docs/shipped/idle.md: clock.now() when the playhead froze (None = running). While
         # frozen, position()/coverage() are static and the committed window is
         # left untouched (it is already fully rendered).
         self._frozen_at: float | None = None
@@ -164,17 +164,17 @@ class Scheduler:
 
     def position(self) -> float:
         """Live playhead in program-seconds (advances on the real clock, unless
-        the station is idle: docs/plans/idle.md D3)."""
+        the station is idle: docs/shipped/idle.md D3)."""
         now = self._frozen_at if self._frozen_at is not None else self.clock.now()
         return min(now - self._offset, self._total)
 
-    # ------------------------------------------------------------- idle (docs/plans/idle.md)
+    # ------------------------------------------------------------- idle (docs/shipped/idle.md)
     @property
     def frozen(self) -> bool:
         return self._frozen_at is not None
 
     def freeze(self) -> None:
-        """Stop the playhead where it is (docs/plans/idle.md D3). Idempotent: the frozen
+        """Stop the playhead where it is (docs/shipped/idle.md D3). Idempotent: the frozen
         window stays exactly as committed, already rendered and playable."""
         if self._frozen_at is not None:
             return
@@ -183,7 +183,7 @@ class Scheduler:
                                           "coverage_s": round(self.coverage(), 1)})
 
     def thaw(self) -> int:
-        """Resume the playhead and revalidate the committed future (docs/plans/idle.md D4).
+        """Resume the playhead and revalidate the committed future (docs/shipped/idle.md D4).
 
         Shifts `_offset` by the frozen span (so playback resumes exactly where
         it stopped), drops future `time_check` rows and any future row whose
@@ -241,7 +241,7 @@ class Scheduler:
 
     def _bridge_song_gaps(self, start: int) -> int:
         """Insert a liner/station ID before any future song that directly
-        follows a song (docs/plans/idle.md D4, §5.2: words between songs).
+        follows a song (docs/shipped/idle.md D4, §5.2: words between songs).
 
         Future rows are renumbered with fresh seqs above the high-water mark
         (never reusing an occurrence id) and the revision is bumped by the
@@ -514,7 +514,7 @@ class Scheduler:
         """
         cfg = self.cfg.playout
         if self._frozen_at is not None:
-            # docs/plans/idle.md D3/D8: while frozen the window is static (position does
+            # docs/shipped/idle.md D3/D8: while frozen the window is static (position does
             # not move, so coverage and trim are static too) and filling it
             # would consume one-shot inventory for airtime nobody hears. A
             # ready listener request still takes the next slot the moment
@@ -641,7 +641,7 @@ class Scheduler:
             # committed, not yet heard: _settle_aired marks it when it airs
             self._pending_aired[seq] = e["request_id"]
             # teed up: the slot's wall time caps the board's Prep Time so a
-            # frozen station (docs/plans/idle.md D3) cannot inflate it (RADIO §11)
+            # frozen station (docs/shipped/idle.md D3) cannot inflate it (RADIO §11)
             self.store.mark_request_due(e["request_id"], self._slot_wall(host_start))
             log.info("request.committed", extra={
                 "request_id": e["request_id"], "item_id": item_id, "seq": seq,
@@ -840,7 +840,7 @@ class Scheduler:
         youth = max(rot.youth_floor, 0.5 ** (age_h / rot.half_life_h))
         wait = min(1.0, since_h / rot.wait_target_h)
         weight = youth * (rot.wait_floor + (1 - rot.wait_floor) * wait)
-        # docs/plans/voting.md Step 8 (off by default): let ratings nudge the recycled
+        # docs/shipped/voting.md Step 8 (off by default): let ratings nudge the recycled
         # draw. A 3-turkey song is neutral; a 1-turkey song keeps a quarter of
         # its pull, a 5-turkey song gets half again. Store read only — pure of
         # time/random — and it never breaks spacing (it orders songs that

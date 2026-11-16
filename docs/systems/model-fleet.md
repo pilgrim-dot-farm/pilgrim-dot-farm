@@ -3,7 +3,7 @@
 Status: reference, surveyed 2026-11-10 (read-only probes + the sanctioned
 ninfer vet run on spx1). No station code touched. Companion docs:
 `docs/backends.md` (request/response shapes — owned by the chat agent, probe
-first) and `MONITORING.md` (the observability plan; the `pg_` prefix rule
+first) and `docs/shipped/monitoring.md` (the observability plan; the `pg_` prefix rule
 lives in its §2).
 
 The station reaches its models through two kinds of doors: LiteLLM (twr) for
@@ -69,7 +69,7 @@ Health at survey: qwen38 `{"status":"ok"}`, `/v1/models` → `qwen38`
 `{"status":"ok"}` (cuda, 55 voices, default `af_heart`, ~10 days uptime).
 SFX: **down** (§4.1).
 
-Note: `docs/backlog/monitoring-infra.md` §1.1 lists spx1 as `192.168.68.90` — that was the
+Note: `docs/pending/monitoring-infra.md` §1.1 lists spx1 as `192.168.68.90` — that was the
 survey-time value; spx1 is on `.56` today. LAN IPs change; the ds41 recipe
 is unaffected (it uses the hardwired CX7 link, §3).
 
@@ -367,7 +367,7 @@ reboots; the agent never does.
 ## 7. Open items
 
 1. SFX disposition — operator filed a bug report (2026-11-10,
-   `docs/backlog/sfx-bug.md`): not mission critical; options are (a) leave
+   `docs/pending/sfx-bug.md`): not mission critical; options are (a) leave
    it, (b) run the CGM plan C1–C3, (c) retire. The §4.1 restart one-liner
    is still the way to bring the backend up first, if (b) is chosen.
 2. Restore DeepSeek vs. keep the Sparks free for MiniMax + qwen flash (§4.2)
@@ -376,7 +376,7 @@ reboots; the agent never does.
    `run-serve.sh` for qwen flash on the Sparks is still unwritten.
 4. Stale ssh forward holding spx1 :8000 (owned by an sshd child, pid 2886)
    — unknown owner, clean up on next login.
-5. `docs/backlog/monitoring-infra.md` §1.1 host table: spx1 `.90` → `.56` (LAN IP changed).
+5. `docs/pending/monitoring-infra.md` §1.1 host table: spx1 `.90` → `.56` (LAN IP changed).
 6. The crash-looping `test_kokoro-kokoro-fastapi-gpu-1` container on twr (§0)
    — operator: remove it or fix it.
 7. Fix `Host yuri` in `~/.ssh/config` (`HostName 192.168.68.89`,

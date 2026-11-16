@@ -11,8 +11,8 @@ file is only about *access*.
 
 ## 0. Decide first: do you need AWS at all?
 
-Usually not. Planning documents in this repo (docs/plans/sheep-pen-brief.md §0.4,
-docs/plans/scalability.md, docs/backends.md §9, §12) record the deployed state with
+Usually not. Planning documents in this repo (docs/shipped/sheep-pen.md §0.4,
+docs/pending/scalability.md, docs/backends.md §9, §12) record the deployed state with
 dates. Trust the dated record for planning. Call AWS only to confirm a fact
 before changing it, or to inspect a live failure.
 

@@ -1,4 +1,4 @@
-"""Instagram Reels posting (INSTAGRAM.md Steps 1-5), fakes only (AGENTS §1.2).
+"""Instagram Reels posting (docs/shipped/instagram.md Steps 1-5), fakes only (AGENTS §1.2).
 
 Real ffmpeg runs over tiny generated inputs (a CLI tool, not a backend); the
 Graph API, S3, CloudFront and the LLM are fakes.

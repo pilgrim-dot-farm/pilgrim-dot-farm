@@ -100,7 +100,7 @@ def _load_cfg() -> tuple[Config, Path]:
 
 
 def _seed_requests(cfg: Config, store: Store) -> None:
-    """docs/plans/voting.md Step 7: a real queue board — 12 free requests plus one paid
+    """docs/shipped/voting.md Step 7: a real queue board — 12 free requests plus one paid
     priority row (paid rows are not votable, V5) — and 5 aired requests so the
     AIRED REQUESTS table keeps its prep-time coverage (cosmetic.spec.ts)."""
     # Aired first (low ids) so a later airing of a queue row still lands in
@@ -158,7 +158,7 @@ def build_app() -> FastAPI:
     app.state.store = store
     app.state.sched = sched
 
-    # ---- THE SHEEP PEN (docs/plans/sheep-pen-brief.md §12 e2e): the real routes over the async
+    # ---- THE SHEEP PEN (docs/shipped/sheep-pen.md §12 e2e): the real routes over the async
     # fake Valkey, with a fake for Layer B. ----
     chat_clock = Clock()
     chat_client = FakeAsyncRedis(lambda: time.time())
@@ -269,7 +269,7 @@ def build_app() -> FastAPI:
                 headers={"Cache-Control": "public, max-age=1"})
 
     def _rating_state():
-        """e2e mirror of Station._public_rating (docs/plans/voting.md V10)."""
+        """e2e mirror of Station._public_rating (docs/shipped/voting.md V10)."""
         if not cfg.ratings.enabled:
             return None
         seq, _ = sched.on_air()
@@ -423,7 +423,7 @@ def build_app() -> FastAPI:
     @app.post("/api/test/air/{request_id}")
     async def test_air(request_id: int):
         """Test-only: mark a request aired so the spec can watch the row lose
-        its vote buttons on the next board poll (docs/plans/voting.md V4)."""
+        its vote buttons on the next board poll (docs/shipped/voting.md V4)."""
         store.mark_request_aired(request_id)
         return {"ok": True}
 

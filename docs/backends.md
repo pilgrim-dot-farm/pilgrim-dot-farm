@@ -783,7 +783,7 @@ Error shape (observed in the Brave docs, not triggered live): non-200 with
    validated end-to-end (M10).
 
 
-## 12. ElastiCache Valkey Serverless (docs/plans/scalability.md Step 3)
+## 12. ElastiCache Valkey Serverless (docs/pending/scalability.md Step 3)
 
 Probed 2026-11-05 from the Mac over the bastion's tailnet route with redis-py
 8.1.0 (`redis.Redis.from_url("rediss://pg-cache-....serverless.usw1.cache.amazonaws.com:6379")`):
@@ -803,7 +803,7 @@ Probed 2026-11-05 from the Mac over the bastion's tailnet route with redis-py
 
 ## 13. The Sheep Pen — Valkey chat, CloudWatch audit and the Mac worker
 
-Sources: docs/plans/sheep-pen-brief.md §0.3–§0.7 (dated 2026-11-07) and the AWS ElastiCache
+Sources: docs/shipped/sheep-pen.md §0.3–§0.7 (dated 2026-11-07) and the AWS ElastiCache
 serverless supported-commands page
 (https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/SupportedCommands.html).
 
@@ -824,13 +824,13 @@ Today's heartbeat already costs one `SET` per listener every 5 s; the chat
 accept path adds two rate-limit `EVAL`s, one `XADD`, one `SET NX` and one
 `PUBLISH` per message, plus per-task fan-out is local (not per browser). The
 serverless cache is configured at `ecpu_per_second.maximum = 1000` and stays
-there in this release (docs/plans/sheep-pen-brief.md §0.6.7); the EMF metric
+there in this release (docs/shipped/sheep-pen.md §0.6.7); the EMF metric
 `chat_messages_per_s` and the per-listener command count are what a later
 fleet/cache sizing exercise uses.
 
 **CloudWatch.** Container stdout already reaches `/aws/ecs/pg-app/app`
 through the execution role, but the deployed **task role** has no `logs:`
-permission (docs/plans/sheep-pen-brief.md §0.4). Chat audit lines (message text, `ip_hash`) go
+permission (docs/shipped/sheep-pen.md §0.4). Chat audit lines (message text, `ip_hash`) go
 to the dedicated group `/aws/pilgrim/chat-audit` with boto3 `PutLogEvents`:
 the Mac worker uses `media.aws_profile` (`mac-studio`, which holds `logs:*`
 since 2026-11-07); the Fargate task needs a scoped

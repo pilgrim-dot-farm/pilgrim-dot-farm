@@ -1,4 +1,4 @@
-"""In-memory stand-in for the Meta Graph API (INSTAGRAM.md Step 4; AGENTS §1.2).
+"""In-memory stand-in for the Meta Graph API (docs/shipped/instagram.md Step 4; AGENTS §1.2).
 
 Wired in as an `httpx.MockTransport` under the real `GraphClient`, so request
 shapes, token placement and error handling are exercised for real. Shapes

@@ -1,4 +1,4 @@
-"""pilgrim/web_metrics.py on the real web app (MONITORING.md Step 4). Fakes
+"""pilgrim/web_metrics.py on the real web app (docs/shipped/monitoring.md Step 4). Fakes
 only: the `_pair` helper from test_web_app (FakeRedis + the test store)."""
 from __future__ import annotations
 

@@ -1,4 +1,12 @@
-# AGENT_WIKI.md — station memory and the public wiki (agent-serving first)
+# Agent wiki — station memory and the public wiki (agent-serving first)
+
+> *Formerly `AGENT_WIKI.md` at the repo root.*
+
+> **Pending and parked (operator, 2026-11-16).** No step has been run and no
+> wiki code exists. Do not start this plan until the operator asks. It was
+> written against the tree as of 2026-11-15 (`c712f27`); check its code blocks
+> and file references against the current tree before running it. See
+> `PENDING.md` item 1.
 
 Work plan for a coding agent. Seven steps of code and docs, done **in order**,
 one commit per step, then Step 8, which is a handoff to the operator. Every
@@ -730,26 +738,26 @@ Pure file code and the config for it. Nothing reads the wiki yet.
 In `pilgrim/config.py`, find:
 
 ```python
-    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (INSTAGRAM.md, backends §14)
+    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (docs/shipped/instagram.md, backends §14)
 ```
 
 Replace with:
 
 ```python
-    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (INSTAGRAM.md, backends §14)
+    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (docs/shipped/instagram.md, backends §14)
     github: str = "https://api.github.com"  # GitHub REST: wiki push token (AGENT_WIKI Step 4)
 ```
 
 In `pilgrim/config.py`, find:
 
 ```python
-    instagram_caption: str = "qwen38"  # Reel caption line (INSTAGRAM.md Step 3)
+    instagram_caption: str = "qwen38"  # Reel caption line (docs/shipped/instagram.md Step 3)
 ```
 
 Replace with:
 
 ```python
-    instagram_caption: str = "qwen38"  # Reel caption line (INSTAGRAM.md Step 3)
+    instagram_caption: str = "qwen38"  # Reel caption line (docs/shipped/instagram.md Step 3)
     wiki: str = "qwen38"  # wiki keeper + bootstrap drafts (AGENT_WIKI Steps 5-6)
 ```
 
@@ -777,7 +785,7 @@ class WikiPush(BaseModel):
 
 
 class WikiCfg(BaseModel):
-    """The station wiki (AGENT_WIKI.md; RADIO §7). `dir` is a git clone of the
+    """The station wiki (docs/pending/agent-wiki.md; RADIO §7). `dir` is a git clone of the
     public wiki repo, outside this checkout; relative paths resolve against
     the `pilgrim/` package directory, like `library.dir`."""
     enabled: bool = False            # writers read it and the keeper runs
@@ -828,27 +836,27 @@ Replace with:
 In `pilgrim/config.yaml`, find:
 
 ```yaml
-  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (INSTAGRAM.md; docs/backends.md §14). Token INSTAGRAM_TOKEN in .env
+  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (docs/shipped/instagram.md; docs/backends.md §14). Token INSTAGRAM_TOKEN in .env
 ```
 
 Replace with:
 
 ```yaml
-  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (INSTAGRAM.md; docs/backends.md §14). Token INSTAGRAM_TOKEN in .env
-  github: https://api.github.com     # GitHub REST: the wiki push token only (AGENT_WIKI.md; docs/backends.md §15)
+  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (docs/shipped/instagram.md; docs/backends.md §14). Token INSTAGRAM_TOKEN in .env
+  github: https://api.github.com     # GitHub REST: the wiki push token only (docs/pending/agent-wiki.md; docs/backends.md §15)
 ```
 
 In `pilgrim/config.yaml`, find:
 
 ```yaml
-  instagram_caption: qwen38           # one caption line per Reel (INSTAGRAM.md Step 3)
+  instagram_caption: qwen38           # one caption line per Reel (docs/shipped/instagram.md Step 3)
 ```
 
 Replace with:
 
 ```yaml
-  instagram_caption: qwen38           # one caption line per Reel (INSTAGRAM.md Step 3)
-  wiki: qwen38                        # wiki keeper + bootstrap drafts (AGENT_WIKI.md)
+  instagram_caption: qwen38           # one caption line per Reel (docs/shipped/instagram.md Step 3)
+  wiki: qwen38                        # wiki keeper + bootstrap drafts (docs/pending/agent-wiki.md)
 ```
 
 In `pilgrim/config.yaml`, find:
@@ -861,7 +869,7 @@ library:
 Replace with:
 
 ```yaml
-# The station wiki (AGENT_WIKI.md; RADIO §7): canon the writers read, kept as
+# The station wiki (docs/pending/agent-wiki.md; RADIO §7): canon the writers read, kept as
 # Markdown in a separate public repo cloned at `dir` (outside this checkout).
 wiki:
   enabled: false             # operator flips this at deploy (AGENT_WIKI Step 8)
@@ -899,7 +907,7 @@ library:
 Create `pilgrim/wiki.py`:
 
 ```python
-"""Station wiki (AGENT_WIKI.md; RADIO §7): the canon the writers read.
+"""Station wiki (docs/pending/agent-wiki.md; RADIO §7): the canon the writers read.
 
 One Markdown file per page under `<wiki.dir>/pages/`, YAML front matter plus a
 free body. The wiki directory is a git clone of the public wiki repo, outside
@@ -1502,7 +1510,7 @@ the functions on purpose.
 Create `pilgrim/tests/wiki_helpers.py`:
 
 ```python
-"""Shared fixtures for the wiki tests (AGENT_WIKI.md). Fakes only."""
+"""Shared fixtures for the wiki tests (docs/pending/agent-wiki.md). Fakes only."""
 from __future__ import annotations
 
 import subprocess
@@ -1799,27 +1807,27 @@ def test_skeleton_has_a_jekyll_config_with_the_base_path():
 In `RADIO.md`, find:
 
 ```markdown
-  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (INSTAGRAM.md); token INSTAGRAM_TOKEN
+  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (docs/shipped/instagram.md); token INSTAGRAM_TOKEN
 ```
 
 Replace with:
 
 ```markdown
-  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (INSTAGRAM.md); token INSTAGRAM_TOKEN
-  github: https://api.github.com     # GitHub REST: the wiki push token only (AGENT_WIKI.md)
+  graph: https://graph.facebook.com  # Meta Graph API, Instagram Reels (docs/shipped/instagram.md); token INSTAGRAM_TOKEN
+  github: https://api.github.com     # GitHub REST: the wiki push token only (docs/pending/agent-wiki.md)
 ```
 
 In `RADIO.md`, find:
 
 ```markdown
-  instagram_caption: qwen38        # Reel caption line (INSTAGRAM.md)
+  instagram_caption: qwen38        # Reel caption line (docs/shipped/instagram.md)
 ```
 
 Replace with:
 
 ```markdown
-  instagram_caption: qwen38        # Reel caption line (INSTAGRAM.md)
-  wiki: qwen38                     # wiki keeper + bootstrap drafts (AGENT_WIKI.md)
+  instagram_caption: qwen38        # Reel caption line (docs/shipped/instagram.md)
+  wiki: qwen38                     # wiki keeper + bootstrap drafts (docs/pending/agent-wiki.md)
 ```
 
 In `RADIO.md`, find:
@@ -1832,7 +1840,7 @@ library:
 Replace with:
 
 ```markdown
-wiki:                        # the station wiki (§7; AGENT_WIKI.md)
+wiki:                        # the station wiki (§7; docs/pending/agent-wiki.md)
   enabled: false             # writers read it and the keeper runs
   dir: ../../pilgrim-wiki    # git clone of the public wiki repo, outside this checkout
   site_url: https://pilgrim-dot-farm.github.io/wiki
@@ -2201,7 +2209,7 @@ Replace with:
 ```markdown
 The bible's `taglines.md` and `style_guide.md` are read as written (liners,
 Reel captions). The world itself (hosts, town, neighbours, bands) lives in the
-**station wiki** (AGENT_WIKI.md): one Markdown page per subject, with YAML
+**station wiki** (docs/pending/agent-wiki.md): one Markdown page per subject, with YAML
 front matter (`title`, `kind`, `aliases`, `locked`, `summary`) and a free body
 whose `## On the record` bullets are the page's facts. The wiki is a git clone
 of a separate public repository at `wiki.dir`, outside this checkout;
@@ -2620,7 +2628,7 @@ Replace with:
   (`pilgrim.farm` = `17841480340352745`). Only `make reel-post` reads these
   two; the station process never does.
 - `WIKI_APP_ID`, `WIKI_APP_INSTALLATION_ID`, `WIKI_APP_KEY_PATH` — the GitHub
-  App the station pushes the public wiki as (AGENT_WIKI.md, docs/wiki.md): the
+  App the station pushes the public wiki as (docs/pending/agent-wiki.md, docs/wiki.md): the
   App's numeric id, the id of its installation on the wiki repository, and the
   path of its private key file (`.pem`, outside the repo, mode 600). The key
   signs a ten-minute JWT that is traded for a one-hour token scoped to that one
@@ -3419,7 +3427,7 @@ Replace with:
 `make reel-post`; `--force` overwrites it. `items.meta_json` is not touched
 (the station's art worker owns it).
 
-**Station wiki (AGENT_WIKI.md, §7).** No new table and no new column. Pages are
+**Station wiki (docs/pending/agent-wiki.md, §7).** No new table and no new column. Pages are
 files in the wiki clone (`wiki.dir`), not rows. The `meta` key `wiki:keeper`
 holds the keeper's work state as JSON `{floor, done}`: talk items with an id at
 or below `floor` are never read, and `done` lists the ids above it that have
@@ -3439,7 +3447,7 @@ In `RADIO.md`, find:
 Replace with:
 
 ```markdown
-- Continuity step: shipped as the wiki keeper (§7; AGENT_WIKI.md).
+- Continuity step: shipped as the wiki keeper (§7; docs/pending/agent-wiki.md).
 ```
 
 ### 5.6 Checks + commit
@@ -3917,7 +3925,7 @@ Replace with:
 promo-codes:
 	$(PY) -m pilgrim.tools.promo_codes $(PROMO_ARGS)
 
-# Station wiki (AGENT_WIKI.md; docs/wiki.md). Examples:
+# Station wiki (docs/pending/agent-wiki.md; docs/wiki.md). Examples:
 #   make wiki WIKI_ARGS="init"             # skeleton + seed pages in wiki.dir
 #   make wiki WIKI_ARGS="scan"             # recurring names in aired copy (no LLM)
 #   make wiki WIKI_ARGS="draft --limit 10" # LLM drafts into _drafts/ (only when asked)
@@ -4034,7 +4042,7 @@ Create `docs/wiki.md`:
 ````markdown
 # The station wiki — runbook
 
-**Status: active.** Plan: `AGENT_WIKI.md` (repo root). Spec: `RADIO.md` §7, §12
+**Status: active.** Plan: `docs/pending/agent-wiki.md` (repo root). Spec: `RADIO.md` §7, §12
 (`wiki:`), §14. Backend record: `docs/backends.md` §15.
 
 The wiki is the station's long-term memory and its public world. One Markdown
@@ -4267,16 +4275,16 @@ Replace with:
 In `AGENTS.md`, find:
 
 ```markdown
-- `docs/plans/sheep-pen-plan.md` — The Sheep Pen chat; Steps 1–12. Its brief is
-  `docs/plans/sheep-pen-brief.md` (read the brief first, then the plan).
+- `docs/shipped/sheep-pen.md` — The Sheep Pen chat; Steps 1–12. Its brief is
+  `docs/shipped/sheep-pen.md` (read the brief first, then the plan).
 ```
 
 Replace with:
 
 ```markdown
-- `docs/plans/sheep-pen-plan.md` — The Sheep Pen chat; Steps 1–12. Its brief is
-  `docs/plans/sheep-pen-brief.md` (read the brief first, then the plan).
-- `AGENT_WIKI.md` (repo root) — station memory and the public wiki: short-term
+- `docs/shipped/sheep-pen.md` — The Sheep Pen chat; Steps 1–12. Its brief is
+  `docs/shipped/sheep-pen.md` (read the brief first, then the plan).
+- `docs/pending/agent-wiki.md` (repo root) — station memory and the public wiki: short-term
   recall in talk, canon pages the writers read, the keeper that writes them,
   GitHub Pages; Steps 1–8. `docs/wiki.md` is the runbook.
 ```
@@ -4284,14 +4292,14 @@ Replace with:
 In `AGENTS.md`, find:
 
 ```markdown
-| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (INSTAGRAM.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
+| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (docs/shipped/instagram.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
 ```
 
 Replace with:
 
 ```markdown
-| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (INSTAGRAM.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
-| GitHub (wiki repository + Pages) | `hosts.github` = `https://api.github.com`, `wiki.push.remote` | The public wiki, pushed by the station as a GitHub App (AGENT_WIKI.md, docs/wiki.md, docs/backends.md §15); `WIKI_APP_ID`, `WIKI_APP_INSTALLATION_ID`, `WIKI_APP_KEY_PATH` in `.env`. The local clone is `wiki.dir` (`~/prod/pilgrim-wiki`), outside this checkout. Never called by tests |
+| Meta Graph API (Instagram Reels) | `hosts.graph` = `https://graph.facebook.com` | `make reel-post` only (docs/shipped/instagram.md, docs/backends.md §14); system-user token `INSTAGRAM_TOKEN` + `INSTAGRAM_ACCOUNT_ID` in `.env`. Never called by the station process or by tests; posts count against a 100/24 h quota |
+| GitHub (wiki repository + Pages) | `hosts.github` = `https://api.github.com`, `wiki.push.remote` | The public wiki, pushed by the station as a GitHub App (docs/pending/agent-wiki.md, docs/wiki.md, docs/backends.md §15); `WIKI_APP_ID`, `WIKI_APP_INSTALLATION_ID`, `WIKI_APP_KEY_PATH` in `.env`. The local clone is `wiki.dir` (`~/prod/pilgrim-wiki`), outside this checkout. Never called by tests |
 ```
 
 In `AGENTS.md`, find:

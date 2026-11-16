@@ -1,4 +1,4 @@
-"""pilgrim/metrics.py: registry, text format, log handler, server (MONITORING.md Step 1).
+"""pilgrim/metrics.py: registry, text format, log handler, server (MONITORING Step 1).
 
 No backend, no station: the server test binds an ephemeral loopback port."""
 from __future__ import annotations

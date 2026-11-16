@@ -1,6 +1,6 @@
 """station.db: inventory metadata + airplay ledger + committed program (RADIO.md §7, §11).
 
-Engine-neutral since docs/plans/scalability.md Step 2: every statement is written once in
+Engine-neutral since docs/pending/scalability.md Step 2: every statement is written once in
 SQLite's flavour and runs unchanged on SQLite (tests, sim, dev) or Postgres
 (production) through `pilgrim.db`. Keep it that way: `?` placeholders, INTEGER
 flags, TEXT ISO timestamps, REAL epochs, `RETURNING` for new ids, upserts as
@@ -30,7 +30,7 @@ from pilgrim.pipelines.request_parts import RequestParts
 #   4. then paid_at / claimed_at / created_at ASC, id ASC — the old FIFO, so
 #      with no votes nothing changes.
 #
-# The score is read from request_votes on every query (docs/plans/voting.md V9): always
+# The score is read from request_votes on every query (docs/shipped/voting.md V9): always
 # accurate, no cached counters to keep in sync.
 def queue_order(alias: str = "") -> str:
     a = f"{alias}." if alias else ""
@@ -66,7 +66,7 @@ def _part_values(parts: RequestParts | None) -> tuple[str | None, ...]:
 
 def _queued_where(bury_threshold: int | None) -> tuple[str, tuple[Any, ...]]:
     """WHERE clause for the air-able queue: `queued` rows, minus buried free
-    ones when a threshold is given (docs/plans/voting.md V7)."""
+    ones when a threshold is given (docs/shipped/voting.md V7)."""
     where = "status='queued'"
     params: tuple[Any, ...] = ()
     if bury_threshold is not None:
@@ -129,7 +129,7 @@ def _wait_s(prep_started_at: str | None, aired_at: str | None,
     The clock stops at the earlier of `aired_at` and `due_at` (RADIO §11):
     `due_at` is the wall time the song was scheduled to air when it was teed
     up (committed or spliced). With listeners present the two agree to within
-    seconds; with nobody listening the playhead is frozen (docs/plans/idle.md D3) and
+    seconds; with nobody listening the playhead is frozen (docs/shipped/idle.md D3) and
     `aired_at` only lands on the next PLAY, hours later — that wait is nobody's
     prep, so the metric is capped at when the song WOULD have aired."""
     start = _parse_epoch(prep_started_at)
@@ -154,7 +154,7 @@ def _project_queue_row(row: dict[str, Any], max_length: int,
             "status": row["status"], "paid": paid, "stage": stage,
             # the song exists from `ready` on (title shown in the board table)
             "song_title": row.get("song_title") or "",
-            # docs/plans/voting.md: score is display-only once the row is in flight
+            # docs/shipped/voting.md: score is display-only once the row is in flight
             "score": int(score), "votable": bool(votable),
             "buried": bool(buried)}
 
@@ -203,7 +203,7 @@ class Store:
             self.path = Path(db_path)
             self._conn = SqliteConn(self.path)
         self._lock = StoreLock(self._conn)
-        # Read-through cache for `get_item` (docs/plans/scalability.md Step 2 follow-up):
+        # Read-through cache for `get_item` (docs/pending/scalability.md Step 2 follow-up):
         # the programme snapshot, the state and the DJ views look items up by
         # id many times a second, and on Postgres each miss is a tailnet round
         # trip. Every write to `items` in this class clears it (writes are a
@@ -298,7 +298,7 @@ class Store:
                     outcome     TEXT NOT NULL,
                     received_at TEXT NOT NULL
                 );
-                -- Request-queue votes (docs/plans/voting.md V2): one row per voter and
+                -- Request-queue votes (docs/shipped/voting.md V2): one row per voter and
                 -- request, value -1|+1 (0 = retracted -> row deleted). The
                 -- canonical client IP is stored for the per-target abuse cap
                 -- (V3), like visitor_ips (RADIO §14).
@@ -313,7 +313,7 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS idx_request_votes_ip
                     ON request_votes(request_id, ip);
-                -- Song ratings (docs/plans/voting.md V2, V8): one row per AIRING, keyed by
+                -- Song ratings (docs/shipped/voting.md V2, V8): one row per AIRING, keyed by
                 -- (epoch, seq, voter) so the same song can be rated again the
                 -- next time it airs. `item_id` feeds the lifetime aggregate.
                 CREATE TABLE IF NOT EXISTS song_ratings (
@@ -357,7 +357,7 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS idx_promo_redemptions_code
                     ON promo_redemptions(code_id);
-                -- The Sheep Pen chat (docs/plans/sheep-pen-brief.md; RADIO §14). Valkey holds
+                -- The Sheep Pen chat (docs/shipped/sheep-pen.md; RADIO §14). Valkey holds
                 -- the hot stream, rate limits and bans; these four tables are
                 -- the durable audit copy that survives the cache.
                 CREATE TABLE IF NOT EXISTS chat_users (
@@ -483,7 +483,7 @@ class Store:
                              # docs/shipped/payments.md Step 12b: staged checks + operator comp
                              ("stage", "TEXT"),
                              ("comped", "INTEGER DEFAULT 0"),
-                             # docs/plans/voting.md V6: first time the producer claims the
+                             # docs/shipped/voting.md V6: first time the producer claims the
                              # row, so in-flight order is the claim order
                              ("claimed_at", "TEXT"),
                              # docs/shipped/prompt-upgrade.md Step 2: the three-box paid
@@ -967,7 +967,7 @@ class Store:
             self._conn.commit()
 
     def delete_program_rows(self, seqs: list[int]) -> int:
-        """Delete committed future rows by seq (docs/plans/idle.md thaw revalidation).
+        """Delete committed future rows by seq (docs/shipped/idle.md thaw revalidation).
         Deleted seqs are never reused: new rows always take seqs above the
         AUTOINCREMENT high-water mark (update_program_seq/set_program_seq_high).
         Returns the number of rows removed."""
@@ -1094,7 +1094,7 @@ class Store:
         """Live queue in queue order (paid first, in flight next, then free by
         vote score, then FIFO). Rejected/evicted/aired/... requests are not part
         of the air-able queue. `bury_threshold` skips free queued rows at/below
-        that score (docs/plans/voting.md V7); None disables burying."""
+        that score (docs/shipped/voting.md V7); None disables burying."""
         where, params = _queued_where(bury_threshold)
         with self._lock:
             rows = self._conn.execute(
@@ -1122,7 +1122,7 @@ class Store:
 
     def mark_request_producing(self, request_id: int) -> str | None:
         """Claim the row for production. `claimed_at` is set the first time
-        only (COALESCE): docs/plans/voting.md V6 orders in-flight work by claim time, so a
+        only (COALESCE): docs/shipped/voting.md V6 orders in-flight work by claim time, so a
         retry after an outage keeps its original place. Returns claimed_at."""
         with self._lock:
             now = _now_iso()
@@ -1207,7 +1207,7 @@ class Store:
         """Requests still awaiting air (queued, producing, or ready) in queue
         order. The scheduler holds the committed window short while one of these
         is uncommitted so it can air as soon as its song + intro are ready.
-        Buried free rows are excluded (docs/plans/voting.md V7): nothing is produced for
+        Buried free rows are excluded (docs/shipped/voting.md V7): nothing is produced for
         them, so the window must not be held for one either."""
         where = f"status IN ('queued','producing','ready') AND {NOT_BENCH}"
         params: tuple[Any, ...] = ()
@@ -1265,7 +1265,7 @@ class Store:
         <= cap) plus the 5 most recent aired requests with song titles and how
         long they waited. Rows are projected — never raw (docs/shipped/payments.md §3.4).
 
-        Queue rows carry `id`, `score`, `votable` and `buried` (docs/plans/voting.md §1);
+        Queue rows carry `id`, `score`, `votable` and `buried` (docs/shipped/voting.md §1);
         recent rows never do (no retrospective voting)."""
         with self._lock:
             queue = [dict(r) for r in self._conn.execute(
@@ -1310,7 +1310,7 @@ class Store:
                 (_now_iso(), _now_iso(), request_id))
             self._conn.commit()
 
-    # ------------------------------------------- community votes (docs/plans/voting.md)
+    # ------------------------------------------- community votes (docs/shipped/voting.md)
     def request_score(self, request_id: int) -> int:
         with self._lock:
             r = self._conn.execute(
@@ -1321,7 +1321,7 @@ class Store:
     def cast_request_vote(self, request_id: int, voter_id: str,
                           ip: str | None, value: int, *,
                           max_voters_per_ip: int) -> dict[str, Any]:
-        """Upsert one vote (docs/plans/voting.md V2/V3/V4/V5). One locked transaction:
+        """Upsert one vote (docs/shipped/voting.md V2/V3/V4/V5). One locked transaction:
         window + paid + IP-cap checks and the write are atomic, so the row
         cannot move between check and insert.
 
@@ -1366,7 +1366,7 @@ class Store:
     def cast_song_rating(self, *, item_id: int, epoch: str, seq: int,
                          voter_id: str, ip: str | None, stars: int,
                          max_voters_per_ip: int) -> dict[str, Any]:
-        """Upsert one rating for an airing (docs/plans/voting.md V2/V3). The window is
+        """Upsert one rating for an airing (docs/shipped/voting.md V2/V3). The window is
         checked by the caller (it is scheduler state, not DB state); this only
         enforces uniqueness and the per-target IP cap."""
         with self._lock:
@@ -1395,7 +1395,7 @@ class Store:
                 "avg": avg, "mine": stars}
 
     def song_rating(self, item_id: int) -> dict[str, Any]:
-        """Lifetime aggregate over every airing of `item_id` (docs/plans/voting.md V10)."""
+        """Lifetime aggregate over every airing of `item_id` (docs/shipped/voting.md V10)."""
         with self._lock:
             agg = self._conn.execute(
                 "SELECT COUNT(*), AVG(stars) FROM song_ratings WHERE item_id=?",
@@ -1405,8 +1405,8 @@ class Store:
         return {"count": count, "avg": avg}
 
     def song_ratings_for(self, item_ids: list[int]) -> dict[int, dict[str, Any]]:
-        """Lifetime aggregates for several songs in one query (docs/plans/ratings.md
-        Step 2; docs/plans/voting.md V10): {item_id: {"count": n, "avg": float|None}}.
+        """Lifetime aggregates for several songs in one query (docs/shipped/ratings.md
+        Step 2; docs/shipped/voting.md V10): {item_id: {"count": n, "avg": float|None}}.
         Ids with no ratings are absent; callers default to count 0 / avg None.
         One round trip per programme response, not one per song (the store
         may be Postgres across the tailnet)."""
@@ -1954,7 +1954,7 @@ class Store:
 
 
     # ---------------------------------------------------------------- chat
-    # The Sheep Pen (docs/plans/sheep-pen-brief.md; RADIO §14). Valkey is the hot path; these
+    # The Sheep Pen (docs/shipped/sheep-pen.md; RADIO §14). Valkey is the hot path; these
     # are the durable audit rows. `chat_messages.id` is the Valkey stream id.
     def create_chat_user(self, *, token_hash: str, ip_hash: str | None = None,
                          user_id: str | None = None,
@@ -2088,7 +2088,7 @@ class Store:
 
     def pending_chat_messages(self, limit: int = 200) -> list[dict[str, Any]]:
         """Oldest-first unreviewed rows: the recovery path when the Valkey
-        stream has trimmed past the moderation cursor (docs/plans/sheep-pen-brief.md §B.4)."""
+        stream has trimmed past the moderation cursor (docs/shipped/sheep-pen.md §B.4)."""
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM chat_messages WHERE status='pending_review' "

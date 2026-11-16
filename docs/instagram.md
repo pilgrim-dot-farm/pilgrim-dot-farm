@@ -1,4 +1,4 @@
-# Posting a song to Instagram Reels (INSTAGRAM.md)
+# Posting a song to Instagram Reels (docs/shipped/instagram.md)
 
 Who runs this: the operator, or the local agent **on the operator's word**.
 Nothing here is automatic. The station process never posts.
@@ -74,10 +74,10 @@ in the origin `.env` (README "Secrets").
 Nothing here is polled. The tool logs to stderr, not `station.log`, so the
 record is the ledger: `pilgrim/logs/reels/*.json`, one file per attempt,
 rewritten at each stage. The station's metrics loop reads those files (never the
-Graph API) and exports `pg_reel_*` gauges on `/metrics` (MONITORING.md §2.2:
+Graph API) and exports `pg_reel_*` gauges on `/metrics` (docs/shipped/monitoring.md §2.2:
 `ledgers{status}`, `failed_ledgers{stage}`, `last_posted_timestamp_seconds`,
 `quota_usage`/`quota_total`). Two digest alerts are parked with the rest of the
-alert catalogue (`docs/backlog/monitoring-infra.md` §4.1):
+alert catalogue (`docs/pending/monitoring-infra.md` §4.1):
 
 - **#32 Reels stale** — no successful post for 30 days. The usual cause is an
 expired `INSTAGRAM_TOKEN`; the next `--publish` answers `OAuthException 190`.

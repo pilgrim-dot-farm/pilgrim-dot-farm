@@ -110,7 +110,7 @@ class Hosts(BaseModel):
     brave: str = "https://api.search.brave.com"  # Brave Search API (docs/systems/search.md)
     sfx: str = "http://127.0.0.1:8000"  # MOSS-SoundEffect v2.0 (docs/backends.md §7)
     flux: str = "http://127.0.0.1:8084"  # FLUX 3 Image Klein, cover art (docs/backends.md §10)
-    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (INSTAGRAM.md, backends §14)
+    graph: str = "https://graph.facebook.com"  # Meta Graph API: Reels (INSTAGRAM, backends §14)
 
 
 class Models(BaseModel):
@@ -121,8 +121,8 @@ class Models(BaseModel):
     liners: str
     field_report: str = "qwen38"  # field reporter copy (docs/systems/sfx.md §4.2)
     art_scene: str = "qwen38"  # cover-art scene writer (docs/shipped/album-art.md Step 3)
-    instagram_caption: str = "qwen38"  # Reel caption line (INSTAGRAM.md Step 3)
-    # Sheep Pen chat (docs/plans/sheep-pen-brief.md): Layer B review runs on the reasoning model
+    instagram_caption: str = "qwen38"  # Reel caption line (docs/shipped/instagram.md Step 3)
+    # Sheep Pen chat (docs/shipped/sheep-pen.md): Layer B review runs on the reasoning model
     # the station already uses for commercials/liners.
     chat_moderation: str = "Ornith-1.5-9B"
     # optional second model tried after repeated moderation failures
@@ -517,7 +517,7 @@ class Requests(BaseModel):
 
 
 class Idle(BaseModel):
-    """Idle policy (docs/plans/idle.md, RADIO §3, §5.3, §6.1).
+    """Idle policy (docs/shipped/idle.md, RADIO §3, §5.3, §6.1).
 
     With no listener heartbeats for `after_s`, the playhead freezes with the
     already-rendered committed window intact and the producers pause (listener
@@ -540,7 +540,7 @@ class Idle(BaseModel):
 
 
 class Cache(BaseModel):
-    """Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §14 "Hot state").
+    """Hot state in Valkey (docs/pending/scalability.md Step 3; RADIO §14 "Hot state").
 
     Selected by the environment (`REDIS_URL`, RADIO §12), tuned here. The
     station publishes programme/state/health/alive every `publish_s` from its
@@ -578,7 +578,7 @@ class Bench(BaseModel):
 
 
 class Voting(BaseModel):
-    """Community request-queue votes (docs/plans/voting.md, RADIO §11, §14).
+    """Community request-queue votes (docs/shipped/voting.md, RADIO §11, §14).
 
     Votes decide which *free* request is written next; paid requests stay ahead
     of every free one, work already in flight is never reordered, and a free
@@ -598,7 +598,7 @@ class Voting(BaseModel):
 
 
 class Ratings(BaseModel):
-    """Five-turkey song ratings (docs/plans/voting.md, RADIO §9.1, §11, §14).
+    """Five-turkey song ratings (docs/shipped/voting.md, RADIO §9.1, §11, §14).
 
     One rating per (epoch, seq, voter): an airing identity, not the item. The
     window is server-authoritative (`voting.rating_window`), with `grace_s` for
@@ -607,7 +607,7 @@ class Ratings(BaseModel):
     per_client_per_10min: int = 60
     max_voters_per_ip: int = 3
     grace_s: float = 5.0             # a rating may land this long after the song ended
-    # docs/plans/voting.md Step 8 (ships off): let ratings weight the recycled-song draw.
+    # docs/shipped/voting.md Step 8 (ships off): let ratings weight the recycled-song draw.
     rotation_weight: bool = False
     rotation_min_votes: int = 5
 
@@ -767,13 +767,13 @@ class Logging(BaseModel):
     file: str = "station.log"
     max_bytes: int = 10485760  # 10 MB
     backups: int = 5
-    # docs/plans/sheep-pen-brief.md §0.5.5: the container overlay selects JSON so Logs Insights
+    # docs/shipped/sheep-pen.md §0.5.5: the container overlay selects JSON so Logs Insights
     # can query the web tier; the Mac keeps the greppable text default.
     format: Literal["text", "json"] = "text"
 
 
 class Metrics(BaseModel):
-    """In-process Prometheus metrics (MONITORING.md; RADIO §11 "Metrics", §12).
+    """In-process Prometheus metrics (docs/shipped/monitoring.md; RADIO §11 "Metrics", §12).
 
     `GET /metrics` on its own socket, started only by `server.main()` and
     `web_app.main()`, so tests, the sim and the e2e servers never open it.
@@ -837,7 +837,7 @@ class Art(BaseModel):
 
 
 class Instagram(BaseModel):
-    """Instagram Reels from aired songs (INSTAGRAM.md; RADIO §8.4, §12). Read
+    """Instagram Reels from aired songs (docs/shipped/instagram.md; RADIO §8.4, §12). Read
     only by `pilgrim/instagram.py` and `pilgrim/tools/post_reel.py`, which the
     operator (or the local agent on the operator's word) runs by hand; nothing
     in playout or production imports them."""
@@ -1001,7 +1001,7 @@ class Sfx(BaseModel):
 
 
 class Chat(BaseModel):
-    """The Sheep Pen (docs/plans/sheep-pen-brief.md; RADIO §11, §12, §14).
+    """The Sheep Pen (docs/shipped/sheep-pen.md; RADIO §11, §12, §14).
 
     One shared room on the Fargate web tier: WebSockets + Valkey Pub/Sub for
     live delivery, Streams for history/replay, Postgres for the durable audit
@@ -1046,7 +1046,7 @@ class Chat(BaseModel):
     spam_offense_limit: int = 5
     spam_offense_window_s: int = 60
     cooldown_ladder_s: list[int] = Field(default_factory=lambda: [300, 900, 3600])
-    retention_days: int = 7        # docs/plans/sheep-pen-brief.md §0.6.4: fixed at 7
+    retention_days: int = 7        # docs/shipped/sheep-pen.md §0.6.4: fixed at 7
     audit_log_group: str = "/aws/pilgrim/chat-audit"
 
     @model_validator(mode="after")
@@ -1060,7 +1060,7 @@ class Chat(BaseModel):
         if self.resync_s <= 0 or self.review_interval_s <= 0:
             raise ValueError("chat.resync_s/review_interval_s must be > 0")
         if self.retention_days != 7:
-            raise ValueError("chat.retention_days is fixed at 7 (docs/plans/sheep-pen-brief.md "
+            raise ValueError("chat.retention_days is fixed at 7 (docs/shipped/sheep-pen.md "
                              "§0.6.4; keep it equal to the terraform chat_log_retention_days)")
         if not self.ban_ladder_s or any(int(s) <= 0 for s in self.ban_ladder_s):
             raise ValueError("chat.ban_ladder_s must be a non-empty list of positive seconds")
@@ -1122,7 +1122,7 @@ class Config(BaseModel):
     @model_validator(mode="after")
     def _validate_idle(self) -> Config:
         """A healthy listener must not be declared absent before its in-memory
-        entry expires (docs/plans/idle.md Step 1): otherwise a player still inside
+        entry expires (docs/shipped/idle.md Step 1): otherwise a player still inside
         `visitors.listener_timeout_s` could be idle while it is audible."""
         if self.idle.after_s < self.visitors.listener_timeout_s:
             raise ValueError(
@@ -1196,7 +1196,7 @@ def _overlay_path() -> Path | None:
 
 def load_config(path: Path | None = None, overlay: Path | None = None) -> Config:
     """config.yaml, with an optional overlay deep-merged on top
-    (docs/plans/scalability.md Step 1).
+    (docs/pending/scalability.md Step 1).
 
     The overlay is `overlay`, else the file named by $PILGRIM_CONFIG_OVERLAY
     (unset or empty = none). It lets a container change binds, ports and data

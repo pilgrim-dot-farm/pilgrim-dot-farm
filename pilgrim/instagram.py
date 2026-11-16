@@ -1,4 +1,4 @@
-"""Instagram Reels for aired songs (INSTAGRAM.md; RADIO §8.4).
+"""Instagram Reels for aired songs (docs/shipped/instagram.md; RADIO §8.4).
 
 Operator-triggered only (`pilgrim/tools/post_reel.py`). Nothing in playout or
 production imports this module. The Graph API is the "Instagram API with

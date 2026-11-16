@@ -1,4 +1,4 @@
-"""Secrets Manager -> environment, for the Fargate web tier (docs/plans/scalability.md
+"""Secrets Manager -> environment, for the Fargate web tier (docs/pending/scalability.md
 Step 5; RADIO §12).
 
 The ECS task definition carries *ARNs*, not values: `DB_PASS_SECRET_ARN`

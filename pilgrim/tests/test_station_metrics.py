@@ -1,5 +1,5 @@
 """pilgrim/station_metrics.py against a real in-memory Station and a canned
-admin-health body (MONITORING.md Step 3). Fakes only: `station.health()` is
+admin-health body (docs/shipped/monitoring.md Step 3). Fakes only: `station.health()` is
 never awaited here because it probes backends (AGENTS §1.2)."""
 from __future__ import annotations
 

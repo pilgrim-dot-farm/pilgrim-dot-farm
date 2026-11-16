@@ -1,4 +1,4 @@
-"""Post an aired song to Instagram Reels (INSTAGRAM.md Step 5; RADIO §8.4).
+"""Post an aired song to Instagram Reels (docs/shipped/instagram.md Step 5; RADIO §8.4).
 
 Operator- or agent-triggered, never a station task. Three modes:
 

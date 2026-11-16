@@ -1,6 +1,6 @@
-"""Layer B: the periodic moderation review worker (docs/plans/sheep-pen-brief.md §6 Layer B).
+"""Layer B: the periodic moderation review worker (docs/shipped/sheep-pen.md §6 Layer B).
 
-Ornith has no tools (docs/plans/sheep-pen-brief.md §0.3). The repo's contract with every LLM is
+Ornith has no tools (docs/shipped/sheep-pen.md §0.3). The repo's contract with every LLM is
 one `chat_json` call in and one strictly validated JSON object out; code does
 everything else. This module gathers the review window, context, author
 dossiers and Layer A flags into the user turn, validates the closed action
@@ -322,7 +322,7 @@ class Reviewer:
 
     # ------------------------------------------------------------ daily sweep
     async def purge(self) -> dict[str, int]:
-        """Null message text older than `retention_days` (docs/plans/sheep-pen-brief.md §0.6.4),
+        """Null message text older than `retention_days` (docs/shipped/sheep-pen.md §0.6.4),
         prune the deleted set, release stale names."""
         cfg = self.cfg.chat
         wall = self.clock.wall()

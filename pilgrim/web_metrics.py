@@ -1,4 +1,4 @@
-"""The Fargate web tier's metrics (MONITORING.md §2; RADIO §11 "Metrics").
+"""The Fargate web tier's metrics (docs/shipped/monitoring.md §2; RADIO §11 "Metrics").
 
 Request counts and latency per route template, what this task sees in the
 cache, its open chat sockets, and whether the separate chat worker process is

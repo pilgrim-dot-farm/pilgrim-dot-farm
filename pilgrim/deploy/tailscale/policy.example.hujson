@@ -1,5 +1,5 @@
 // Tailnet policy for the Pilgrim split (SPLIT_PLAN §6.4) + the VPC bastion
-// (docs/plans/scalability.md Step 8). This mirrors the production policy as applied on
+// (docs/pending/scalability.md Step 8). This mirrors the production policy as applied on
 // 2026-11-05 minus the operator's own nodeAttrs; HuJSON allows comments and
 // trailing commas.
 //
@@ -16,7 +16,7 @@
 {
   "tagOwners": {
     "tag:radio-relay": ["autogroup:admin"],
-    "tag:monitoring":  ["autogroup:admin"], // the NAS (Prometheus + Grafana), MONITORING.md
+    "tag:monitoring":  ["autogroup:admin"], // the NAS (Prometheus + Grafana), docs/shipped/monitoring.md
   },
 
   "hosts": {
@@ -25,14 +25,14 @@
   },
 
   "grants": [
-    // Edge -> origin gateway, 443 only (retired at docs/plans/scalability.md Step 9).
+    // Edge -> origin gateway, 443 only (retired at docs/pending/scalability.md Step 9).
     {"src": ["tag:radio-relay"], "dst": ["pilgrim-origin"], "ip": ["tcp:443"]},
     // Origin -> RDS Postgres + Valkey inside the VPC, through the bastion's
     // subnet route (SNAT on, so the VPC sees the bastion's private IP).
     // Only these two ports; the bastion's own tailnet address is not a dst.
     {"src": ["pilgrim-origin"], "dst": ["pilgrim-vpc"], "ip": ["tcp:5432", "tcp:6379"]},
     // NAS Prometheus -> web tier /metrics inside the VPC, through the
-    // bastion's subnet route (MONITORING.md). Only this port.
+    // bastion's subnet route (docs/shipped/monitoring.md). Only this port.
     {"src": ["tag:monitoring"], "dst": ["pilgrim-vpc"], "ip": ["tcp:9102"]},
     // No edge-to-edge grant. No SSH rules.
   ],

@@ -2,19 +2,18 @@
 
 > *Formerly `SCALABILITY.md`.*
 
-Status: Step 1 (containers) done and pushed as `pilgrimdotfarm/front-end`;
-the Fargate service is up behind the ALB (2026-11-05). Step 8's bastion is the
-old edge host advertising the VPC route (pilgrim/deploy/README.md "Bastion
-subnet router"). Step 2 (Postgres store) is in code: `pilgrim/db.py`,
-`make pg-test`, `make pg-migrate`; the production cutover (deploy README
-"Postgres cutover") has not been run: the station stays on SQLite until the
-web tier can take heartbeats and the programme from Valkey, so Step 3 lands
-first and the cutover is one event. Step 3 (hot state, including Step 4's
-wake flag) is in code: `pilgrim/hotstate.py`, `REDIS_URL`, `cache:`. Step 5
-(the web entry point, `pilgrim/web_app.py`) is in code and is the image's
-command; the running task still needs the LLM/Brave/Stripe secrets and an
-outbound path. Steps 6, 7 and 9 have not started. RADIO.md remains the source of truth; every section this plan
-changes is listed in §5 and is updated in the same commit as the code.
+> **Pending: Steps 6, 7 and the end of 9** (status reviewed 2026-11-16 from the
+> repo, not from AWS; see `PENDING.md` item 2). Done: Step 1 (the web image and
+> Fargate service), Step 2 (the Postgres store, `pilgrim/db.py`, and the
+> production cutover), Steps 3–4 (hot state in Valkey, `pilgrim/hotstate.py`,
+> with the asynchronous wake), Step 5 (`pilgrim/web_app.py`, the public face)
+> and Step 8 (bastion route and infrastructure). Still open: `player.js` keeps
+> its `/api/media` origin fallback (Step 6), `server.py` still builds the
+> public listener on the Mac (Step 7), and the old edge, gateway and interim
+> deploy files are still in the repo (Step 9).
+
+RADIO.md remains the source of truth; every section this plan changes is
+listed in §5 and is updated in the same commit as the code.
 
 ## 0. Target
 
@@ -85,7 +84,7 @@ ask for comes from Valkey, Postgres or CloudFront.
 
 4. **Wake becomes asynchronous** (done inside Step 3). Today
    `GET /api/station/program` thaws a frozen station in the same request
-   (docs/plans/idle.md D2). On the split, Fargate serves the frozen window (always
+   (docs/shipped/idle.md D2). On the split, Fargate serves the frozen window (always
    playable, `on_air` true) and sets the `wake` key; the station takes it on
    its next publish tick and thaws, bumping the revision so the browser's
    next poll picks up the thawed programme. RADIO §3 now says "within

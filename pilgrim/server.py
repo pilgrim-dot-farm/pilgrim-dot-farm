@@ -92,7 +92,7 @@ log = logging.getLogger("radio.server")
 
 class PublicSurface:
     """What the public routes need from whoever serves them (RADIO §11): the
-    station process and the Fargate web tier (docs/plans/scalability.md Step 5,
+    station process and the Fargate web tier (docs/pending/scalability.md Step 5,
     `pilgrim/web_app.py`) both inherit this. Client identity through the
     trusted-proxy chain (RADIO §14), the visitor counter, and the Stripe
     setup (docs/shipped/payments.md). Requires `cfg`, `db` and `clock` on the instance;
@@ -160,7 +160,7 @@ class PublicSurface:
         are ignored so a spoof cannot reach the visitor counter."""
         peer = request.client.host if (request.client and request.client.host) else None
         if self.cfg.visitors.is_trusted(self._canonical_ip(peer)):
-            # Behind Cloudflare -> ALB (docs/plans/scalability.md Step 5) the browser IP
+            # Behind Cloudflare -> ALB (docs/pending/scalability.md Step 5) the browser IP
             # is CF-Connecting-IP; X-Forwarded-For may start with whatever the
             # browser sent, since Cloudflare appends rather than replaces.
             header = (request.headers.get("cf-connecting-ip")
@@ -288,7 +288,7 @@ class Station(PublicSurface):
         # with the listener map; transitions are logged (`listener.telemetry`)
         # so background/lock behaviour on phones is visible after the fact.
         self._player_tel: dict[str, dict] = {}
-        # docs/plans/idle.md (RADIO §3): the playhead freezes and production pauses when
+        # docs/shipped/idle.md (RADIO §3): the playhead freezes and production pauses when
         # nobody has been listening for `idle.after_s`. Policy lives here; the
         # mechanics are Scheduler.freeze()/thaw().
         self._idle_since: float | None = None
@@ -311,7 +311,7 @@ class Station(PublicSurface):
             self.clock, prompts=_load_prompts(cfg), media_dir=self.media_dir,
             api_key=api_key, rng=self.rng, news_pipeline=self.news, sfx=self.sfx,
             idle=self.is_idle)
-        # Hot state in Valkey (docs/plans/scalability.md Step 3; RADIO §14). Enabled by
+        # Hot state in Valkey (docs/pending/scalability.md Step 3; RADIO §14). Enabled by
         # REDIS_URL; the client connects lazily so construction never fails.
         # Published from hot_loop() (own task, hard rule 1), never from playout.
         self.hot: HotState | None = None
@@ -467,11 +467,11 @@ class Station(PublicSurface):
             "song_realtime": round(self.songs.generation_rate, 2),
             "art": self.art_health(),
             "time": time.time(),
-            # docs/plans/idle.md D10: operator visibility. `on_air` stays true while frozen
+            # docs/shipped/idle.md D10: operator visibility. `on_air` stays true while frozen
             # (coverage > 0), so PLAY is never disabled by idle.
-            # docs/plans/scalability.md Step 2: which store engine this process opened (RADIO §14)
+            # docs/pending/scalability.md Step 2: which store engine this process opened (RADIO §14)
             "db": {**db_env_summary(), "engine": self.db.dialect},
-            # docs/plans/scalability.md Step 3: the hot-state publisher (RADIO §14)
+            # docs/pending/scalability.md Step 3: the hot-state publisher (RADIO §14)
             "cache": self.hot.summary() if self.hot is not None else {"enabled": False},
             "idle": {"idle": self.is_idle(),
                      "since": self._idle_since,
@@ -498,7 +498,7 @@ class Station(PublicSurface):
         else:
             items = scheduler.store.program_after(after_seq)
             start_offset = 0.0
-        # docs/plans/ratings.md Step 2 (docs/plans/voting.md V10): every song row carries its
+        # docs/shipped/ratings.md Step 2 (docs/shipped/voting.md V10): every song row carries its
         # lifetime aggregate so the client can show it the instant the song
         # is audible. One batch query; non-songs and disabled ratings send 0/null.
         song_ids = [it["item_id"] for it in items if it["type"] == "song"]
@@ -546,21 +546,21 @@ class Station(PublicSurface):
                 "current_art_url": art,
                 "current_offset_s": round(offset, 3),
                 "prepared_cutover": None, "listeners": self.active_listeners(),
-                # docs/plans/idle.md D10: public clients can show the freeze (PLAY is never
+                # docs/shipped/idle.md D10: public clients can show the freeze (PLAY is never
                 # disabled by it: on_air stays true while coverage > 0).
                 "idle": self.is_idle(),
-                # docs/plans/voting.md: the on-air song's rating window + lifetime aggregate
+                # docs/shipped/voting.md: the on-air song's rating window + lifetime aggregate
                 # (`null` when ratings are disabled). Voter-independent, so the
                 # shared max-age=1 cache stays correct.
                 "rating": self._public_rating(seq)}
 
-    # ------------------------------------------------------------- idle (docs/plans/idle.md)
+    # ------------------------------------------------------------- idle (docs/shipped/idle.md)
     def is_idle(self) -> bool:
         """True while the playhead is frozen (no listeners for idle.after_s)."""
         return self.scheduler.frozen
 
     def wake(self, reason: str) -> None:
-        """Thaw the frozen station. Synchronous by design (docs/plans/idle.md D2/rule 1):
+        """Thaw the frozen station. Synchronous by design (docs/shipped/idle.md D2/rule 1):
         it only touches already-rendered inventory, so the request that woke it
         returns a playable programme in the same response. No-op when awake.
 
@@ -597,7 +597,7 @@ class Station(PublicSurface):
                                         "coverage_s": round(self.scheduler.coverage(), 1)})
 
     async def idle_loop(self) -> None:
-        """Freeze when nobody is listening (docs/plans/idle.md D1); wake is immediate, on
+        """Freeze when nobody is listening (docs/shipped/idle.md D1); wake is immediate, on
         the program/heartbeat/admin request, never on a poll. server.py may use
         asyncio.sleep; the scheduler may not (hard rule 3)."""
         while True:
@@ -625,7 +625,7 @@ class Station(PublicSurface):
         prev = self._previous_row()
         if prev is not None:
             # The published rows start at the on-air row, so the web tier's
-            # rating grace (docs/plans/voting.md V8; docs/plans/ratings.md Step 1) also needs the
+            # rating grace (VOTING V8; FIX_RATINGS Step 1) also needs the
             # row that just ended. Cache document only: the web tier strips it
             # from the HTTP response, so RADIO §11 is unchanged.
             program["prev"] = prev
@@ -645,7 +645,7 @@ class Station(PublicSurface):
             self.wake(f"cache:{result['wake']}")
 
     async def hot_loop(self) -> None:
-        """Publish hot state every `cache.publish_s` (docs/plans/scalability.md Step 3).
+        """Publish hot state every `cache.publish_s` (docs/pending/scalability.md Step 3).
         The network call runs in a worker thread so a slow cache never stalls
         the event loop; a failure is logged by HotState and retried next tick."""
         assert self.hot is not None
@@ -677,7 +677,7 @@ class Station(PublicSurface):
                 "type": r["type"], "duration_s": float(r["duration_s"])}
 
     def _public_rating(self, seq: int | None) -> dict | None:
-        """The on-air item's rating window + lifetime aggregate (docs/plans/voting.md V10).
+        """The on-air item's rating window + lifetime aggregate (docs/shipped/voting.md V10).
         Zeroes when the on-air row is not a song; null when ratings are off."""
         if not self.cfg.ratings.enabled:
             return None
@@ -767,14 +767,14 @@ class Station(PublicSurface):
             self._last_listener_at = self.clock.now()
             if self.hot is not None and player_id not in self.hot._pending_players:
                 self.hot.queue_player(player_id, {})
-            # docs/plans/idle.md D2: a heartbeat is a listener; wake before the handler
+            # docs/shipped/idle.md D2: a heartbeat is a listener; wake before the handler
             # reads anything so the response reflects the thawed programme.
             self.wake("heartbeat")
 
     def listener_count(self) -> int:
         """Live players, read-only: the same union `active_listeners()`
         returns, without pruning, so a metrics tick never mutates station
-        state (MONITORING.md §6 rule 6). Stale entries leave on the next
+        state (docs/shipped/monitoring.md §6 rule 6). Stale entries leave on the next
         heartbeat, which is where they are pruned today."""
         return len(set(self._listeners) | self._remote_listeners)
 
@@ -1299,7 +1299,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
 
     def _board() -> dict:
         """The public board, with the voting fields and bury policy applied
-        (docs/plans/voting.md §1/§2). Every handler that returns the board uses this so a
+        (docs/shipped/voting.md §1/§2). Every handler that returns the board uses this so a
         mixed-version deploy cannot show a row without its score."""
         return station.db.request_board(
             cfg.requests.queue_cap, cfg.requests.max_length,
@@ -1316,7 +1316,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     async def program(after_seq: int | None = Query(default=None, ge=0),
                       epoch: str | None = Query(default=None, max_length=64),
                       revision: int | None = Query(default=None, ge=0)):
-        # docs/plans/idle.md D2: PLAY is a program fetch with no cursor. Wake first, then
+        # docs/shipped/idle.md D2: PLAY is a program fetch with no cursor. Wake first, then
         # build the response, so the waking request already gets a playable
         # programme (thaw only touches rendered inventory: hard rule 1).
         station.wake("program")
@@ -1333,7 +1333,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     async def station_cats():
         """The rotating live-cover pool (RADIO §9.1, §11). Reads the
         filesystem only, never station state: it does not wake a frozen
-        station (docs/plans/idle.md)."""
+        station (docs/shipped/idle.md)."""
         return JSONResponse({"cats": cat_manifest(cfg)},
                             headers={"Cache-Control": "no-store"})
 
@@ -1471,12 +1471,12 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
                              "voting_enabled": cfg.voting.enabled},
                             headers={"Cache-Control": "public, max-age=2"})
 
-    # ------------------------------------------- community voting (docs/plans/voting.md §2)
+    # ------------------------------------------- community voting (docs/shipped/voting.md §2)
     @app.post("/api/requests/{request_id}/vote")
     async def vote_request(request_id: int, payload: voting.VoteIn,
                            request: Request):
         """+1/-1/0 (retract) on a free request. POST only: the gateway has no
-        limit_req zone for PUT/DELETE (docs/plans/voting.md §0.1)."""
+        limit_req zone for PUT/DELETE (docs/shipped/voting.md §0.1)."""
         if not cfg.voting.enabled:
             raise HTTPException(404, "not found")
         if _vote_rate_limited(request):
@@ -1490,7 +1490,7 @@ def _add_public_routes(app: FastAPI, station: PublicSurface,
     @app.post("/api/station/rating")
     async def rate_song(payload: voting.RatingIn, request: Request):
         """Five turkeys for the on-air song. The window is server-authoritative
-        (docs/plans/voting.md V8); the client only hides the control."""
+        (docs/shipped/voting.md V8); the client only hides the control."""
         if not cfg.ratings.enabled:
             raise HTTPException(404, "not found")
         if _rating_rate_limited(request):
@@ -1758,7 +1758,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
         if not cfg.dj.enabled:
             raise HTTPException(403, detail={
                 "code": "dj_disabled", "detail": "DJ control is disabled"})
-        # docs/plans/idle.md D2: an operator mutation is a human presence; wake first so
+        # docs/shipped/idle.md D2: an operator mutation is a human presence; wake first so
         # the splice lands in a running programme, not a frozen window.
         station.wake("dj")
         seq = station.scheduler.place_song_next(int(payload.media_id))
@@ -1771,7 +1771,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
 
     @app.get("/api/admin/voting", dependencies=[Depends(require_dj)])
     async def admin_voting(limit: int = Query(default=100, ge=1, le=500)):
-        """Audit only (docs/plans/voting.md §2): recent votes and ratings, plus the
+        """Audit only (docs/shipped/voting.md §2): recent votes and ratings, plus the
         currently buried free rows. Never exposes voter ids or IPs."""
         threshold = cfg.voting.bury_threshold
         return {"votes": station.db.recent_votes(limit),
@@ -1814,7 +1814,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
             if item.replay_of is not None:
                 opts.update(replay_of=item.replay_of, reuse_lyrics=item.reuse_lyrics)
             row = station.db.add_bench_request(text, paid=item.paid, opts=opts, parts=parts)
-            if not item.paid:  # paid rows are not votable (docs/plans/voting.md V4)
+            if not item.paid:  # paid rows are not votable (docs/shipped/voting.md V4)
                 for v in range(abs(item.votes)):
                     station.db.cast_request_vote(
                         int(row["id"]), f"bench-{body.run}-{i}-{v}", None,
@@ -1962,7 +1962,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
             "mismatches": station.db.mismatch_events(50),
         }
 
-    # ---- The Sheep Pen (docs/plans/sheep-pen-brief.md §0.5.2, §10). These routes exist only on
+    # ---- The Sheep Pen (docs/shipped/sheep-pen.md §0.5.2, §10). These routes exist only on
     # the Mac's loopback admin listener, behind require_dj. They act by writing
     # to Valkey (events stream + PUBLISH), which every Fargate task observes.
     # The web tier has no admin routes (_add_api_404 answers 404). ----
@@ -2011,7 +2011,7 @@ def _add_admin_routes(app: FastAPI, station: Station) -> None:
 
     @app.get("/api/admin/chat/state", dependencies=[Depends(require_dj)])
     async def admin_chat_state():
-        """Backlog, cursor, switches and recent decisions (docs/plans/sheep-pen-brief.md §10)."""
+        """Backlog, cursor, switches and recent decisions (docs/shipped/sheep-pen.md §10)."""
         await _chat_actions()
         cache: ChatStore = _chat["cache"]
         try:
@@ -2236,7 +2236,7 @@ def main() -> None:
 
     async def _serve() -> None:
         await station.startup()  # exactly once per process
-        station_metrics.start(cfg, station)  # MONITORING.md: own socket + task
+        station_metrics.start(cfg, station)  # docs/shipped/monitoring.md: own socket + task
         await asyncio.gather(*(s.serve() for s in servers))
 
     asyncio.run(_serve())

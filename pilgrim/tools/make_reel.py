@@ -1,10 +1,10 @@
-"""Instagram Reel builder (docs/shipped/album-art.md Step 11, INSTAGRAM.md Step 2; RADIO §8.4).
+"""Instagram Reel builder (ALBUM_ART Step 11, INSTAGRAM Step 2; RADIO §8.4).
 
 Inputs come from S3 **through CloudFront** — the song's published MP3 and its
 published cover JPEG — which proves the published copies are good. ffmpeg
 only; posting lives in `pilgrim/tools/post_reel.py`.
 
-Two layouts (INSTAGRAM.md D2):
+Two layouts (docs/shipped/instagram.md D2):
   vertical  1080x1920: the art blurred and darkened to fill the frame, the
             sharp 1080x1080 art centred on top. `make reel` default.
   square    1024x1024: the art as-is (no crop, no blur, no text); the layout

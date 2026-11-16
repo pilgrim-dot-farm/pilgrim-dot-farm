@@ -100,5 +100,5 @@ services:
     start: ./run_server.sh
     ports: [8000]
     budget_s: 300
-    watch: false             # down since 2026-11 by operator decision (docs/backlog/sfx-bug.md)
+    watch: false             # down since 2026-11 by operator decision (docs/pending/sfx-bug.md)
     blocked_by: {host: spx1, port: 8888}

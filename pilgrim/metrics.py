@@ -1,4 +1,4 @@
-"""In-process Prometheus metrics (MONITORING.md; RADIO §11 "Metrics").
+"""In-process Prometheus metrics (docs/shipped/monitoring.md; RADIO §11 "Metrics").
 
 A tiny registry, the text exposition format, a logging handler that turns the
 station's dotted log events into counters, and a stdlib HTTP server on its own

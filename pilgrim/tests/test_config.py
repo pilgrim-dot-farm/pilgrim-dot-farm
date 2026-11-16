@@ -1,4 +1,4 @@
-"""Config loading for the new sections (docs/plans/idle.md Step 1, docs/plans/voting.md §2).
+"""Config loading for the new sections (docs/shipped/idle.md Step 1, docs/shipped/voting.md §2).
 
 `test_trusted_proxies.py` covers only `Visitors`; this module is the general
 config test surface (defaults, validation, YAML wiring).
@@ -29,7 +29,7 @@ def test_voting_and_ratings_defaults():
 
 
 def test_idle_after_s_must_cover_listener_timeout():
-    """docs/plans/idle.md Step 1: a healthy listener must not be declared absent before
+    """docs/shipped/idle.md Step 1: a healthy listener must not be declared absent before
     its in-memory entry expires."""
     with pytest.raises(ValidationError):
         Config(idle=Idle(after_s=10), visitors={"listener_timeout_s": 15,
@@ -61,7 +61,7 @@ def test_ratings_limits():
     assert Ratings(rotation_weight=True).rotation_weight is True
 
 
-# --- config overlay (docs/plans/scalability.md Step 1) -------------------------------
+# --- config overlay (docs/pending/scalability.md Step 1) -------------------------------
 
 def test_overlay_deep_merges_and_keeps_the_rest(tmp_path, monkeypatch):
     monkeypatch.delenv("PILGRIM_CONFIG_OVERLAY", raising=False)

@@ -495,13 +495,13 @@
     setCoverArt(it, named);
     setDownload(named ? it : null);
     if (playing) setMediaSession(named ? it : null);
-    // docs/plans/voting.md §4/§5: one hook for the rating row. The detail is the song that
+    // docs/shipped/voting.md §4/§5: one hook for the rating row. The detail is the song that
     // is AUDIBLE now (audio clock), never the next one; null when nothing is.
     // rating.js ignores repeats of the same airing.
     document.dispatchEvent(new CustomEvent("pd:nowplaying", {
       detail: named ? { epoch, seq: it.seq, media_id: it.media_id,
                         title: it.title, artist: it.artist,
-                        // docs/plans/ratings.md Step 3: the lifetime aggregate rides
+                        // docs/shipped/ratings.md Step 3: the lifetime aggregate rides
                         // on the programme row (RADIO §11), so the rating row
                         // can show it the instant the song is audible.
                         rating_count: it.rating_count || 0,
@@ -899,7 +899,7 @@
     clearSongLabel();
     setCoverArt(null, false);
     setDownload(null);
-    // docs/plans/voting.md: STOP closes the rating row immediately.
+    // docs/shipped/voting.md: STOP closes the rating row immediately.
     document.dispatchEvent(new CustomEvent("pd:nowplaying", { detail: null }));
     btn.textContent = "▶  PLAY"; btn.classList.remove("stop");
     setState("idle"); lctx.clearRect(0, 0, level.width, level.height);
