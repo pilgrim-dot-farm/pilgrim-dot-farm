@@ -23,7 +23,7 @@ def test_get_item_cache_hits_and_invalidates(tmp_env):
 
 
 def test_cache_is_bounded(tmp_env, monkeypatch):
-    import pilgrim.store as st
+    import pilgrim.store.items as st
     _, s, _ = tmp_env
     monkeypatch.setattr(st, "ITEM_CACHE_MAX", 3)
     ids = [s.add_item(type_="liner", media_path=f"/{i}.mp3", duration_s=1.0) for i in range(5)]
@@ -35,7 +35,7 @@ def test_cache_is_bounded(tmp_env, monkeypatch):
 def test_cache_entries_expire_so_other_processes_writes_show_up(tmp_env, monkeypatch):
     """tools/art_backfill writes items from another process: no in-process
     invalidation, so the TTL is what makes the station see it."""
-    import pilgrim.store as st
+    import pilgrim.store.items as st
     from pilgrim.db import open_store
     cfg, s, tmp = tmp_env
     iid = s.add_item(type_="song", media_path="/t.mp3", duration_s=10.0, title="T")

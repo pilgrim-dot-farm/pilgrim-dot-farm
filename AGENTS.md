@@ -117,11 +117,11 @@ note it.
 - Validation: pydantic models for config, LLM JSON outputs, and API payloads.
 - Audio: `soundfile` + `numpy` for QC; **ffmpeg CLI** for two-pass `loudnorm`,
   silence trimming, and FLAC encoding.
-- Storage: one engine-neutral `store.py` (docs/pending/scalability.md Step 2, RADIO §14):
+- Storage: one engine-neutral `Store` (the `pilgrim/store/` package) (docs/pending/scalability.md Step 2, RADIO §14):
   SQLite (`station.db`, stdlib `sqlite3`) for tests, sim and dev; PostgreSQL
   (RDS, psycopg 3) in production when `DATABASE_URL` is set. Engine
   differences live only in `pilgrim/db.py`; never branch on the engine inside
-  `store.py`. Media files on disk under `pilgrim/library/`.
+  `pilgrim/store/`. Media files on disk under `pilgrim/library/`.
 - Web: plain HTML/CSS/JS, **no build step, no framework**.
 - Tests: pytest, pytest-asyncio; Playwright for the client gap test.
 
@@ -289,7 +289,7 @@ continue.
   stop. Sessions without the `pg-` prefix are the operator's; never kill
   them. Box run scripts are human-owned: never edit one from here.
 - **Deploy the web tier before a queue benchmark.** The Fargate web tier runs
-  its own copy of `store.py`; an image older than 2026-11-14 does not filter
+  its own copy of `pilgrim/store/`; an image older than 2026-11-14 does not filter
   `bench=1` rows off the public board (RADIO §14).
 - **`/metrics` has its own port and only `main()` opens it** (docs/shipped/monitoring.md):
   `9101` on the Mac, `9102` in the container. Never mount it on the public or

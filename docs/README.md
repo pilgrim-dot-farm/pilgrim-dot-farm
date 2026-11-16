@@ -84,7 +84,7 @@ record names the commit.
 | Server | `pilgrim/server.py` | §11 |
 | Web tier | `pilgrim/web_app.py` | §11 "Web tier" |
 | Config | `pilgrim/config.yaml`, `pilgrim/config.py` | §12 |
-| Storage | `pilgrim/store.py`, `pilgrim/db.py`, `pilgrim/hotstate.py` | §14 |
+| Storage | `pilgrim/store/`, `pilgrim/db.py`, `pilgrim/hotstate.py` | §14 |
 | Paid requests | `pilgrim/payments.py` | §11 |
 | Sheep Pen chat | `pilgrim/chat/`, `pilgrim/chat_worker.py` | §11, §14 |
 | DJ console | `pilgrim/tui/` | `systems/console.md` |

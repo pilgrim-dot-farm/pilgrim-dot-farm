@@ -8,7 +8,7 @@ Fresh songs air first; recycled songs are drawn by a weight that favours the
 young and the long-unheard; the airplay ledger persists so a restart does not
 reset rotation. Normative behaviour: RADIO §5.2, §7, §14. Code: the recycled
 song weights in `pilgrim/config.yaml` (`songs`), `pilgrim/selector.py`, and
-the airplay ledger and freshness queries in `pilgrim/store.py`.
+the airplay ledger and freshness queries in `pilgrim/store/`.
 
 > Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy
 > handoff) is in git: `git show c712f27:docs/shipped/priorities.md`. Section numbers cited in code

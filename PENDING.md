@@ -33,7 +33,8 @@ parked it (2026-11-16); do not start it.**
 
 Before it is picked up again, check its code blocks against the tree: it was
 written against `pilgrim/producer.py` and `pilgrim/store.py` as they were on
-2026-11-15.
+2026-11-15. `store.py` has since become the `pilgrim/store/` package (same
+`Store` class and methods, one module per group of tables).
 
 ## 2. Finish the VPC move
 

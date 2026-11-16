@@ -1516,7 +1516,7 @@ the render and dead-air histograms. Metric names use the `pilgrim_` prefix
 The catalogue is docs/shipped/monitoring.md §2. No label carries a player id, voter id, IP,
 title, URL, request id or chat text; the registry refuses those label names.
 The metrics modules never import `scheduler.py`, `producer.py`, `selector.py`,
-`payments.py`, `store.py` or `db.py`, and a failure in them is logged
+`payments.py`, `pilgrim/store/` or `db.py`, and a failure in them is logged
 (`metrics.refresh_failed`, `metrics.disabled`), never raised.
 
 **Web tier (docs/pending/scalability.md Step 5; `pilgrim/web_app.py`).** On Fargate the
@@ -1659,7 +1659,7 @@ but below minimums the station leans heavily on filler.
 ## 14. Storage
 
 **Engine (docs/pending/scalability.md Step 2).** The schema below is one schema on two
-engines. `pilgrim/store.py` writes every statement once, in SQLite's flavour
+engines. `pilgrim/store/` writes every statement once, in SQLite's flavour
 (`?` placeholders, INTEGER flags, TEXT ISO timestamps, REAL epochs,
 `RETURNING` for new ids, `ON CONFLICT` upserts, `LOWER()` for
 case-insensitive search), and `pilgrim/db.py` runs it on either engine:
@@ -1889,7 +1889,7 @@ a `song_item_id`. `request_board`, `request_counts`, `waiting_free_requests`
 and `pending_requests` exclude `bench=1`; the producer's queue queries
 (`queued_requests`, `next_request_to_produce`) include it, which is the point.
 `purge_bench_requests` deletes the rows and their `request_votes`. The web
-tier runs the same `store.py`, so its image must carry these filters before a
+tier runs the same `pilgrim/store/`, so its image must carry these filters before a
 benchmark is run, or bench rows show on the public board.
 
 **The three boxes (docs/shipped/prompt-upgrade.md).** `lyrics_text`, `music_text` and
@@ -2146,7 +2146,8 @@ pilgrim/
   scheduler.py             # playout: committed window, freeze/thaw (§5)
   selector.py              # RandomSelector, a pure function of (state, rng)
   producer.py              # inventory targets and host workers (§6)
-  store.py, db.py          # storage (§14); db.py holds every SQLite/Postgres difference
+  store/, db.py            # storage (§14): Store, one module per group of tables;
+                           # db.py holds every SQLite/Postgres difference
   hotstate.py              # hot state published to Valkey (§14)
   voting.py, payments.py, promotions.py, album_art.py, instagram.py
   metrics.py, station_metrics.py, web_metrics.py   # /metrics (§11 "Metrics")

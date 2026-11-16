@@ -12,7 +12,7 @@ NOW QUEUED board, which orders the free line. Normative behaviour: RADIO §5.2,
 §6.1, §9.1, §9.2, §11, §12, §14, §15.
 
 Code: `pilgrim/voting.py`, the vote and rating tables and queries in
-`pilgrim/store.py`, `pilgrim/web/rating.js`, `votes.js`, `voter.js`,
+`pilgrim/store/`, `pilgrim/web/rating.js`, `votes.js`, `voter.js`,
 `requests.js`, `voting:` and `ratings:` in `pilgrim/config.yaml`.
 
 > Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy

@@ -55,7 +55,7 @@ revision identity that the DJ console and clients share.
 | Producer | `pilgrim/producer.py` | Demand-driven refill of inventory targets; host workers; request queue; song concurrency | §6, `shipped/song-concurrency.md` |
 | Pipelines | `pilgrim/pipelines/` | Songs, voice, news, SFX, cover art | §6 |
 | Audio | `pilgrim/audio/` | QC, silence trim, two-pass `loudnorm`, FLAC/MP3 encode | §8 |
-| Store | `pilgrim/store.py`, `pilgrim/db.py` | One engine-neutral schema on SQLite (tests/sim/dev) and Postgres (prod) | §14 |
+| Store | `pilgrim/store/`, `pilgrim/db.py` | One engine-neutral schema on SQLite (tests/sim/dev) and Postgres (prod) | §14 |
 | Hot state | `pilgrim/hotstate.py` | Publishes programme/state/health/stages and `player:*`/`wake` keys to Valkey for the web tier | §14 "Hot state" |
 | Media publisher | `pilgrim/media_publish.py` | Uploads finished media to the public S3 bucket behind CloudFront | §8.4 |
 | Server | `pilgrim/server.py` | Public + admin HTTP listeners; all routes in §11 | §11 |
@@ -98,7 +98,7 @@ air (`AGENTS.md` §10).
 
 ## 6. Storage in one paragraph
 
-One schema, two engines. `pilgrim/store.py` writes every statement once;
+One schema, two engines. `pilgrim/store/` writes every statement once;
 `pilgrim/db.py` translates for Postgres when `DATABASE_URL` is set. SQLite
 (`station.db`) is for tests, simulation and the single-host dev run; Postgres
 (RDS) is production, written by the Mac origin and read/written by the web
