@@ -672,7 +672,7 @@ def test_board_shows_song_title_once_ready(tmp_env, monkeypatch):
 
 
 async def test_backfill_replaces_raw_text_labels(tmp_env, monkeypatch):
-    from pilgrim.server import _backfill_paid_summaries, _fallback_summary
+    from pilgrim.api.paid import _backfill_paid_summaries, _fallback_summary
     _, _, station, _ = _build(tmp_env, monkeypatch)
     db = station.db
     long_text = "There is still fun to be had here. " * 10

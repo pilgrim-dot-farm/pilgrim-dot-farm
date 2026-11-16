@@ -7,7 +7,7 @@ health and request stages come from the hot-state keys the station publishes
 Postgres, and heartbeats go back into Valkey as `player:<id>` keys plus an
 `airplay` row per heartbeat (operator decision: 5 s precision).
 
-It reuses `server._add_public_routes` unchanged, so every public route keeps
+It reuses `api.public.add_public_routes` unchanged, so every public route keeps
 the RADIO §11 shape; `WebStation` is the object those routes call, backed by
 the cache instead of a scheduler. What the EC2 edge used to do moves here:
 off-air bodies when the station's `alive` key is missing (503
@@ -37,6 +37,7 @@ from fastapi.responses import JSONResponse
 
 from pilgrim import dj_contracts as dj
 from pilgrim import web_metrics
+from pilgrim.api.public import add_public_routes
 from pilgrim.aws_secrets import STRIPE_SECRET_ARN_ENV, export_secret_env
 from pilgrim.chat.audit import AuditLog
 from pilgrim.chat.hub import ChatHub
@@ -56,7 +57,6 @@ from pilgrim.pipelines.moderation import Moderation
 from pilgrim.server import (
     PublicSurface,
     _add_api_404,
-    _add_public_routes,
     _load_prompts,
     _mount_web,
     _new_app,
@@ -144,7 +144,7 @@ class _Stages:
 
 
 class WebStation(PublicSurface):
-    """What `_add_public_routes` calls, backed by Valkey + Postgres."""
+    """What `add_public_routes` calls, backed by Valkey + Postgres."""
 
     def __init__(self, cfg: Config, store: Store, hot: HotState, api_key: str) -> None:
         self.cfg = cfg
@@ -267,7 +267,7 @@ def create_web_app(cfg: Config, station: WebStation) -> FastAPI:
         return JSONResponse(status_code=503, content=dict(OFF_AIR_BODY),
                             headers={"Cache-Control": "no-store"})
 
-    _add_public_routes(app, station, _web_health)
+    add_public_routes(app, station, _web_health)
     # The Sheep Pen (docs/shipped/sheep-pen.md §0.7.2): registered before the HTTP-only
     # 404 catch-all so the WebSocket route is reachable.
     if cfg.chat.enabled and station.chat_cache is not None and station.chat_hub is not None:

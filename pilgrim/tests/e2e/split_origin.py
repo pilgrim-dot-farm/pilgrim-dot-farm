@@ -23,12 +23,11 @@ from pathlib import Path
 
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
+from pilgrim.api.public import _public_health, add_public_routes
 from pilgrim.config import Config, Visitors, ensure_dirs, load_config
 from pilgrim.server import (
     _add_api_404,
-    _add_public_routes,
     _new_app,
-    _public_health,
     build_station,
     create_admin_app,
     listener_configs,
@@ -75,14 +74,14 @@ def _fixture_public_app(cfg: Config, station):
     """The real public app, plus a test-only cover-art route.
 
     Built from the same pieces as `create_public_app`, in the same order
-    (`_add_public_routes`, then the art route, then the /api 404 catch-all),
+    (`add_public_routes`, then the art route, then the /api 404 catch-all),
     so route precedence matches production. With PILGRIM_E2E_ART_BASE set the
     seeded songs are marked published under `api/art/<id>`, which the real
     `art_url` turns into `<edge>/api/art/<id>`.
     """
     app = _new_app("Pilgrim Dot Farm Radio (e2e split origin)")
     app.state.station = station
-    _add_public_routes(app, station, _public_health)
+    add_public_routes(app, station, _public_health)
 
     if cfg.media.public_base_url and os.environ.get("PILGRIM_E2E_ART_BASE"):
         for it in station.db.list_items("song"):

@@ -24,6 +24,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pilgrim import voting
+from pilgrim.api.public import cat_manifest
 from pilgrim.audio.normalize import encode_mp3
 from pilgrim.chat.actions import ChatActions
 from pilgrim.chat.audit import NullAudit
@@ -34,7 +35,7 @@ from pilgrim.chat.routes import register_chat_routes
 from pilgrim.config import RNG, Clock, Config, ensure_dirs, load_config
 from pilgrim.scheduler import Scheduler
 from pilgrim.selector import make_selector
-from pilgrim.server import _load_prompts, cat_manifest
+from pilgrim.server import _load_prompts
 from pilgrim.store import Store
 from pilgrim.tests.fakes import FakeLLM
 from pilgrim.tests.fakes.fake_flux import encode_png

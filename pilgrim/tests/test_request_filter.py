@@ -114,7 +114,7 @@ def test_rate_limited_after_fourth_request(tmp_env):
 
 
 def test_free_request_gate_interval_and_release():
-    from pilgrim.server import FreeRequestGate
+    from pilgrim.api.limits import FreeRequestGate
 
     t = {"now": 1000.0}
     gate = FreeRequestGate(600.0, now=lambda: t["now"])
