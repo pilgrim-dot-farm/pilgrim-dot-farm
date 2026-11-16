@@ -52,7 +52,7 @@ revision identity that the DJ console and clients share.
 |-----------|------|--------------|-----|
 | Scheduler | `pilgrim/scheduler.py` | Keeps the committed window full on the origin clock; freezes/thaws; splices requests and operator actions | §5, `plans/idle.md` |
 | Selector | `pilgrim/selector.py` | Pure function `(state, rng) → next item`; spacing, gravity, freshness, recycling | §5 |
-| Producer | `pilgrim/producer.py` | Demand-driven refill of inventory targets; host workers; request queue; song concurrency | §6, `shipped/song-concurrency.md` |
+| Producer | `pilgrim/producer/` | Demand-driven refill of inventory targets; host workers; request queue; song concurrency | §6, `shipped/song-concurrency.md` |
 | Pipelines | `pilgrim/pipelines/` | Songs, voice, news, SFX, cover art | §6 |
 | Audio | `pilgrim/audio/` | QC, silence trim, two-pass `loudnorm`, FLAC/MP3 encode | §8 |
 | Store | `pilgrim/store/`, `pilgrim/db.py` | One engine-neutral schema on SQLite (tests/sim/dev) and Postgres (prod) | §14 |

@@ -2142,10 +2142,12 @@ All application and test code is under `pilgrim/`. The repo root holds
 pilgrim/
   config.yaml, config.py   # configuration and its schema (§12)
   server.py                # the station process: Station, public + admin apps (§11)
+  api/                     # the HTTP routes: public, paid, admin, limits (§11)
   web_app.py               # Fargate web tier: the public routes over Valkey + Postgres
   scheduler.py             # playout: committed window, freeze/thaw (§5)
   selector.py              # RandomSelector, a pure function of (state, rng)
-  producer.py              # inventory targets and host workers (§6)
+  producer/                # inventory targets and host workers (§6): Producer, one
+                           # module per content type (talk, promos, sfx, songs)
   store/, db.py            # storage (§14): Store, one module per group of tables;
                            # db.py holds every SQLite/Postgres difference
   hotstate.py              # hot state published to Valkey (§14)

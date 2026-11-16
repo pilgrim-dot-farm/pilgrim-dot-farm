@@ -8,7 +8,7 @@ A diagnosis of the station's between-song talk (variety, clock accuracy,
 self-promotion) and the overhaul that followed. Normative behaviour: RADIO
 §4, §5.2, §5.3, §6.1, §6.3, §10, §11, §12, §15.
 
-Code: `pilgrim/producer.py` (DJ talk, time checks, promos),
+Code: `pilgrim/producer/` (DJ talk, time checks, promos),
 `pilgrim/pipelines/voice.py`, `pilgrim/pipelines/clocktime.py`,
 `pilgrim/promotions.py`, `pilgrim/prompts/voice.md`, `promo.md`,
 `pilgrim/bible/`. The diagnoses (§1–§4), the full proposition (§5) and the

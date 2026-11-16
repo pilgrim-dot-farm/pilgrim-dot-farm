@@ -35,7 +35,7 @@ If a task cannot be done without breaking one, stop and report.
    (§6 below).
 3. **No direct `time.time()`, `datetime.now()`, `asyncio.sleep()` for
    scheduling, or `random` in `pilgrim/scheduler.py`, `pilgrim/selector.py`, or
-   `pilgrim/producer.py`.** Use the injected `Clock` and RNG. This is what makes the
+   `pilgrim/producer/`.** Use the injected `Clock` and RNG. This is what makes the
    24-hour simulation possible.
 4. **All hosts, ports, model names, weights, and targets come from
    `pilgrim/config.yaml`.** No hardcoded addresses anywhere else.
@@ -64,7 +64,7 @@ If a task cannot be done without breaking one, stop and report.
     never recycled. Enforce this in code, not just in prompts.
 11. **Payments never touch playout, and the browser is never trusted about
     money** (docs/shipped/payments.md §0.3). `pilgrim/scheduler.py`,
-    `pilgrim/selector.py` and `pilgrim/producer.py` never import
+    `pilgrim/selector.py` and `pilgrim/producer/` never import
     `pilgrim/payments.py` or call Stripe. Only a signature-verified webhook or a
     server-side session retrieve marks a request paid. Moderate before creating
     a Checkout Session. Tests use `pilgrim/tests/fakes/fake_stripe.py`; real

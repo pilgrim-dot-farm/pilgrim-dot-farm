@@ -31,7 +31,7 @@ achieve either consistently:
   It ignores their weights, leaves the choice to the LLM, and accepts the
   returned genre even if it was recently used or absent from config. An
   in-memory fake confirmed that it accepts a zero-weight, recently used genre.
-- `pilgrim/producer.py::_recent_genres` uses the last five **created** songs,
+- `pilgrim/producer/::_recent_genres` uses the last five **created** songs,
   while the brief labels the last three of these as "recently aired." It does
   not read the committed air order. Any listener request, even one asking only
   for a subject, disables the brief's genre avoidance.

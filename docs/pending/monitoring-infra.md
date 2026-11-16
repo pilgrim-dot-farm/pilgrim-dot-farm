@@ -624,7 +624,7 @@ In addition to AGENTS §1:
    over HTTP, never asks a model for anything. Enforced by the render tool's
    deny list and a test.
 2. The exporter, the receiver and the render tool never import
-   `pilgrim/scheduler.py`, `pilgrim/producer.py`, `pilgrim/selector.py` or
+   `pilgrim/scheduler.py`, `pilgrim/producer/`, `pilgrim/selector.py` or
    `pilgrim/payments.py`, and never open `station.db` or `DATABASE_URL`.
 3. No metric label or log line produced here carries a player id, voter id,
    IP, email, token, URL with credentials, or chat text.

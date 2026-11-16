@@ -86,7 +86,7 @@ Key facts:
 ### 0.3 Facts you must not get wrong
 
 1. **Playout never waits on payment.** Nothing in `pilgrim/scheduler.py`,
-   `pilgrim/selector.py` or `pilgrim/producer.py` imports `pilgrim/payments.py`
+   `pilgrim/selector.py` or `pilgrim/producer/` imports `pilgrim/payments.py`
    or calls Stripe. Payment only changes rows in the `requests` table; the
    producer and scheduler see a `queued` row exactly as they do today, plus a
    `priority` value used for ordering.

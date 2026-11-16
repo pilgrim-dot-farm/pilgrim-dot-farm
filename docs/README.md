@@ -75,17 +75,17 @@ record names the commit.
 | Area | Files | RADIO.md |
 |------|-------|----------|
 | Playout | `pilgrim/scheduler.py`, `pilgrim/selector.py` | §5 |
-| Production | `pilgrim/producer.py`, `pilgrim/pipelines/` | §6 |
+| Production | `pilgrim/producer/`, `pilgrim/pipelines/` | §6 |
 | Station bible, running gags | `pilgrim/bible/`, `pilgrim/promotions.py` | §7 |
 | Audio QC, normalization, MP3 | `pilgrim/audio/` | §8 |
 | Media publishing, cover art | `pilgrim/media_publish.py`, `pilgrim/album_art.py` | §8.4 |
 | Client | `pilgrim/web/` | §9 |
 | Voices | `voices:` in `pilgrim/config.yaml`, `pilgrim/prompts/` | §10 |
-| Server | `pilgrim/server.py` | §11 |
+| Server | `pilgrim/server.py` (station, apps), `pilgrim/api/` (routes) | §11 |
 | Web tier | `pilgrim/web_app.py` | §11 "Web tier" |
 | Config | `pilgrim/config.yaml`, `pilgrim/config.py` | §12 |
 | Storage | `pilgrim/store/`, `pilgrim/db.py`, `pilgrim/hotstate.py` | §14 |
-| Paid requests | `pilgrim/payments.py` | §11 |
+| Paid requests | `pilgrim/payments.py`, `pilgrim/api/paid.py` | §11 |
 | Sheep Pen chat | `pilgrim/chat/`, `pilgrim/chat_worker.py` | §11, §14 |
 | DJ console | `pilgrim/tui/` | `systems/console.md` |
 | Deploy | `pilgrim/deploy/` | — |

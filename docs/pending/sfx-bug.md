@@ -43,7 +43,7 @@ evergreen with fixed seeds; `wind_bed` and `rimshot` wired but silent,
 ### D2 — Failed cues are never retried (code bug, still present 2026-11-10)
 
 `producer.sfx_step` pops `meta.sfx_pending` **unconditionally** after
-`_attach_sfx` (`pilgrim/producer.py` ~line 941); there is no `sfx_attempts`
+`_attach_sfx` (`pilgrim/producer/` ~line 941); there is no `sfx_attempts`
 counter anywhere in the tree. A render that failed during a D1 outage is
 dropped forever — the item stays dry for its whole life. This is exactly the
 cgm.md §1.2 bug; its fix (C3: retry with cap + `/health` gate) is unimplemented.

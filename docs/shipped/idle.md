@@ -13,7 +13,7 @@ Step 4). Normative behaviour: RADIO §3, §5.3, §6.1, §11, §12, §14; AGENTS 
 (a `/api/station/program` probe wakes the station).
 
 Code: `idle:` in `pilgrim/config.yaml`, `Scheduler.freeze`/thaw in
-`pilgrim/scheduler.py`, the producer pause in `pilgrim/producer.py`, the
+`pilgrim/scheduler.py`, the producer pause in `pilgrim/producer/`, the
 policy in `pilgrim/server.py`, the wake flag in `pilgrim/hotstate.py`.
 
 > Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy

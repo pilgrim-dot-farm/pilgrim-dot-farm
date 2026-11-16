@@ -8,7 +8,7 @@ Three MiniMax Music 3 deployments sit behind one LiteLLM model group; the
 station renders up to three songs at once, enforces the slot ceiling itself
 and staggers submissions. Normative behaviour: RADIO §6.1, §6.2, §12;
 docs/backends.md §2b. Code: `pilgrim/pipelines/songs.py` (`MusicPool`,
-`SongPipeline`), the song jobs and decider in `pilgrim/producer.py`,
+`SongPipeline`), the song jobs and decider in `pilgrim/producer/`,
 `pilgrim/tests/test_song_concurrency.py`.
 
 > Condensed 2026-11-16. The step-by-step plan (exact code, test edits, deploy
