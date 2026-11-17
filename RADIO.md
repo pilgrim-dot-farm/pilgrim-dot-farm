@@ -1270,7 +1270,12 @@ the station name.
   never a per-item element or a handoff between elements (hard rule 9 still
   holds: joins are sample-accurate `AudioBufferSourceNode.start(when)` on one
   context). If the element cannot play (old browser, policy), the graph
-  connects straight to `ctx.destination` (`sink: direct`). Before the context
+  connects straight to `ctx.destination` (`sink: direct`). A **silence floor**
+  (2026-11-16) runs for the whole session: a 20 Hz sine oscillator at
+  -80 dBFS, connected straight to the output and not to the analyser, so the
+  output is never digital silence at a join between silence-trimmed items
+  (iOS dropped an AirPlay route to the phone speaker at every join and did
+  not return; Bluetooth was unaffected). Before the context
   is created, PLAY sets `navigator.audioSession.type = "playback"` (Audio
   Session API, Safari 17+; a no-op elsewhere) so iOS does not mute Web Audio
   with the ringer switch. The **Media Session API** carries the audible song's

@@ -43,6 +43,15 @@
   // graph connects straight to ctx.destination ("direct", desktop fallback).
   const sinkEl = $("sink");
   let sinkDest = null, sinkMode = "direct";
+  // Silence floor (RADIO §9.2): a 20 Hz sine far below audibility, wired
+  // straight to the output (not the analyser, so the meter never sees it; an
+  // oscillator, not a buffer source, because it is not a programme clip).
+  // Items are silence-trimmed, so every join is a moment of digital silence;
+  // iOS then stops treating the page as playing media and drops an AirPlay
+  // route for good (Bluetooth survives). The floor keeps the graph's output
+  // non-zero for the whole session.
+  const FLOOR_AMP = 1e-4, FLOOR_HZ = 20;   // -80 dBFS
+  let floorSrc = null, floorGain = null;
   // Interruption recovery: Date.now() when the context stopped running
   // (null while running) and how many times it recovered this session.
   let interruptedAt = null, resumedCount = 0, resumeTimer = null;
@@ -269,6 +278,14 @@
      Called synchronously inside the PLAY gesture so sinkEl.play() is allowed.
      The element path is what keeps phones playing in the background; if it
      cannot play (old browser, policy), fall back to the direct connection. */
+  function startFloor(out) {
+    try {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.frequency.value = FLOOR_HZ; g.gain.value = FLOOR_AMP;
+      osc.connect(g); g.connect(out); osc.start();
+      floorSrc = osc; floorGain = g;
+    } catch (e) { floorSrc = null; floorGain = null; }
+  }
   function attachOutput() {
     sinkMode = "direct";
     if (sinkEl && ctx.createMediaStreamDestination && "srcObject" in sinkEl) {
@@ -276,6 +293,7 @@
       try {
         sinkDest = ctx.createMediaStreamDestination();
         analyser.connect(sinkDest);
+        startFloor(sinkDest);
         sinkEl.srcObject = sinkDest.stream;
         sinkMode = "element";
         const p = sinkEl.play();
@@ -284,6 +302,7 @@
       } catch (e) { fallbackDirect(); return; }
     }
     analyser.connect(ctx.destination);
+    startFloor(ctx.destination);
   }
   function fallbackDirect() {
     if (!ctx || !analyser || sinkMode !== "element") return;
@@ -291,9 +310,15 @@
     try { sinkEl.srcObject = null; } catch (e) {}
     sinkDest = null; sinkMode = "direct";
     try { analyser.connect(ctx.destination); } catch (e) {}
+    try {
+      if (floorGain) { floorGain.disconnect(); floorGain.connect(ctx.destination); }
+      else startFloor(ctx.destination);
+    } catch (e) {}
   }
   function detachOutput() {
     try { if (sinkEl) { sinkEl.pause(); sinkEl.srcObject = null; } } catch (e) {}
+    try { if (floorSrc) { floorSrc.stop(); floorGain.disconnect(); } } catch (e) {}
+    floorSrc = null; floorGain = null;
     sinkDest = null; sinkMode = "direct";
   }
 
