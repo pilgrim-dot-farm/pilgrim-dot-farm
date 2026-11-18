@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 from pilgrim import genres
 from pilgrim.logging_setup import err_text
 from pilgrim.pipelines.clocktime import (
+    day_part,
+    day_part_end,
     mentions_clock,
     mentions_day,
     spoken_time,
@@ -103,6 +105,7 @@ class TalkProducer(SfxProducer):
     async def ensure_dj(self) -> None:
         # dj_talk is contextual: only unaired clips are stock (AGENTS rule 10,
         # OVERHAUL 5.1) — aired DJ clips are gone, so we keep topping up.
+        self._retire_undated_dj_talk()
         have = self._count_fresh_unexpired("dj_talk")
         need = self.cfg.inventory.dj_talk_min - have
         log.debug("producer.need", extra={
@@ -139,10 +142,14 @@ class TalkProducer(SfxProducer):
             context_parts.append(f"Host persona: {host.persona}.")
         context_parts.extend(self._request_context())
         context = "\n".join(context_parts)
-        # Expiry is stamped AFTER the LLM call (revision 3). A clock/day-part
-        # statement expires on the short TTL; a weekday/date fact expires at
-        # local midnight (revision 6); copy with neither is not perishable and
-        # may wait on the shelf.
+        # Every clip is written for the day part in its context, so none
+        # outlives that day part: the model says "this morning" or "tonight"
+        # in more ways than a pattern can list, and an unexpiring clip waits
+        # out an idle freeze and airs hours later. On top of that ceiling a
+        # clock statement expires on the short TTL (stamped AFTER the LLM
+        # call, revision 3) and a weekday/date fact at local midnight
+        # (revision 6).
+        part_end = day_part_end(now_wall, tz)
         for _ in range(max(0, need)):
             try:
                 copy = await self.voice.write_copy(
@@ -162,13 +169,14 @@ class TalkProducer(SfxProducer):
                 item = self.voice.item_dict("dj_talk", copy, rendered)
                 text = copy["text"]
                 wall = self.clock.wall()  # after the LLM call, not before
-                expires = None
+                expires_wall = part_end
                 if mentions_clock(text):
-                    expires = (datetime.fromtimestamp(wall, UTC) + timedelta(
-                        seconds=self.cfg.talk.time_mention_ttl_s)).isoformat()
-                elif mentions_day(text):
-                    expires = datetime.fromtimestamp(
-                        next_local_midnight(wall, tz), UTC).isoformat()
+                    expires_wall = min(
+                        expires_wall, wall + self.cfg.talk.time_mention_ttl_s)
+                if mentions_day(text):
+                    expires_wall = min(
+                        expires_wall, next_local_midnight(wall, tz))
+                expires = datetime.fromtimestamp(expires_wall, UTC).isoformat()
                 item["meta"]["topic"] = topic
                 item["meta"]["motifs"] = [
                     m for m in self.cfg.talk.motif_bank if m.lower() in text.lower()]
@@ -179,16 +187,15 @@ class TalkProducer(SfxProducer):
                 log.warning("dj_talk.production_failed: %s", err_text(e))
                 return
 
+    def _retire_undated_dj_talk(self) -> None:
+        """Unaired DJ clips with no expiry predate the day-part ceiling: they
+        may say "this morning" and would air at any hour. Retire them."""
+        for it in self.store.list_items("dj_talk"):
+            if it["fresh"] and not it["emergency"] and not it.get("expires_at"):
+                self.store.retire_item(it["id"], "dj talk without a day-part expiry")
+
     def _day_part(self, hour: int) -> str:
-        if 5 <= hour < 11:
-            return "morning drive"
-        if 11 <= hour < 14:
-            return "midday"
-        if 14 <= hour < 17:
-            return "afternoon"
-        if 17 <= hour < 21:
-            return "evening"
-        return "overnight"
+        return day_part(hour)
 
     def _current_host(self):
         """The host on shift now (by day part); None when hosts are not

@@ -106,14 +106,12 @@ Where this section and the body below disagree, this section wins.
 
   | Days out | Phrase |
   |---|---|
-  | 22+ | "coming up" |
-  | 15–21 | "a few weeks away" |
-  | 8–14 | "a couple weeks away" |
-  | 5–7 | "about a week away" |
-  | 3–4 | "a few days away" |
-  | 2 | "a couple days away" |
+  | 2+ | the exact count: "nine days away" |
   | 1 | "tomorrow" |
   | 0 | "Happy Thanksgiving" |
+
+  (Changed 2026-11-17, operator decision: the earlier vague buckets said "a
+  couple weeks away" at nine days out.)
 
 - No spoken calendar date; no `require_date_every_n`.
 - Ramp: ~1 promo/h, 2/h in the final week, a few extra on the day (gravity

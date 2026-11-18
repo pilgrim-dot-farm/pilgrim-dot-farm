@@ -59,6 +59,43 @@ async def current_local_time(
         return datetime.now(ZoneInfo(cfg.station.timezone))
 
 
+# Station-local hour each day part starts at, in order. The last one wraps
+# past midnight to the first.
+DAY_PARTS: list[tuple[int, str]] = [
+    (5, "morning drive"),
+    (11, "midday"),
+    (14, "afternoon"),
+    (17, "evening"),
+    (21, "overnight"),
+]
+
+
+def day_part(hour: int) -> str:
+    """The day part a station-local hour falls in."""
+    name = DAY_PARTS[-1][1]
+    for start, part in DAY_PARTS:
+        if hour >= start:
+            name = part
+    return name
+
+
+def day_part_end(now_wall: float, tz: str) -> float:
+    """Wall epoch at which the current station-local day part ends.
+
+    DJ copy is written for one day part ("morning drive", "overnight"), so a
+    clip must not air after this, however it worded the time of day.
+    """
+    zone = ZoneInfo(tz)
+    dt = datetime.fromtimestamp(now_wall, zone)
+    for start, _ in DAY_PARTS:
+        if dt.hour < start:
+            return datetime(dt.year, dt.month, dt.day, start,
+                            tzinfo=zone).timestamp()
+    nxt = (dt + timedelta(days=1)).date()
+    return datetime(nxt.year, nxt.month, nxt.day, DAY_PARTS[0][0],
+                    tzinfo=zone).timestamp()
+
+
 def _hour_word(h: int) -> str:
     words = {0: "twelve", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
              6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven",

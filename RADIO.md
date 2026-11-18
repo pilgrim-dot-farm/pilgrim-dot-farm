@@ -144,12 +144,18 @@ Segment types the selector chooses from:
   weather | town_notice | promo` (weather/town_notice are optional extras).
 - `dj_talk` — contextual talk-up about recent songs, the day, the town and a
   rotated topic. **Time-free**: the clock is carried by `time_check` only.
+  The copy is written for one day part (overnight / morning drive / midday /
+  afternoon / evening), so every clip carries an `expires_at` no later than
+  the end of that day part (sooner for a clock statement or a weekday/date);
+  an unaired clip with no expiry is retired.
 - `time_check` — a 3–5 s clock read, **code-written** (no LLM), airing at
   :00/:15/:30/:45 (ANNOUNCER §A4).
 - `promo` — a 10–20 s station promo; `meta.kind` ∈
   `campaign | request_line | paid_tier | tree_fiddy`.
   Campaign promos are LLM-written with code-filled day tokens and expire at
-  local midnight. Request-line, paid-tier and Tree Fiddy Report promos are
+  local midnight. `[[days_until]]` is the exact count ("nine days away",
+  "tomorrow", "Happy Thanksgiving"); a promo whose `meta.days` is not today's
+  count is retired. Request-line, paid-tier and Tree Fiddy Report promos are
   code-written config lines (no LLM). The Tree Fiddy Report is voiced by the
   operator character (Jimmany, `am_justin`), carries the real count of paid
   requests aired in the last 7 days, and is regenerated hourly. Paid-tier

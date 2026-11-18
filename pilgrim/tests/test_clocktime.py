@@ -114,3 +114,30 @@ def test_mentions_clock_table():
     assert not mentions_clock("The sprinkler is circling slow by the feed store.")
     assert not mentions_clock("We just played Tractor Roll on Tuesday.")
     assert not mentions_clock("")
+
+
+def test_day_part_table():
+    from pilgrim.pipelines.clocktime import day_part
+    assert [day_part(h) for h in (0, 4, 5, 10, 11, 13, 14, 16, 17, 20, 21, 23)] == [
+        "overnight", "overnight", "morning drive", "morning drive", "midday",
+        "midday", "afternoon", "afternoon", "evening", "evening", "overnight",
+        "overnight"]
+
+
+def test_day_part_end_is_the_next_local_boundary():
+    from zoneinfo import ZoneInfo
+
+    from pilgrim.pipelines.clocktime import day_part_end
+    tz = "America/Detroit"
+    zone = ZoneInfo(tz)
+
+    def end(hour: int, minute: int) -> datetime:
+        now = datetime(2026, 11, 17, hour, minute, tzinfo=zone).timestamp()
+        return datetime.fromtimestamp(day_part_end(now, tz), zone)
+
+    assert end(8, 30) == datetime(2026, 11, 17, 11, tzinfo=zone)
+    assert end(11, 0) == datetime(2026, 11, 17, 14, tzinfo=zone)
+    assert end(19, 59) == datetime(2026, 11, 17, 21, tzinfo=zone)
+    # overnight runs past midnight to the morning boundary
+    assert end(23, 15) == datetime(2026, 11, 18, 5, tzinfo=zone)
+    assert end(2, 0) == datetime(2026, 11, 17, 5, tzinfo=zone)

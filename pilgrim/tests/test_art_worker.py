@@ -245,6 +245,25 @@ async def test_run_loop_survives_store_errors(tmp_env):
         await task
 
 
+@pytest.mark.asyncio
+async def test_idle_loop_probes_health_so_a_restart_does_not_read_down(tmp_env):
+    """With every song covered the loop never renders; the status must still
+    come from a probe, not stay at the constructor's "down"."""
+    cfg, store, _ = tmp_env
+    _cfg(cfg)
+    w = _worker(cfg, store)
+    assert w.backend == "down"
+    task = asyncio.create_task(w.run())
+    for _ in range(200):
+        await asyncio.sleep(0.01)
+        if w.backend == "ok":
+            break
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert w.backend == "ok" and w.rendered == 0
+
+
 # ------------------------------------------------------------------ health
 def _station(tmp_env, cfg):
     station = build_station(cfg)

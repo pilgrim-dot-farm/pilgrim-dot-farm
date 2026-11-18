@@ -52,12 +52,13 @@ def test_days_until_uses_station_local_date():
 
 
 def test_phrase_table():
-    assert phrase_for(25) == "coming up"
-    assert phrase_for(21) == "a few weeks away"
-    assert phrase_for(14) == "a couple weeks away"
-    assert phrase_for(7) == "about a week away"
-    assert phrase_for(4) == "a few days away"
-    assert phrase_for(2) == "a couple days away"
+    # the exact count of days, spelled out (operator decision 2026-11-17)
+    assert phrase_for(25) == "twenty-five days away"
+    assert phrase_for(21) == "twenty-one days away"
+    assert phrase_for(20) == "twenty days away"
+    assert phrase_for(14) == "fourteen days away"
+    assert phrase_for(9) == "nine days away"
+    assert phrase_for(2) == "two days away"
     assert phrase_for(1) == "tomorrow"
     assert phrase_for(0) == "Happy Thanksgiving"
     assert phrase_for(-1) == ""
@@ -91,7 +92,7 @@ def test_fill_day_tokens_and_no_spoken_date_by_default():
     c = camp()
     now = wall_at(2026, 11, 20)
     out = fill_day_tokens("[[event_name]] is [[days_until]] at [[cta]].", now, TZ, c)
-    assert out == "Thanksgiving is about a week away at the request line."
+    assert out == "Thanksgiving is six days away at the request line."
     # date_label empty -> [[event_date]] falls back to the label (never spoken)
     assert "the twenty-sixth" not in fill_day_tokens("[[event_date]]", now, TZ, c)
 

@@ -381,6 +381,18 @@ class ArtWorker:
         except Exception:  # noqa: BLE001 - a DB hiccup must not kill the worker
             log.exception("art.backoff_write_failed", extra={"item_id": item_id})
 
+    async def _probe_idle(self) -> None:
+        """Refresh the cached status when there is nothing to render.
+
+        The status otherwise changes only inside a render, so a restart with
+        every song already covered reported "down" until the next new song.
+        Skipped while an early render holds the lock: that render sets the
+        status itself and `/health` blocks behind it.
+        """
+        if self._render_lock.locked():
+            return
+        self.backend = "ok" if await self.flux.health() else "down"
+
     # -- loop --------------------------------------------------------------
     async def run(self) -> None:
         log.info("art.worker_start", extra={
@@ -399,6 +411,7 @@ class ArtWorker:
                         delay = self.cfg.art.retry_after_s
                 else:
                     log.info("art.idle", extra={"with_art": self.db.art_counts()["with_art"]})
+                    await self._probe_idle()
             except Exception as e:  # noqa: BLE001 - never raise out of the loop
                 log.warning("art.loop_error", extra={"error": f"{type(e).__name__}: {e}"[:300]})
                 delay = self.cfg.art.retry_after_s

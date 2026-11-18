@@ -115,6 +115,60 @@ def test_ensure_dj_refills_after_all_clips_aired(cfg, tmp_env):
     assert voice.calls == target
 
 
+def test_dj_talk_never_outlives_its_day_part(cfg, tmp_env):
+    """A DJ clip is written for one day part, so it expires when that part
+    ends even when the copy matches no clock pattern ("this morning" aired in
+    the evening after an idle freeze). Unaired clips with no expiry predate
+    that rule and are retired."""
+    import asyncio
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    _, store, _ = tmp_env
+    zone = ZoneInfo(cfg.station.timezone)
+    wall = datetime(2026, 11, 17, 8, 30, tzinfo=zone).timestamp()
+    legacy = make_item(cfg, store, "dj_talk", 16.0, fresh=True)   # no expiry
+    prod = make_producer(cfg, store, FakeVoice(),
+                         clock_override=SimClock(epoch=wall))
+    asyncio.run(prod.ensure_dj())
+    items = store.list_items("dj_talk")
+    assert legacy not in [i["id"] for i in items]
+    assert len(items) == cfg.inventory.dj_talk_min
+    morning_ends = datetime(2026, 11, 17, 11, tzinfo=zone)
+    for it in items:
+        assert datetime.fromisoformat(it["expires_at"]) == morning_ends
+
+
+def test_campaign_promo_with_a_stale_countdown_is_retired(cfg, tmp_env):
+    """A campaign promo states a days-out count: one that states another count
+    (or none, from before the count was exact) is retired, not recycled."""
+    import asyncio
+    import json
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from pilgrim.config import Campaign, CampaignStep
+    _, store, _ = tmp_env
+    zone = ZoneInfo(cfg.station.timezone)
+    wall = datetime(2026, 11, 17, 12, tzinfo=zone).timestamp()
+    cfg.promotions.campaigns = [Campaign(
+        id="t", label="Thanksgiving", date="2026-11-26", cta="the request line",
+        lines=["a song for the table"],
+        schedule=[CampaignStep.model_validate(
+            {"from": "2026-11-01", "until": "2026-11-25", "per_hour": 1})])]
+    old = make_item(cfg, store, "promo", 12.0, fresh=False,
+                    meta={"kind": "campaign", "campaign_id": "t",
+                          "text": "Thanksgiving is a couple weeks away."})
+    prod = make_producer(cfg, store, FakeVoice(),
+                         clock_override=SimClock(epoch=wall))
+    asyncio.run(prod.ensure_promos())
+    metas = [json.loads(i["meta_json"]) for i in store.list_items("promo")
+             if i["id"] != old]
+    camp = [m for m in metas if m.get("kind") == "campaign"]
+    assert old not in [i["id"] for i in store.list_items("promo")]
+    assert len(camp) == cfg.inventory.promos_min
+    assert all(m["days"] == 9 and "nine days away" in m["text"] for m in camp)
+
+
 def test_ensure_commercials_stops_at_usable_target(cfg, tmp_env):
     """Once `commercials_min` usable spots exist, no more are produced even if
     they've all aired (previously it counted fresh and over-produced forever)."""

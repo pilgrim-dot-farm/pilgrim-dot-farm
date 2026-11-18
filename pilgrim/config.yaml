@@ -419,8 +419,10 @@ talk:
   # He comments on the Sheep Pen chat in his radio report (RADIO §6.1): a report
   # is about the pen when this many reviewed (accepted) messages are newer than his last
   # pen report. He never posts in the chat.
-  field_pen_min_messages: 3   # 0 = never
-  field_pen_window_s: 3600    # only messages this recent
+  # 2026-11-17: was 3 messages in 3600 s. The pen sees about one message an
+  # hour, so the bar was never met (0 of 31 reports were about the pen).
+  field_pen_min_messages: 1   # 0 = never
+  field_pen_window_s: 21600   # only messages this recent
   field_pen_max_messages: 30  # newest N handed to the copy model
 
 # Sound effects overlaid on non-news talk (docs/systems/sfx.md). Never on news, by construction.

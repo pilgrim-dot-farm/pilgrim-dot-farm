@@ -13,19 +13,25 @@ from zoneinfo import ZoneInfo
 
 from pilgrim.config import Campaign
 
-# Days-out phrasing, operator decision. Timing is optional: most promos just
-# name the day. When a promo does mention timing, this is the phrase the code
-# supplies and the copy uses verbatim.
-DAYS_PHRASES: list[tuple[int, str]] = [
-    (22, "coming up"),
-    (15, "a few weeks away"),
-    (8, "a couple weeks away"),
-    (5, "about a week away"),
-    (3, "a few days away"),
-    (2, "a couple days away"),
-    (1, "tomorrow"),
-    (0, "Happy Thanksgiving"),
-]
+# Days-out phrasing (operator decision, 2026-11-17): the promo reports the
+# exact count of days ("nine days away"). The earlier vague buckets said "a
+# couple weeks away" at nine days out. The code supplies the phrase and the
+# copy uses it verbatim.
+_ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven",
+         "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+         "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+         "eighty", "ninety"]
+
+
+def _count_words(n: int) -> str:
+    """A count spelled out for TTS; digits past ninety-nine."""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return _TENS[tens] + (f"-{_ONES[ones]}" if ones else "")
+    return str(n)
 
 # Timing words an LLM must never write: they cannot be re-filled, and the
 # tokens already carry the correct phrase (revision 5/6).
@@ -54,13 +60,14 @@ def days_until(now_wall: float, tz: str, campaign: Campaign) -> int:
 
 
 def phrase_for(days: int) -> str:
-    """The colloquial timing phrase for a days-out count ('' when negative)."""
+    """The timing phrase for a days-out count ('' when negative)."""
     if days < 0:
         return ""
-    for threshold, phrase in DAYS_PHRASES:
-        if days >= threshold:
-            return phrase
-    return ""
+    if days == 0:
+        return "Happy Thanksgiving"
+    if days == 1:
+        return "tomorrow"
+    return f"{_count_words(days)} days away"
 
 
 def target_per_hour(now_wall: float, tz: str, campaign: Campaign) -> float:

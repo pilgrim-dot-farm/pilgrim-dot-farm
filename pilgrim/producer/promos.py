@@ -68,6 +68,10 @@ class PromoProducer(TalkProducer):
                     expired = datetime.fromisoformat(exp).timestamp() <= now_wall
             if expired or camp is None or target_per_hour(now_wall, tz, camp) <= 0:
                 self.store.retire_item(it["id"], "campaign promo expired/ended")
+            elif meta.get("days") != days_until(now_wall, tz, camp):
+                # states another day's countdown (or predates the exact
+                # count): never recycle it
+                self.store.retire_item(it["id"], "campaign promo countdown stale")
 
     async def ensure_promos(self) -> None:
         """Keep ready promos per source. Campaign promos only while the ramp
@@ -148,6 +152,7 @@ class PromoProducer(TalkProducer):
         item = self.voice.item_dict("promo", copy, rendered)
         item["meta"]["kind"] = "campaign"
         item["meta"]["campaign_id"] = camp.id
+        item["meta"]["days"] = days
         expires = datetime.fromtimestamp(
             next_local_midnight(now, tz), UTC).isoformat()
         self._store_voice(item, "promo", evergreen=True, expires_at=expires)
