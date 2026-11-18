@@ -655,9 +655,9 @@ station posts in the chat.** When `ensure_field_reports` writes a report it
 reads the durable chat copy (`chat_messages`, §14): listener messages the
 review worker has passed (`accepted` only; never `pending_review`, `flagged`
 or `deleted`, so with the chat worker down he files ordinary reports), with
-text, from the last `talk.field_pen_window_s` (3600) and
+text, from the last `talk.field_pen_window_s` (21600) and
 newer than the last pen report. With at least `talk.field_pen_min_messages`
-(3; 0 = never) of them, the newest `talk.field_pen_max_messages` (30) are
+(1; 0 = never) of them, the newest `talk.field_pen_max_messages` (30) are
 handed to the copy model through `prompts/field_pen.md` as data, **text
 only: no display names or ids**, and the report is about the pen: its mood
 and topics in his own words, nobody named, nothing quoted or read out.
